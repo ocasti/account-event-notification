@@ -18,9 +18,9 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
-import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import io.micrometer.core.instrument.MeterRegistry;
 
 import java.time.Instant;
 import java.util.List;
@@ -37,13 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(NotificationEventController.class)
 @EnableConfigurationProperties(JwtProperties.class)
-@Import({ClientIdResolver.class, NotificationEventResponseMapper.class, ApiExceptionHandler.class, RestTestSecurityConfig.class})
-@TestPropertySource(properties = {
-    "notifications.jwt.audience=account-event-notification",
-    "notifications.jwt.client-claim=sub",
-    "notifications.jwt.public-key=classpath:test-jwt-public.pem",
-    "spring.jpa.database=h2"
-})
+@Import({SecurityConfig.class, ClientIdResolver.class, NotificationEventResponseMapper.class, ApiExceptionHandler.class})
 class NotificationEventControllerTest {
     @Autowired
     private MockMvc mockMvc;
@@ -57,8 +51,12 @@ class NotificationEventControllerTest {
     @MockitoBean
     private ReplayNotificationEvent replayNotificationEvent;
 
-    @MockitoBean
-    private MeterRegistry meterRegistry;
+    @DynamicPropertySource
+    static void props(DynamicPropertyRegistry r) {
+        r.add("notifications.jwt.public-key", () -> "file:" + RestTestSecurityConfig.publicKeyFile());
+        r.add("notifications.jwt.audience", () -> "account-event-notification");
+        r.add("notifications.jwt.client-claim", () -> "sub");
+    }
 
     @Test
     void list_withoutToken_returns401() throws Exception {

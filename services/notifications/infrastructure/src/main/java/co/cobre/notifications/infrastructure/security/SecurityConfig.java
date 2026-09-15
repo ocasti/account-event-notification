@@ -1,6 +1,5 @@
 package co.cobre.notifications.infrastructure.security;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -52,7 +51,6 @@ public class SecurityConfig {
      * Configures the JWT decoder with public key and audience validation.
      */
     @Bean
-    @ConditionalOnMissingBean
     public JwtDecoder jwtDecoder(JwtProperties props) {
         try {
             var publicKeyContent = new String(props.publicKey().getContentAsByteArray())

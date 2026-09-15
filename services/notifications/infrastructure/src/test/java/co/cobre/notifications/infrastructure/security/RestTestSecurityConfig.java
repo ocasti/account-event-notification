@@ -6,37 +6,29 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtValidators;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
-import org.springframework.security.oauth2.core.OAuth2TokenValidator;
-import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.web.SecurityFilterChain;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
-@TestConfiguration
-@EnableWebSecurity
 public class RestTestSecurityConfig {
     private static final KeyPair KEY_PAIR;
     private static final RSAPublicKey PUBLIC_KEY;
     private static final RSAPrivateKey PRIVATE_KEY;
     private static final String AUDIENCE = "account-event-notification";
+    private static Path PEM_FILE;
 
     static {
         try {
@@ -48,27 +40,6 @@ public class RestTestSecurityConfig {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("Failed to generate RSA key pair", e);
         }
-    }
-
-    @Bean
-    @Primary
-    public SecurityFilterChain apiSecurity(HttpSecurity http) throws Exception {
-        http
-            .csrf(csrf -> csrf.disable())
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(authz -> authz
-                .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
-                .anyRequest().authenticated()
-            )
-            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}));
-        return http.build();
-    }
-
-    @Bean
-    @Primary
-    public JwtDecoder jwtDecoder() {
-        return NimbusJwtDecoder.withPublicKey(PUBLIC_KEY)
-            .build();
     }
 
     public static String token(String clientId) {
@@ -91,6 +62,33 @@ public class RestTestSecurityConfig {
             return jwt.serialize();
         } catch (JOSEException e) {
             throw new RuntimeException("Failed to sign JWT", e);
+        }
+    }
+
+    public static Path publicKeyFile() {
+        if (PEM_FILE != null) {
+            return PEM_FILE;
+        }
+
+        try {
+            String encoded = Base64.getEncoder().encodeToString(PUBLIC_KEY.getEncoded());
+            StringBuilder pem = new StringBuilder();
+            pem.append("-----BEGIN PUBLIC KEY-----\n");
+
+            for (int i = 0; i < encoded.length(); i += 64) {
+                int end = Math.min(i + 64, encoded.length());
+                pem.append(encoded, i, end).append("\n");
+            }
+
+            pem.append("-----END PUBLIC KEY-----\n");
+
+            PEM_FILE = Files.createTempFile("test-jwt", ".pem");
+            Files.write(PEM_FILE, pem.toString().getBytes(StandardCharsets.UTF_8));
+            PEM_FILE.toFile().deleteOnExit();
+
+            return PEM_FILE;
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to create PEM file", e);
         }
     }
 }
