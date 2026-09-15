@@ -1,6 +1,6 @@
 package co.cobre.notifications.infrastructure.rest;
 
-import co.cobre.notifications.domain.model.EventId;
+import co.cobre.notifications.domain.EventId;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;

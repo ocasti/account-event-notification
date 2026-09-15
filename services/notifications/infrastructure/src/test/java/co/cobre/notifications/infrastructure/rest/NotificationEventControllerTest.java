@@ -3,11 +3,11 @@ package co.cobre.notifications.infrastructure.rest;
 import co.cobre.notifications.application.usecase.GetNotificationEvent;
 import co.cobre.notifications.application.usecase.ListNotificationEvents;
 import co.cobre.notifications.application.usecase.ReplayNotificationEvent;
-import co.cobre.notifications.domain.exception.IllegalStateTransitionException;
-import co.cobre.notifications.domain.exception.NotificationEventNotFoundException;
-import co.cobre.notifications.domain.exception.ReplayNotAllowedException;
-import co.cobre.notifications.domain.model.*;
-import co.cobre.notifications.infrastructure.rest.mapper.NotificationEventResponseMapper;
+import co.cobre.notifications.domain.IllegalStateTransitionException;
+import co.cobre.notifications.domain.NotificationEventNotFoundException;
+import co.cobre.notifications.domain.ReplayNotAllowedException;
+import co.cobre.notifications.domain.*;
+import co.cobre.notifications.infrastructure.rest.NotificationEventResponseMapper;
 import co.cobre.notifications.infrastructure.security.ClientIdResolver;
 import co.cobre.notifications.infrastructure.security.JwtProperties;
 import co.cobre.notifications.infrastructure.security.RestTestSecurityConfig;
@@ -88,7 +88,7 @@ class NotificationEventControllerTest {
         );
 
         when(listNotificationEvents.list(any()))
-            .thenReturn(new co.cobre.notifications.application.query.NotificationEventPage(
+            .thenReturn(new co.cobre.notifications.application.usecase.NotificationEventPage(
                 List.of(event),
                 Optional.of("cursor123")
             ));
@@ -156,7 +156,7 @@ class NotificationEventControllerTest {
     void list_withoutLimit_defaultsTo20() throws Exception {
         ClientId clientId = new ClientId("CLIENT002");
         when(listNotificationEvents.list(any()))
-            .thenReturn(new co.cobre.notifications.application.query.NotificationEventPage(
+            .thenReturn(new co.cobre.notifications.application.usecase.NotificationEventPage(
                 List.of(),
                 Optional.empty()
             ));
@@ -203,7 +203,7 @@ class NotificationEventControllerTest {
         );
 
         when(getNotificationEvent.get(any(), any()))
-            .thenReturn(new co.cobre.notifications.application.query.NotificationEventDetail(
+            .thenReturn(new co.cobre.notifications.application.usecase.NotificationEventDetail(
                 event,
                 List.of(attempt)
             ));
@@ -241,7 +241,7 @@ class NotificationEventControllerTest {
         EventId eventId = new EventId("EVT003");
 
         when(replayNotificationEvent.replay(any(), any()))
-            .thenReturn(new co.cobre.notifications.application.query.ReplayResult(
+            .thenReturn(new co.cobre.notifications.application.usecase.ReplayResult(
                 eventId,
                 2
             ));
