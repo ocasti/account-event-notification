@@ -5,6 +5,9 @@ import co.cobre.notifications.application.command.RegistrationResult;
 import co.cobre.notifications.application.port.out.DeliveryAttemptRepository;
 import co.cobre.notifications.application.port.out.NotificationEventRepository;
 import co.cobre.notifications.application.port.out.SubscriptionRepository;
+import co.cobre.notifications.domain.model.AttemptOrigin;
+import co.cobre.notifications.domain.model.DeliveryAttempt;
+import co.cobre.notifications.domain.model.NotificationEvent;
 
 import java.time.Clock;
 
@@ -36,6 +39,40 @@ public final class RegisterNotificationEvent {
      * Registers a notification event.
      */
     public RegistrationResult register(RegisterEventCommand command) {
-        throw new UnsupportedOperationException("not implemented");
+        if (events.existsById(command.eventId())) {
+            return RegistrationResult.DUPLICATE;
+        }
+
+        var subscription = subscriptions.findActive(command.clientId(), command.eventKey());
+
+        if (subscription.isEmpty()) {
+            var skippedEvent = NotificationEvent.skipped(
+                command.eventId(),
+                command.clientId(),
+                command.eventKey(),
+                command.content(),
+                command.occurredAt(),
+                clock.instant()
+            );
+            events.save(skippedEvent);
+            return RegistrationResult.SKIPPED;
+        }
+
+        var now = clock.instant();
+        var registeredEvent = NotificationEvent.register(
+            command.eventId(),
+            command.clientId(),
+            command.eventKey(),
+            command.content(),
+            command.occurredAt(),
+            now,
+            subscription.get()
+        );
+        events.save(registeredEvent);
+
+        var attempt = DeliveryAttempt.first(command.eventId(), 0, now, AttemptOrigin.SYSTEM);
+        attempts.save(attempt);
+
+        return RegistrationResult.REGISTERED;
     }
 }

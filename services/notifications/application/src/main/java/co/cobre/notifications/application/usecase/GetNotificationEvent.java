@@ -3,6 +3,7 @@ package co.cobre.notifications.application.usecase;
 import co.cobre.notifications.application.port.out.DeliveryAttemptRepository;
 import co.cobre.notifications.application.port.out.NotificationEventRepository;
 import co.cobre.notifications.application.query.NotificationEventDetail;
+import co.cobre.notifications.domain.exception.NotificationEventNotFoundException;
 import co.cobre.notifications.domain.model.ClientId;
 import co.cobre.notifications.domain.model.EventId;
 
@@ -28,6 +29,9 @@ public final class GetNotificationEvent {
      * Gets a notification event by client and event ID.
      */
     public NotificationEventDetail get(ClientId clientId, EventId eventId) {
-        throw new UnsupportedOperationException("not implemented");
+        var event = events.findByClientAndId(clientId, eventId)
+            .orElseThrow(() -> new NotificationEventNotFoundException(eventId));
+        var eventAttempts = attempts.findByEvent(eventId);
+        return new NotificationEventDetail(event, eventAttempts);
     }
 }

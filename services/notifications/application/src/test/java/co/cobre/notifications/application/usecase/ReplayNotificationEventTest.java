@@ -25,6 +25,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -59,7 +61,7 @@ class ReplayNotificationEventTest {
         );
 
         when(events.findByClientAndId(clientId, eventId)).thenReturn(Optional.of(failedEvent));
-        when(events.transition(eventId, DeliveryStatus.FAILED, org.mockito.ArgumentMatchers.any()))
+        when(events.transition(eq(eventId), eq(DeliveryStatus.FAILED), any()))
             .thenReturn(true);
 
         ReplayResult result = useCase.replay(clientId, eventId);
@@ -108,13 +110,13 @@ class ReplayNotificationEventTest {
         );
 
         when(events.findByClientAndId(clientId, eventId)).thenReturn(Optional.of(failedEvent));
-        when(events.transition(eventId, DeliveryStatus.FAILED, org.mockito.ArgumentMatchers.any()))
+        when(events.transition(eq(eventId), eq(DeliveryStatus.FAILED), any()))
             .thenReturn(false);
 
         assertThatThrownBy(() -> useCase.replay(clientId, eventId))
             .isInstanceOf(ReplayNotAllowedException.class);
 
-        verify(attempts, never()).save(org.mockito.ArgumentMatchers.any());
+        verify(attempts, never()).save(any());
     }
 
     @Test

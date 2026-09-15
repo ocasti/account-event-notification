@@ -21,6 +21,6 @@ public final class ListNotificationEvents {
      * Lists notification events.
      */
     public NotificationEventPage list(ListNotificationEventsQuery query) {
-        throw new UnsupportedOperationException("not implemented");
+        return events.search(query);
     }
 }

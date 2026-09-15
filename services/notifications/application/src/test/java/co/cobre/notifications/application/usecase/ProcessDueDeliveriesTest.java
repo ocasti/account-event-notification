@@ -33,6 +33,7 @@ import java.util.random.RandomGenerator;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -51,7 +52,7 @@ class ProcessDueDeliveriesTest {
 
     private RandomGenerator fixedRandom(double value) {
         RandomGenerator random = mock(RandomGenerator.class);
-        when(random.nextDouble()).thenReturn(value);
+        lenient().when(random.nextDouble()).thenReturn(value);
         return random;
     }
 
