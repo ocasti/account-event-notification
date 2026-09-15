@@ -377,7 +377,7 @@ flowchart LR
   <h3>Reglas que ArchUnit hace cumplir</h3>
   <ul class="tight">
     <li><code>domain</code> no importa nada de <code>application</code> ni de <code>infrastructure</code>, ni paquetes <code>org.springframework</code>, <code>jakarta.persistence</code> o <code>com.fasterxml</code>.</li>
-    <li><code>application</code> solo importa <code>domain</code>. Los puertos son interfaces del paquete <code>application.port.in</code> y <code>application.port.out</code>.</li>
+    <li><code>application</code> solo importa <code>domain</code>. Las únicas interfaces del núcleo son los puertos de salida, en el paquete <code>application.port</code>; los casos de uso son clases concretas en <code>application.usecase</code>, sin interfaz de entrada, y los adaptadores los invocan directamente.</li>
     <li>Los controllers solo llaman puertos de entrada; nunca repositorios ni entidades JPA.</li>
     <li>Las entidades JPA viven en <code>infrastructure.persistence</code> y se traducen al dominio con mappers explícitos. El dominio no lleva anotaciones.</li>
   </ul>
@@ -573,7 +573,7 @@ sequenceDiagram
         Ctl-->>C: 409 Conflict
       else
         R-->>Ctl: ReplayAccepted {attempt_id}
-        Ctl-->>C: 202 Accepted · Location: /notification_events/EVT005
+        Ctl-->>C: 202 Accepted {event_id, cycle, delivery_status: pending}
       end
     end
   end
@@ -1038,7 +1038,7 @@ flowchart TB
     <tbody>
       <tr><td><code>GET /notification_events</code></td><td><code>from</code>, <code>to</code>: fecha ISO 8601, sobre <code>created_at</code>, ambos inclusivos, <code>to</code> por defecto ahora. <code>delivery_status</code>: <code>pending</code>, <code>retrying</code>, <code>completed</code>, <code>failed</code>, <code>skipped</code>, en minúscula como el conjunto de referencia. <code>limit</code> 1 a 100, por defecto 20. <code>cursor</code> opaco</td><td><code>{"items":[…], "next_cursor": "…" | null}</code>. Cada item: <code>event_id</code>, <code>event_type</code>, <code>client_id</code>, <code>content</code>, <code>created_at</code>, <code>delivery_status</code>, <code>delivery_date</code> (null hasta COMPLETED), <code>attempts_count</code></td><td>200, 400 filtro inválido, 401</td></tr>
       <tr><td><code>GET /notification_events/{notification_event_id}</code></td><td>Identificador en la ruta</td><td>El item anterior más <code>attempts[]</code>: por intento <code>cycle</code>, <code>attempt_number</code>, <code>executed_at</code>, <code>response_status</code>, <code>failure_reason</code>, <code>latency_ms</code>, <code>origin</code>; y <code>next_attempt_at</code> mientras esté PENDING o RETRYING</td><td>200, 401, 404 si no existe o pertenece a otro cliente</td></tr>
-      <tr><td><code>POST /notification_events/{notification_event_id}/replay</code></td><td>Sin cuerpo</td><td><code>{"event_id", "cycle", "delivery_status": "pending"}</code> y header <code>Location</code> al detalle</td><td>202 aceptado, 401, 404, 409 si el estado no es <code>failed</code></td></tr>
+      <tr><td><code>POST /notification_events/{notification_event_id}/replay</code></td><td>Sin cuerpo</td><td><code>{"event_id", "cycle", "delivery_status": "pending"}</code></td><td>202 aceptado, 401, 404, 409 si el estado no es <code>failed</code></td></tr>
     </tbody>
   </table>
   </div>
