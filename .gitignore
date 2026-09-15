@@ -1,0 +1,23 @@
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS
+.DS_Store
+
+# Local environment and secrets
+.env
+docker/keys/*.pem
+*.log
+
+# Build artifacts
+*.jar
+!.mvn/wrapper/*.jar
