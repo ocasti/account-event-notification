@@ -10,18 +10,12 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
-/**
- * Repository adapter for subscriptions.
- */
 @Repository
 public class SubscriptionRepositoryAdapter implements SubscriptionRepository {
 
     private final SubscriptionJpaRepository jpaRepository;
     private final SubscriptionEntityMapper mapper;
 
-    /**
-     * Creates a new subscription repository adapter.
-     */
     public SubscriptionRepositoryAdapter(
         SubscriptionJpaRepository jpaRepository,
         SubscriptionEntityMapper mapper
@@ -32,11 +26,16 @@ public class SubscriptionRepositoryAdapter implements SubscriptionRepository {
 
     @Override
     public Optional<Subscription> findActive(ClientId clientId, EventKey eventKey) {
-        throw new UnsupportedOperationException("not implemented");
+        return jpaRepository.findByClientIdAndActiveTrue(clientId.value())
+            .stream()
+            .map(mapper::toDomain)
+            .filter(sub -> sub.matches(eventKey))
+            .findFirst();
     }
 
     @Override
     public Optional<Subscription> findById(String subscriptionId) {
-        throw new UnsupportedOperationException("not implemented");
+        return jpaRepository.findById(subscriptionId)
+            .map(mapper::toDomain);
     }
 }

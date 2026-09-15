@@ -7,24 +7,23 @@ import co.cobre.notifications.domain.model.ClientId;
 import co.cobre.notifications.domain.model.DeliveryStatus;
 import co.cobre.notifications.domain.model.EventId;
 import co.cobre.notifications.domain.model.NotificationEvent;
+import co.cobre.notifications.infrastructure.persistence.entity.DeliveryStatusEntity;
 import co.cobre.notifications.infrastructure.persistence.jpa.NotificationEventJpaRepository;
 import co.cobre.notifications.infrastructure.persistence.mapper.NotificationEventEntityMapper;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
-/**
- * Repository adapter for notification events.
- */
 @Repository
 public class NotificationEventRepositoryAdapter implements NotificationEventRepository {
 
     private final NotificationEventJpaRepository jpaRepository;
     private final NotificationEventEntityMapper mapper;
 
-    /**
-     * Creates a new notification event repository adapter.
-     */
     public NotificationEventRepositoryAdapter(
         NotificationEventJpaRepository jpaRepository,
         NotificationEventEntityMapper mapper
@@ -34,32 +33,81 @@ public class NotificationEventRepositoryAdapter implements NotificationEventRepo
     }
 
     @Override
+    @Transactional
     public void save(NotificationEvent event) {
-        throw new UnsupportedOperationException("not implemented");
+        var entity = mapper.toEntity(event);
+        jpaRepository.save(entity);
     }
 
     @Override
     public Optional<NotificationEvent> findByClientAndId(ClientId clientId, EventId eventId) {
-        throw new UnsupportedOperationException("not implemented");
+        return jpaRepository.findByEventIdAndClientId(eventId.value(), clientId.value())
+            .map(mapper::toDomain);
     }
 
     @Override
     public Optional<NotificationEvent> findById(EventId eventId) {
-        throw new UnsupportedOperationException("not implemented");
+        return jpaRepository.findById(eventId.value())
+            .map(mapper::toDomain);
     }
 
     @Override
     public boolean existsById(EventId eventId) {
-        throw new UnsupportedOperationException("not implemented");
+        return jpaRepository.existsById(eventId.value());
     }
 
     @Override
     public NotificationEventPage search(ListNotificationEventsQuery query) {
-        throw new UnsupportedOperationException("not implemented");
+        var cursorInfo = query.cursor()
+            .map(CursorCodec::decode);
+
+        var sort = Sort.by(Sort.Direction.DESC, "createdAt")
+            .and(Sort.by(Sort.Direction.DESC, "eventId"));
+        var pageable = PageRequest.of(0, query.limit() + 1, sort);
+
+        var results = jpaRepository.searchEvents(
+            query.clientId().value(),
+            query.status().map(this::mapStatusToEntity),
+            query.from(),
+            query.to(),
+            cursorInfo.map(CursorCodec.Cursor::createdAt),
+            cursorInfo.map(CursorCodec.Cursor::eventId),
+            pageable
+        ).getContent();
+
+        Optional<String> nextCursor = Optional.empty();
+        if (results.size() > query.limit()) {
+            var lastItem = results.get(query.limit() - 1);
+            nextCursor = Optional.of(CursorCodec.encode(lastItem.getCreatedAt(), lastItem.getEventId()));
+            results = results.subList(0, query.limit());
+        }
+
+        return new NotificationEventPage(
+            results.stream().map(mapper::toDomain).toList(),
+            nextCursor
+        );
     }
 
     @Override
+    @Transactional
     public boolean transition(EventId eventId, DeliveryStatus expectedCurrent, NotificationEvent updated) {
-        throw new UnsupportedOperationException("not implemented");
+        int rows = jpaRepository.updateStatusIfMatches(
+            eventId.value(),
+            mapStatusToEntity(expectedCurrent),
+            mapStatusToEntity(updated.status()),
+            updated.cycle(),
+            updated.deliveredAt().orElse(null)
+        );
+        return rows == 1;
+    }
+
+    private DeliveryStatusEntity mapStatusToEntity(DeliveryStatus status) {
+        return switch (status) {
+            case PENDING -> DeliveryStatusEntity.REGISTERED;
+            case RETRYING -> DeliveryStatusEntity.SCHEDULED;
+            case COMPLETED -> DeliveryStatusEntity.DELIVERED;
+            case FAILED -> DeliveryStatusEntity.FAILED;
+            case SKIPPED -> DeliveryStatusEntity.SKIPPED;
+        };
     }
 }

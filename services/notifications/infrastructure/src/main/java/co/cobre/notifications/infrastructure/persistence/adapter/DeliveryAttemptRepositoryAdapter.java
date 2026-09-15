@@ -6,22 +6,24 @@ import co.cobre.notifications.domain.model.DeliveryAttempt;
 import co.cobre.notifications.domain.model.EventId;
 import co.cobre.notifications.infrastructure.persistence.jpa.DeliveryAttemptJpaRepository;
 import co.cobre.notifications.infrastructure.persistence.mapper.DeliveryAttemptEntityMapper;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
-/**
- * Repository adapter for delivery attempts.
- */
 @Repository
 public class DeliveryAttemptRepositoryAdapter implements DeliveryAttemptRepository {
 
     private final DeliveryAttemptJpaRepository jpaRepository;
     private final DeliveryAttemptEntityMapper mapper;
 
-    /**
-     * Creates a new delivery attempt repository adapter.
-     */
     public DeliveryAttemptRepositoryAdapter(
         DeliveryAttemptJpaRepository jpaRepository,
         DeliveryAttemptEntityMapper mapper
@@ -31,22 +33,76 @@ public class DeliveryAttemptRepositoryAdapter implements DeliveryAttemptReposito
     }
 
     @Override
+    @Transactional
     public void save(DeliveryAttempt attempt) {
-        throw new UnsupportedOperationException("not implemented");
-    }
-
-    @Override
-    public List<DeliveryAttempt> claimDue(DeliveryClaim claim) {
-        throw new UnsupportedOperationException("not implemented");
-    }
-
-    @Override
-    public boolean recordResultIf(DeliveryAttempt executed, String claimedBy) {
-        throw new UnsupportedOperationException("not implemented");
+        var entity = mapper.toEntity(attempt);
+        jpaRepository.save(entity);
     }
 
     @Override
     public List<DeliveryAttempt> findByEvent(EventId eventId) {
-        throw new UnsupportedOperationException("not implemented");
+        var sort = Sort.by(
+            new Sort.Order(Sort.Direction.ASC, "cycle"),
+            new Sort.Order(Sort.Direction.ASC, "attemptNumber")
+        );
+        return jpaRepository.findByEventId(eventId.value(), sort)
+            .stream()
+            .map(mapper::toDomain)
+            .toList();
+    }
+
+    @Override
+    @Transactional
+    public List<DeliveryAttempt> claimDue(DeliveryClaim claim) {
+        var leaseExpiry = claim.now().minus(claim.lease());
+
+        var allClaimed = jpaRepository.claimDueAttempts(
+            claim.now(),
+            leaseExpiry,
+            claim.limit()
+        );
+
+        Map<String, Integer> clientCount = new HashMap<>();
+        var limitedResults = allClaimed.stream()
+            .filter(row -> {
+                UUID id = (UUID) row.get("id");
+                String clientId = (String) row.get("client_id");
+                int count = clientCount.getOrDefault(clientId, 0);
+                if (count < claim.maxPerClient()) {
+                    clientCount.put(clientId, count + 1);
+                    return true;
+                }
+                return false;
+            })
+            .toList();
+
+        if (limitedResults.isEmpty()) {
+            return List.of();
+        }
+
+        var ids = limitedResults.stream()
+            .map(row -> (UUID) row.get("id"))
+            .collect(Collectors.toSet());
+
+        jpaRepository.updateClaimedBatch(ids, claim.now(), claim.workerId());
+
+        return jpaRepository.findAllById(ids)
+            .stream()
+            .map(mapper::toDomain)
+            .toList();
+    }
+
+    @Override
+    @Transactional
+    public boolean recordResultIf(DeliveryAttempt executed, String claimedBy) {
+        int rows = jpaRepository.recordResult(
+            executed.id(),
+            claimedBy,
+            executed.executedAt().orElse(null),
+            executed.responseStatus().orElse(null),
+            executed.failureReason().orElse(null),
+            executed.latency().map(d -> d.toMillis()).orElse(null)
+        );
+        return rows == 1;
     }
 }
