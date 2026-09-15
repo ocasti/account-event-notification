@@ -59,8 +59,6 @@ public class HttpWebhookSender implements WebhookSender {
                 var sig = signer.sign(subscription.signatureKey().get(), json);
                 requestBuilder.header("event-timestamp", sig.timestamp());
                 requestBuilder.header("event-signature", sig.value());
-            } else {
-                requestBuilder.header("event-timestamp", event.createdAt().toString());
             }
 
             var response = requestBuilder
