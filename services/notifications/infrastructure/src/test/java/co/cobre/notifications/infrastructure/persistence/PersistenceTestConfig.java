@@ -6,11 +6,18 @@ import co.cobre.notifications.infrastructure.persistence.adapter.SubscriptionRep
 import co.cobre.notifications.infrastructure.persistence.mapper.DeliveryAttemptEntityMapper;
 import co.cobre.notifications.infrastructure.persistence.mapper.NotificationEventEntityMapper;
 import co.cobre.notifications.infrastructure.persistence.mapper.SubscriptionEntityMapper;
+import org.mockito.Mockito;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.web.client.RestClient;
 
 @TestConfiguration
 public class PersistenceTestConfig {
+
+    @Bean
+    RestClient webhookRestClient() {
+        return Mockito.mock(RestClient.class);
+    }
 
     @Bean
     public NotificationEventEntityMapper notificationEventEntityMapper() {

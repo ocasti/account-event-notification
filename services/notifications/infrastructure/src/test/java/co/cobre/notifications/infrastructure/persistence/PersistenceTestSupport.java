@@ -2,7 +2,6 @@ package co.cobre.notifications.infrastructure.persistence;
 
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -13,7 +12,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
     "spring.jpa.hibernate.ddl-auto=validate"
 })
 @Testcontainers
-@ActiveProfiles("test")
 @Import(PersistenceTestConfig.class)
 public class PersistenceTestSupport {
 
