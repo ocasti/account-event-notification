@@ -1,8 +1,8 @@
 package co.cobre.simulator;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.awspring.cloud.sqs.operations.SqsTemplate;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Publishes events to an SQS queue.
@@ -12,9 +12,9 @@ public class SqsEventPublisher {
 
     private final SqsTemplate sqsTemplate;
     private final SimulatorProperties properties;
-    private final ObjectMapper mapper;
+    private final JsonMapper mapper;
 
-    public SqsEventPublisher(SqsTemplate sqsTemplate, SimulatorProperties properties, ObjectMapper mapper) {
+    public SqsEventPublisher(SqsTemplate sqsTemplate, SimulatorProperties properties, JsonMapper mapper) {
         this.sqsTemplate = sqsTemplate;
         this.properties = properties;
         this.mapper = mapper;

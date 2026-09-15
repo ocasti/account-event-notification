@@ -1,8 +1,8 @@
 package co.cobre.simulator;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -17,10 +17,10 @@ import java.util.random.RandomGenerator;
 public class EventCatalog {
 
     private final SimulatorProperties properties;
-    private final ObjectMapper mapper;
+    private final JsonMapper mapper;
     private List<ReferenceEvent> events;
 
-    public EventCatalog(SimulatorProperties properties, ObjectMapper mapper) {
+    public EventCatalog(SimulatorProperties properties, JsonMapper mapper) {
         this.properties = properties;
         this.mapper = mapper;
     }

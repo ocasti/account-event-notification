@@ -1,6 +1,5 @@
 package co.cobre.simulator;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.awspring.cloud.sqs.operations.SqsTemplate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +11,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Instant;
 import java.util.Map;
@@ -19,19 +19,15 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Testcontainers
-@SpringBootTest(classes = {SqsEventPublisher.class, SimulatorProperties.class, SimulatorConfig.class},
+@SpringBootTest(classes = SimulatorApplication.class,
     properties = {
         "simulator.queue-name=test-queue",
+        "simulator.emit-interval=1h",
+        "simulator.emit-reference-on-start=false",
         "spring.cloud.aws.region.static=us-east-1",
         "spring.cloud.aws.credentials.access-key=local",
         "spring.cloud.aws.credentials.secret-key=local"
     })
-@ImportAutoConfiguration({
-    io.awspring.cloud.autoconfigure.core.AwsAutoConfiguration.class,
-    io.awspring.cloud.autoconfigure.core.CredentialsProviderAutoConfiguration.class,
-    io.awspring.cloud.autoconfigure.core.RegionProviderAutoConfiguration.class,
-    io.awspring.cloud.autoconfigure.sqs.SqsAutoConfiguration.class
-})
 class SqsEventPublisherIT {
 
     @Container
@@ -52,7 +48,7 @@ class SqsEventPublisherIT {
 
     @Test
     void publishLeavesMessageInQueueWithCorrectContract() throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
+        JsonMapper mapper = JsonMapper.builder().build();
         ReferenceEvent event = new ReferenceEvent(
             "EVT001",
             "credit_card_payment",
