@@ -8,10 +8,12 @@ import co.cobre.notifications.domain.model.DeliveryAttempt;
 import co.cobre.notifications.domain.model.DeliveryOutcome;
 import co.cobre.notifications.domain.model.DeliveryStatus;
 import co.cobre.notifications.domain.model.NotificationEvent;
+import co.cobre.notifications.domain.model.Subscription;
 import co.cobre.notifications.domain.policy.RetryPolicy;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.random.RandomGenerator;
 
 /**
@@ -63,11 +65,11 @@ public final class ProcessDueDeliveries {
      * Processes a batch of due delivery attempts.
      */
     public int processBatch() {
-        var dueDue = attempts.claimDue(clock.instant(), batchSize, maxPerClient, workerId, lease);
-        for (var attempt : dueDue) {
+        var claimed = attempts.claimDue(clock.instant(), batchSize, maxPerClient, workerId, lease);
+        for (var attempt : claimed) {
             process(attempt);
         }
-        return dueDue.size();
+        return claimed.size();
     }
 
     /**
@@ -80,66 +82,14 @@ public final class ProcessDueDeliveries {
         }
 
         var notificationEvent = event.get();
-        var subscription = subscriptions.findById(notificationEvent.subscriptionId().orElse(null));
-
         var now = clock.instant();
-        DeliveryOutcome outcome;
-        String failureReason = null;
 
-        if (subscription.isEmpty() || !subscription.get().active()) {
-            outcome = null;
-            failureReason = "subscription unavailable";
-        } else {
-            outcome = sender.send(subscription.get(), notificationEvent, attempt);
-        }
+        var subscription = resolveSubscription(notificationEvent);
+        var outcome = subscription
+            .map(sub -> sender.send(sub, notificationEvent, attempt))
+            .orElseGet(() -> new DeliveryOutcome.PermanentFailure(0, "subscription unavailable", Duration.ZERO));
 
-        DeliveryAttempt executed;
-        if (outcome != null) {
-            executed = new DeliveryAttempt(
-                attempt.id(),
-                attempt.eventId(),
-                attempt.cycle(),
-                attempt.attemptNumber(),
-                attempt.nextAttemptAt(),
-                attempt.claimedAt(),
-                attempt.claimedBy(),
-                java.util.Optional.of(now),
-                extractResponseStatus(outcome),
-                extractFailureReason(outcome),
-                extractLatency(outcome),
-                attempt.origin()
-            );
-        } else {
-            executed = new DeliveryAttempt(
-                attempt.id(),
-                attempt.eventId(),
-                attempt.cycle(),
-                attempt.attemptNumber(),
-                attempt.nextAttemptAt(),
-                attempt.claimedAt(),
-                attempt.claimedBy(),
-                java.util.Optional.of(now),
-                java.util.Optional.empty(),
-                java.util.Optional.of(failureReason),
-                java.util.Optional.empty(),
-                attempt.origin()
-            );
-        }
-
-        executed = new DeliveryAttempt(
-            executed.id(),
-            executed.eventId(),
-            executed.cycle(),
-            executed.attemptNumber(),
-            executed.nextAttemptAt(),
-            executed.claimedAt(),
-            java.util.Optional.of(workerId),
-            executed.executedAt(),
-            executed.responseStatus(),
-            executed.failureReason(),
-            executed.latency(),
-            executed.origin()
-        );
+        var executed = executed(attempt, now, outcome);
 
         boolean recorded = attempts.recordResultIf(executed, workerId);
         if (!recorded) {
@@ -147,57 +97,65 @@ public final class ProcessDueDeliveries {
         }
 
         var previousStatus = notificationEvent.status();
+        handleOutcome(notificationEvent, attempt, outcome, now);
+        events.transition(attempt.eventId(), previousStatus, notificationEvent);
+    }
 
-        if (outcome instanceof DeliveryOutcome.Success) {
-            notificationEvent.complete(now);
-            events.transition(attempt.eventId(), previousStatus, notificationEvent);
-        } else if (outcome instanceof DeliveryOutcome.TransientFailure) {
-            if (retryPolicy.isExhausted(attempt.attemptNumber() + 1)) {
-                notificationEvent.fail();
-            } else {
-                var delay = retryPolicy.delayBefore(attempt.attemptNumber() + 1, random);
-                var nextAttempt = attempt.next(now.plus(delay));
-                attempts.save(nextAttempt);
-                notificationEvent.scheduleRetry();
+    private Optional<Subscription> resolveSubscription(NotificationEvent event) {
+        return event.subscriptionId()
+            .flatMap(subscriptions::findById)
+            .filter(Subscription::active);
+    }
+
+    private DeliveryAttempt executed(DeliveryAttempt attempt, java.time.Instant now, DeliveryOutcome outcome) {
+        var status = switch (outcome) {
+            case DeliveryOutcome.Success s -> Optional.of(s.responseStatus());
+            case DeliveryOutcome.TransientFailure tf -> tf.responseStatus();
+            case DeliveryOutcome.PermanentFailure pf -> Optional.of(pf.responseStatus());
+        };
+
+        var reason = switch (outcome) {
+            case DeliveryOutcome.Success s -> Optional.<String>empty();
+            case DeliveryOutcome.TransientFailure tf -> Optional.of(tf.reason());
+            case DeliveryOutcome.PermanentFailure pf -> Optional.of(pf.reason());
+        };
+
+        var latency = switch (outcome) {
+            case DeliveryOutcome.Success s -> Optional.of(s.latency());
+            case DeliveryOutcome.TransientFailure tf -> Optional.of(tf.latency());
+            case DeliveryOutcome.PermanentFailure pf -> Optional.of(pf.latency());
+        };
+
+        return new DeliveryAttempt(
+            attempt.id(),
+            attempt.eventId(),
+            attempt.cycle(),
+            attempt.attemptNumber(),
+            attempt.nextAttemptAt(),
+            attempt.claimedAt(),
+            Optional.of(workerId),
+            Optional.of(now),
+            status,
+            reason,
+            latency,
+            attempt.origin()
+        );
+    }
+
+    private void handleOutcome(NotificationEvent event, DeliveryAttempt attempt, DeliveryOutcome outcome, java.time.Instant now) {
+        switch (outcome) {
+            case DeliveryOutcome.Success s -> event.complete(now);
+            case DeliveryOutcome.TransientFailure tf -> {
+                if (retryPolicy.isExhausted(attempt.attemptNumber() + 1)) {
+                    event.fail();
+                } else {
+                    var delay = retryPolicy.delayBefore(attempt.attemptNumber() + 1, random);
+                    var nextAttempt = attempt.next(now.plus(delay));
+                    attempts.save(nextAttempt);
+                    event.scheduleRetry();
+                }
             }
-            events.transition(attempt.eventId(), previousStatus, notificationEvent);
-        } else if (outcome instanceof DeliveryOutcome.PermanentFailure) {
-            notificationEvent.fail();
-            events.transition(attempt.eventId(), previousStatus, notificationEvent);
-        } else {
-            notificationEvent.fail();
-            events.transition(attempt.eventId(), previousStatus, notificationEvent);
+            case DeliveryOutcome.PermanentFailure pf -> event.fail();
         }
-    }
-
-    private java.util.Optional<Integer> extractResponseStatus(DeliveryOutcome outcome) {
-        if (outcome instanceof DeliveryOutcome.Success success) {
-            return java.util.Optional.of(success.responseStatus());
-        } else if (outcome instanceof DeliveryOutcome.TransientFailure tf) {
-            return tf.responseStatus();
-        } else if (outcome instanceof DeliveryOutcome.PermanentFailure permanent) {
-            return java.util.Optional.of(permanent.responseStatus());
-        }
-        return java.util.Optional.empty();
-    }
-
-    private java.util.Optional<String> extractFailureReason(DeliveryOutcome outcome) {
-        if (outcome instanceof DeliveryOutcome.TransientFailure tf) {
-            return java.util.Optional.of(tf.reason());
-        } else if (outcome instanceof DeliveryOutcome.PermanentFailure permanent) {
-            return java.util.Optional.of(permanent.reason());
-        }
-        return java.util.Optional.empty();
-    }
-
-    private java.util.Optional<Duration> extractLatency(DeliveryOutcome outcome) {
-        if (outcome instanceof DeliveryOutcome.Success success) {
-            return java.util.Optional.of(success.latency());
-        } else if (outcome instanceof DeliveryOutcome.TransientFailure tf) {
-            return java.util.Optional.of(tf.latency());
-        } else if (outcome instanceof DeliveryOutcome.PermanentFailure permanent) {
-            return java.util.Optional.of(permanent.latency());
-        }
-        return java.util.Optional.empty();
     }
 }
