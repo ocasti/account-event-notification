@@ -53,20 +53,16 @@ public final class NotificationEvent {
      * Factory method to register a new notification event.
      */
     public static NotificationEvent register(
-        EventId eventId,
-        ClientId clientId,
-        EventKey eventKey,
-        String content,
-        Instant createdAt,
+        EventData data,
         Instant receivedAt,
         Subscription subscription
     ) {
         return new NotificationEvent(
-            eventId,
-            clientId,
-            eventKey,
-            content,
-            createdAt,
+            data.eventId(),
+            data.clientId(),
+            data.eventKey(),
+            data.content(),
+            data.occurredAt(),
             receivedAt,
             DeliveryStatus.PENDING,
             Optional.of(subscription.id()),
@@ -79,19 +75,15 @@ public final class NotificationEvent {
      * Factory method to create a skipped notification event.
      */
     public static NotificationEvent skipped(
-        EventId eventId,
-        ClientId clientId,
-        EventKey eventKey,
-        String content,
-        Instant createdAt,
+        EventData data,
         Instant receivedAt
     ) {
         return new NotificationEvent(
-            eventId,
-            clientId,
-            eventKey,
-            content,
-            createdAt,
+            data.eventId(),
+            data.clientId(),
+            data.eventKey(),
+            data.content(),
+            data.occurredAt(),
             receivedAt,
             DeliveryStatus.SKIPPED,
             Optional.empty(),

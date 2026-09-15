@@ -23,9 +23,8 @@ class NotificationEventTest {
     @Test
     void shouldRegisterEventWithPendingStatusAndZeroCycle() {
         var subscription = createSubscription();
-        var event = NotificationEvent.register(
-            eventId, clientId, eventKey, content, createdAt, receivedAt, subscription
-        );
+        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
+        var event = NotificationEvent.register(data, receivedAt, subscription);
 
         assertThat(event.status()).isEqualTo(DeliveryStatus.PENDING);
         assertThat(event.cycle()).isZero();
@@ -35,9 +34,8 @@ class NotificationEventTest {
 
     @Test
     void shouldCreateSkippedEventWithoutSubscriptionId() {
-        var event = NotificationEvent.skipped(
-            eventId, clientId, eventKey, content, createdAt, receivedAt
-        );
+        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
+        var event = NotificationEvent.skipped(data, receivedAt);
 
         assertThat(event.status()).isEqualTo(DeliveryStatus.SKIPPED);
         assertThat(event.subscriptionId()).isEmpty();
@@ -46,9 +44,8 @@ class NotificationEventTest {
     @Test
     void shouldCompleteEventFromPendingStatus() {
         var subscription = createSubscription();
-        var event = NotificationEvent.register(
-            eventId, clientId, eventKey, content, createdAt, receivedAt, subscription
-        );
+        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
+        var event = NotificationEvent.register(data, receivedAt, subscription);
         var completedAt = Instant.parse("2024-01-01T00:01:00Z");
 
         event.complete(completedAt);
@@ -60,9 +57,8 @@ class NotificationEventTest {
     @Test
     void shouldCompleteEventFromRetryingStatus() {
         var subscription = createSubscription();
-        var event = NotificationEvent.register(
-            eventId, clientId, eventKey, content, createdAt, receivedAt, subscription
-        );
+        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
+        var event = NotificationEvent.register(data, receivedAt, subscription);
         event.scheduleRetry();
         var completedAt = Instant.parse("2024-01-01T00:01:00Z");
 
@@ -75,9 +71,8 @@ class NotificationEventTest {
     @Test
     void shouldThrowWhenCompletingAlreadyCompletedEvent() {
         var subscription = createSubscription();
-        var event = NotificationEvent.register(
-            eventId, clientId, eventKey, content, createdAt, receivedAt, subscription
-        );
+        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
+        var event = NotificationEvent.register(data, receivedAt, subscription);
         var completedAt = Instant.parse("2024-01-01T00:01:00Z");
         event.complete(completedAt);
 
@@ -88,9 +83,8 @@ class NotificationEventTest {
     @Test
     void shouldScheduleRetryFromPendingStatus() {
         var subscription = createSubscription();
-        var event = NotificationEvent.register(
-            eventId, clientId, eventKey, content, createdAt, receivedAt, subscription
-        );
+        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
+        var event = NotificationEvent.register(data, receivedAt, subscription);
 
         event.scheduleRetry();
 
@@ -100,9 +94,8 @@ class NotificationEventTest {
     @Test
     void shouldScheduleRetryFromRetryingStatus() {
         var subscription = createSubscription();
-        var event = NotificationEvent.register(
-            eventId, clientId, eventKey, content, createdAt, receivedAt, subscription
-        );
+        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
+        var event = NotificationEvent.register(data, receivedAt, subscription);
         event.scheduleRetry();
 
         event.scheduleRetry();
@@ -113,9 +106,8 @@ class NotificationEventTest {
     @Test
     void shouldFailEventFromPendingStatus() {
         var subscription = createSubscription();
-        var event = NotificationEvent.register(
-            eventId, clientId, eventKey, content, createdAt, receivedAt, subscription
-        );
+        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
+        var event = NotificationEvent.register(data, receivedAt, subscription);
 
         event.fail();
 
@@ -125,9 +117,8 @@ class NotificationEventTest {
     @Test
     void shouldFailEventFromRetryingStatus() {
         var subscription = createSubscription();
-        var event = NotificationEvent.register(
-            eventId, clientId, eventKey, content, createdAt, receivedAt, subscription
-        );
+        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
+        var event = NotificationEvent.register(data, receivedAt, subscription);
         event.scheduleRetry();
 
         event.fail();
@@ -138,9 +129,8 @@ class NotificationEventTest {
     @Test
     void shouldReplayEventFromFailedStatus() {
         var subscription = createSubscription();
-        var event = NotificationEvent.register(
-            eventId, clientId, eventKey, content, createdAt, receivedAt, subscription
-        );
+        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
+        var event = NotificationEvent.register(data, receivedAt, subscription);
         event.fail();
         var initialCycle = event.cycle();
 
@@ -154,9 +144,8 @@ class NotificationEventTest {
     @Test
     void shouldThrowWhenReplayingFromCompletedStatus() {
         var subscription = createSubscription();
-        var event = NotificationEvent.register(
-            eventId, clientId, eventKey, content, createdAt, receivedAt, subscription
-        );
+        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
+        var event = NotificationEvent.register(data, receivedAt, subscription);
         var completedAt = Instant.parse("2024-01-01T00:01:00Z");
         event.complete(completedAt);
 
@@ -167,9 +156,8 @@ class NotificationEventTest {
     @Test
     void shouldThrowWhenReplayingFromPendingStatus() {
         var subscription = createSubscription();
-        var event = NotificationEvent.register(
-            eventId, clientId, eventKey, content, createdAt, receivedAt, subscription
-        );
+        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
+        var event = NotificationEvent.register(data, receivedAt, subscription);
 
         assertThatThrownBy(event::replay)
             .isInstanceOf(ReplayNotAllowedException.class);
@@ -178,9 +166,8 @@ class NotificationEventTest {
     @Test
     void shouldThrowWhenReplayingFromRetryingStatus() {
         var subscription = createSubscription();
-        var event = NotificationEvent.register(
-            eventId, clientId, eventKey, content, createdAt, receivedAt, subscription
-        );
+        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
+        var event = NotificationEvent.register(data, receivedAt, subscription);
         event.scheduleRetry();
 
         assertThatThrownBy(event::replay)
@@ -189,9 +176,8 @@ class NotificationEventTest {
 
     @Test
     void shouldThrowWhenReplayingFromSkippedStatus() {
-        var event = NotificationEvent.skipped(
-            eventId, clientId, eventKey, content, createdAt, receivedAt
-        );
+        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
+        var event = NotificationEvent.skipped(data, receivedAt);
 
         assertThatThrownBy(event::replay)
             .isInstanceOf(ReplayNotAllowedException.class);
@@ -200,13 +186,11 @@ class NotificationEventTest {
     @Test
     void shouldBeEqualByEventId() {
         var subscription = createSubscription();
-        var event1 = NotificationEvent.register(
-            eventId, clientId, eventKey, content, createdAt, receivedAt, subscription
-        );
-        var event2 = NotificationEvent.register(
-            eventId, new ClientId("client-2"), new EventKey("order.created"),
-            "different content", createdAt, receivedAt, subscription
-        );
+        var data1 = new EventData(eventId, clientId, eventKey, content, createdAt);
+        var event1 = NotificationEvent.register(data1, receivedAt, subscription);
+        var data2 = new EventData(eventId, new ClientId("client-2"), new EventKey("order.created"),
+            "different content", createdAt);
+        var event2 = NotificationEvent.register(data2, receivedAt, subscription);
 
         assertThat(event1).isEqualTo(event2);
     }

@@ -69,4 +69,24 @@ public record DeliveryAttempt(
     public boolean isExecuted() {
         return executedAt.isPresent();
     }
+
+    /**
+     * Returns a new attempt marked as executed with the given result.
+     */
+    public DeliveryAttempt executed(Instant at, String workerId, DeliveryResult result) {
+        return new DeliveryAttempt(
+            id,
+            eventId,
+            cycle,
+            attemptNumber,
+            nextAttemptAt,
+            claimedAt,
+            Optional.of(workerId),
+            Optional.of(at),
+            result.responseStatus(),
+            result.failureReason(),
+            result.latency(),
+            origin
+        );
+    }
 }

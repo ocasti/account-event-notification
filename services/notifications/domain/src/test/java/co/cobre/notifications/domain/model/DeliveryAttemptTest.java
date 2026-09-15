@@ -88,4 +88,24 @@ class DeliveryAttemptTest {
 
         assertThat(executed.isExecuted()).isTrue();
     }
+
+    @Test
+    void shouldExecuteAttemptWithResult() {
+        var attempt = DeliveryAttempt.first(eventId, 0, now, AttemptOrigin.SYSTEM);
+        var result = new DeliveryResult(
+            java.util.Optional.of(200),
+            java.util.Optional.empty(),
+            java.util.Optional.of(java.time.Duration.ofMillis(100))
+        );
+        var executedAtInstant = now.plusSeconds(5);
+
+        var executed = attempt.executed(executedAtInstant, "worker-1", result);
+
+        assertThat(executed.id()).isEqualTo(attempt.id());
+        assertThat(executed.executedAt()).contains(executedAtInstant);
+        assertThat(executed.claimedBy()).contains("worker-1");
+        assertThat(executed.responseStatus()).contains(200);
+        assertThat(executed.failureReason()).isEmpty();
+        assertThat(executed.latency()).contains(java.time.Duration.ofMillis(100));
+    }
 }
