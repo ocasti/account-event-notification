@@ -54,7 +54,7 @@ public class DeliveryAttemptEntity {
     @Enumerated(EnumType.STRING)
     private AttemptOriginEntity origin;
 
-    protected DeliveryAttemptEntity() {
+    public DeliveryAttemptEntity() {
     }
 
     public UUID getId() {
