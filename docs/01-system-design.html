@@ -1,0 +1,1183 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, theme:"neutral"});</script>
+</head>
+<body>
+<title>Cobre Notifications</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@87.5,500;87.5,700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #F7F6F2;
+    --surface: #FFFFFF;
+    --ink: #1C2128;
+    --ink-2: #4A5058;
+    --muted: #7B7F86;
+    --line: #DCD8D0;
+    --line-strong: #B9B3A7;
+    --accent: #B5602A;
+    --accent-ink: #8E4A1E;
+    --accent-soft: #F5E6DA;
+    --ok: #2E7D4F;
+    --warn: #B7791F;
+    --bad: #B3362B;
+    --code-bg: #F0EEE8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #15181C;
+      --surface: #1C2026;
+      --ink: #E8E6E1;
+      --ink-2: #B9B6AF;
+      --muted: #8A8E95;
+      --line: #2E333A;
+      --line-strong: #4A505A;
+      --accent: #D98A55;
+      --accent-ink: #E9A672;
+      --accent-soft: #33261C;
+      --ok: #5FB783;
+      --warn: #D9A44A;
+      --bad: #E0695E;
+      --code-bg: #23282F;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #15181C;
+    --surface: #1C2026;
+    --ink: #E8E6E1;
+    --ink-2: #B9B6AF;
+    --muted: #8A8E95;
+    --line: #2E333A;
+    --line-strong: #4A505A;
+    --accent: #D98A55;
+    --accent-ink: #E9A672;
+    --accent-soft: #33261C;
+    --ok: #5FB783;
+    --warn: #D9A44A;
+    --bad: #E0695E;
+    --code-bg: #23282F;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+    padding-block: 40px 96px;
+    padding-inline: clamp(16px, 4vw, 48px);
+  }
+  .page { max-width: 1040px; margin: 0 auto; }
+  h1, h2, h3 {
+    font-family: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    font-stretch: 87.5%;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    margin: 0;
+  }
+  h1 { font-size: clamp(34px, 5vw, 48px); }
+  h2 { font-size: 26px; margin-top: 64px; padding-top: 20px; border-top: 2px solid var(--ink); }
+  h3 { font-size: 18px; margin-top: 32px; font-weight: 500; }
+  p { max-width: 72ch; margin: 12px 0; color: var(--ink); }
+  p.lead { font-size: 19px; color: var(--ink-2); max-width: 64ch; }
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 10px;
+  }
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 8px 24px;
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-size: 13px; color: var(--muted);
+    margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line);
+  }
+  nav.toc { margin-top: 28px; }
+  nav.toc ol {
+    list-style: none; padding: 0; margin: 0;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 20px;
+  }
+  nav.toc li { display: flex; gap: 10px; align-items: baseline; }
+  nav.toc li span { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--accent); min-width: 2ch; }
+  nav.toc a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); }
+  nav.toc a:hover, nav.toc a:focus-visible { border-color: var(--accent); outline: none; }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 14px 18px; margin: 20px 0; max-width: 78ch;
+  }
+  .callout p { margin: 6px 0; }
+  .callout strong { color: var(--accent-ink); }
+
+  figure { margin: 24px 0; }
+  figure.diagram { background: var(--surface); border: 1px solid var(--line); padding: 20px; overflow-x: auto; }
+  figure.diagram pre.mermaid { margin: 0; background: transparent; min-width: 560px; }
+  figcaption { font-size: 14px; color: var(--ink-2); margin-top: 12px; max-width: 78ch; }
+  figcaption b { color: var(--ink); font-weight: 600; }
+
+  svg.hand { max-width: 100%; height: auto; display: block; color: var(--ink); }
+
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; margin: 16px 0; }
+  .tablewrap { overflow-x: auto; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--line-strong); }
+  td.num { font-variant-numeric: tabular-nums; font-family: "IBM Plex Mono", monospace; font-size: 13.5px; }
+  code, .mono { font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-size: 0.92em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+  th code, td code { font-size: 13px; }
+
+  .pill { display: inline-block; font-family: "IBM Plex Mono", monospace; font-size: 12px; padding: 2px 8px; border-radius: 3px; border: 1px solid; }
+  .pill.ok { color: var(--ok); border-color: var(--ok); }
+  .pill.warn { color: var(--warn); border-color: var(--warn); }
+  .pill.bad { color: var(--bad); border-color: var(--bad); }
+  .pill.neutral { color: var(--ink-2); border-color: var(--line-strong); }
+
+  ul.tight { padding-left: 20px; max-width: 78ch; }
+  ul.tight li { margin: 6px 0; }
+  .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="page">
+  <div class="eyebrow">RFC · Servicio de notificaciones por webhook</div>
+  <h1>Cobre Notifications</h1>
+  <p class="lead">Servicio de entrega de notificaciones por webhook y API self-service para que cada cliente consulte y reenvíe sus propios eventos. Arquitectura hexagonal en Java 21 y Spring Boot 4.1.</p>
+  <div class="meta">
+    <span>Versión 2</span><span>Estado: aceptado</span><span>Ejecución local en Docker Compose</span><span>Objetivo cloud: AWS</span>
+  </div>
+
+  <h3 style="margin-top:28px">Resumen</h3>
+  <p><b>Problema.</b> La plataforma de Cobre genera eventos financieros y sus clientes necesitan recibirlos por webhook con reintentos confiables, y consultarlos y reenviarlos por sí mismos. El webhook actual de Cobre es best-effort y no ofrece consulta ni reenvío.</p>
+  <p><b>Solución.</b> Un servicio con arquitectura hexagonal en Java 21 y Spring Boot, desplegado como dos procesos de una misma imagen: una API self-service protegida con JWT y un worker que consume eventos de una cola SQS, resuelve la suscripción del cliente, entrega por HTTPS con firma HMAC, reintenta con backoff y persiste cada intento en PostgreSQL. La API expone tres endpoints: listar con filtros, detalle y replay de entregas fallidas. En local todo corre en Docker Compose con un emisor simulado que genera eventos a partir del conjunto de datos de referencia; en AWS las mismas piezas se mapean a SQS, Fargate y RDS sin cambiar el código.</p>
+  <p><b>Garantías.</b> Cada evento se registra exactamente una vez; cada intento lo ejecuta un solo worker; la entrega al cliente es al menos una vez y el cliente la deduplica por identificador. Un cliente solo ve y reenvía sus propios eventos.</p>
+
+  <nav class="toc" aria-label="Contenido">
+    <ol>
+      <li><span>1</span><a href="#direccion">Quién llama a quién</a></li>
+      <li><span>2</span><a href="#contexto">Contexto del sistema</a></li>
+      <li><span>3</span><a href="#contenedores">Contenedores</a></li>
+      <li><span>4</span><a href="#hexagono">El hexágono</a></li>
+      <li><span>5</span><a href="#estados">Ciclo de vida de una notificación</a></li>
+      <li><span>6</span><a href="#seq-entrega">Secuencia: entrega con reintentos</a></li>
+      <li><span>7</span><a href="#seq-consulta">Secuencia: consulta aislada por cliente</a></li>
+      <li><span>8</span><a href="#seq-replay">Secuencia: replay</a></li>
+      <li><span>9</span><a href="#datos">Modelo de datos</a></li>
+      <li><span>10</span><a href="#despliegue">Local y AWS</a></li>
+      <li><span>11</span><a href="#patrones">Patrones aplicados y por qué no es Saga</a></li>
+      <li><span>12</span><a href="#construccion">Contenedores y plan de construcción</a></li>
+      <li><span>13</span><a href="#concurrencia">Concurrencia: cuatro workers y un mensaje</a></li>
+      <li><span>14</span><a href="#capacidad">Capacidad y elección del motor</a></li>
+      <li><span>15</span><a href="#cobre-real">Contraste con la API pública de Cobre</a></li>
+      <li><span>16</span><a href="#decisiones">Decisiones cerradas</a></li>
+      <li><span>17</span><a href="#revision">Registro de cambios de diseño</a></li>
+      <li><span>18</span><a href="#supuestos">Supuestos, no-objetivos y riesgos abiertos</a></li>
+      <li><span>19</span><a href="#aceptacion">Criterios de aceptación</a></li>
+      <li><span>20</span><a href="#glosario">Glosario</a></li>
+    </ol>
+  </nav>
+
+  <!-- 1 -->
+  <h2 id="direccion">1. Quién llama a quién</h2>
+  <p>La duda de la URL externa se resuelve mirando la dirección de cada flecha. Hay dos canales y van en sentidos opuestos.</p>
+
+  <figure>
+    <svg class="hand" viewBox="0 0 900 250" role="img" aria-label="Un emisor simulado publica eventos en una cola local; el servicio los consume, hace POST HTTPS hacia la URL del cliente, y recibe GET y POST replay del cliente en su API self-service.">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+        <marker id="arr-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#B5602A"/>
+        </marker>
+      </defs>
+      <!-- Cobre platform -->
+      <rect x="10" y="85" width="140" height="80" rx="3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4"/>
+      <text x="80" y="112" text-anchor="middle" font-size="13" font-weight="600" fill="currentColor">Emisor de eventos</text>
+      <text x="80" y="130" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">simulador, localhost</text>
+      <text x="80" y="146" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">lee notification_events.json</text>
+      <rect x="185" y="95" width="100" height="60" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <text x="235" y="120" text-anchor="middle" font-size="12.5" font-weight="600" fill="currentColor">Cola</text>
+      <text x="235" y="138" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">ElasticMQ / SQS</text>
+      <!-- Notification service -->
+      <rect x="320" y="60" width="240" height="130" rx="3" fill="none" stroke="#B5602A" stroke-width="2"/>
+      <text x="440" y="95" text-anchor="middle" font-size="14" font-weight="600" fill="currentColor">Notification Service</text>
+      <text x="440" y="118" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">nuestro sistema</text>
+      <text x="440" y="150" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.85">Delivery worker · API self-service</text>
+      <text x="440" y="170" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.85">corre en localhost o en AWS</text>
+      <!-- Client -->
+      <rect x="700" y="40" width="180" height="70" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <text x="790" y="68" text-anchor="middle" font-size="13" font-weight="600" fill="currentColor">Webhook del cliente</text>
+      <text x="790" y="88" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">receptor externo, público</text>
+      <rect x="700" y="145" width="180" height="70" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <text x="790" y="173" text-anchor="middle" font-size="13" font-weight="600" fill="currentColor">Cliente de la API</text>
+      <text x="790" y="193" text-anchor="middle" font-size="11.5" fill="currentColor" opacity="0.7">curl, Swagger UI</text>
+      <!-- arrows -->
+      <line x1="150" y1="125" x2="183" y2="125" stroke="currentColor" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="166" y="80" text-anchor="middle" font-size="11" fill="currentColor">publica</text>
+      <line x1="318" y1="125" x2="287" y2="125" stroke="currentColor" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="303" y="80" text-anchor="middle" font-size="11" fill="currentColor">consume</text>
+      <line x1="560" y1="90" x2="698" y2="76" stroke="#B5602A" stroke-width="2" marker-end="url(#arr-accent)"/>
+      <text x="628" y="62" text-anchor="middle" font-size="11.5" font-weight="600" fill="#B5602A">POST HTTPS saliente</text>
+      <line x1="698" y1="180" x2="562" y2="160" stroke="currentColor" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="632" y="205" text-anchor="middle" font-size="11" fill="currentColor">GET / POST replay entrante</text>
+    </svg>
+    <figcaption><b>Nadie de afuera nos envía eventos.</b> Un emisor simulado, que construimos nosotros y corre en localhost, publica eventos con el contrato del JSON en una cola local. Nuestro servicio los consume, decide y hace POST hacia el webhook del cliente. El único tráfico entrante es el de la API self-service, que se demuestra desde la misma máquina. Ninguna flecha llega a localhost desde internet.</figcaption>
+  </figure>
+
+  <div class="callout">
+    <p><strong>Consecuencia práctica:</strong> la URL del receptor se inyecta como <code>WEBHOOK_URL</code> en la suscripción semilla de cada cliente. No hay que exponer nada a internet para la demostración local. La plataforma de Cobre es contexto de negocio: en este alcance no existe como sistema que nos hable. El emisor simulado ocupa su lugar y respeta el contrato; en producción se reemplaza por el bus real y el consumidor no cambia.</p>
+  </div>
+
+  <h3>Contrato del evento que viaja por la cola</h3>
+  <p>El conjunto de datos de referencia mezcla datos del evento con el resultado de su entrega. <code>delivery_date</code> y <code>delivery_status</code> son salidas de nuestro sistema, no entradas, así que el contrato del emisor no las lleva.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Campo</th><th>Tipo</th><th>Origen</th><th>Ejemplo</th></tr></thead>
+    <tbody>
+      <tr><td><code>event_id</code></td><td>string, único</td><td>emisor</td><td class="num">EVT003</td></tr>
+      <tr><td><code>event_type</code></td><td>string</td><td>emisor</td><td class="num">credit_transfer</td></tr>
+      <tr><td><code>client_id</code></td><td>string</td><td>emisor</td><td class="num">CLIENT002</td></tr>
+      <tr><td><code>content</code></td><td>string</td><td>emisor</td><td>Bank transfer received from Account #4567 for $1,500.00</td></tr>
+      <tr><td><code>occurred_at</code></td><td>ISO 8601 UTC</td><td>emisor</td><td class="num">2024-03-15T11:20:18Z</td></tr>
+      <tr><td><code>created_at</code> (nuestro)</td><td>ISO 8601 UTC</td><td><b>nuestro sistema</b> = <code>occurred_at</code> del emisor; <code>received_at</code> se guarda aparte</td><td>"event creation date" de la API filtra por <code>created_at</code></td></tr>
+      <tr><td><code>delivery_status</code>, <code>delivery_date</code></td><td>—</td><td><b>nuestro sistema</b>, nunca el emisor</td><td>se calculan al entregar</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><b>Un solo camino de datos.</b> Todo evento que existe en el sistema entró por la cola y pasó por el flujo completo. El emisor simulado usa el conjunto de datos de referencia como plantilla: al arrancar publica sus diez eventos con sus identificadores originales y su fecha, y después sigue generando eventos derivados, con identificadores nuevos y combinaciones de cliente, tipo y contenido tomadas del archivo, a un ritmo configurable. También acepta eventos puntuales por <code>POST /simulator/events</code>. El estado de entrega de cada evento lo calcula el sistema; los campos <code>delivery_status</code> y <code>delivery_date</code> del archivo no forman parte del contrato: son el resultado esperado, y en el entorno local WireMock responde 503 exactamente a EVT003, EVT005 y EVT009 para que el sistema reproduzca ese resultado por su propio comportamiento.</p>
+
+  <!-- 2 -->
+  <h2 id="contexto">2. Contexto del sistema</h2>
+  <p>Nivel de contexto C4. Tres actores alrededor de un único sistema. La plataforma de Cobre produce eventos; el cliente los recibe y consulta; el equipo de monitoreo observa.</p>
+  <figure class="diagram">
+<pre class="mermaid">
+flowchart LR
+  emitter["Emisor de eventos simulado\n(nuestro, localhost, contrato del JSON)"]
+  platform["Plataforma Cobre\n(contexto de negocio, fuera de alcance)"]
+  svc["Notification Service\nEntrega webhooks · API self-service"]
+  client["Cliente de Cobre\n(sistema del cliente)"]
+  ops["Equipo de monitoreo\n(interno)"]
+
+  emitter -- "publica eventos en la cola" --> svc
+  platform -. "en producción ocupa el lugar\ndel emisor simulado" .-> emitter
+  svc -- "POST HTTPS firmado\nal webhook suscrito" --> client
+  client -- "GET /notification_events\nPOST .../replay (JWT)" --> svc
+  svc -- "métricas, logs estructurados\nen near real-time" --> ops
+
+  style svc stroke:#B5602A,stroke-width:2px
+  style platform stroke-dasharray: 5 4
+</pre>
+    <figcaption><b>El origen de los eventos es el emisor simulado.</b> La plataforma de Cobre aparece punteada porque no participa en este alcance. En producción su bus de eventos ocupa exactamente el lugar del simulador, y nuestro consumidor no cambia.</figcaption>
+  </figure>
+
+  <!-- 3 -->
+  <h2 id="contenedores">3. Contenedores</h2>
+  <p>Nivel de contenedores C4. Un solo código, una sola imagen, dos procesos con razones de vivir distintas: la API existe para responder HTTP a los clientes; el worker existe para drenar la cola y la tabla de intentos. Se arrancan con perfiles de Spring diferentes. Si la API cae, las entregas siguen saliendo; si el worker cae, los mensajes esperan en la cola y nada se pierde.</p>
+  <figure class="diagram">
+<pre class="mermaid">
+flowchart TB
+  subgraph ext["Fuera del sistema"]
+    emitter["event-simulator\n(módulo propio, solo local)\nemite eventos de forma continua a partir del JSON"]
+    webhook["Webhook del cliente\n(URL externa HTTPS)"]
+    consumer["Cliente de la API"]
+    ops["Monitoreo"]
+  end
+
+  subgraph sys["Notification Service"]
+    direction TB
+    queue["Cola de eventos\nlocal: ElasticMQ (API SQS)\nAWS: SQS"]
+    api["notifications-api\nperfil api · escala por tráfico HTTP\nREST self-service · JWT · encola replays"]
+    wrk["notifications-worker\nperfil worker · escala por profundidad de cola\nSQS listener · scheduler · RestClient HTTPS"]
+    db[("PostgreSQL 16\nnotification_events\ndelivery_attempts\nsubscriptions")]
+    metrics["Prometheus + Grafana\n(local) · CloudWatch (AWS)"]
+  end
+
+  emitter -- "publica {event_id, event_type, client_id, content, occurred_at}" --> queue
+  wrk -- "consume (long polling)" --> queue
+  wrk -- "lee suscripciones · escribe eventos e intentos" --> db
+  api -- "lee eventos · inserta intento de replay" --> db
+  wrk -- "POST HTTPS + HMAC-SHA256" --> webhook
+  consumer -- "HTTPS + Bearer JWT" --> api
+  api & wrk -- "/actuator/prometheus" --> metrics
+  metrics --> ops
+
+  style api stroke:#B5602A,stroke-width:2px
+  style wrk stroke:#B5602A,stroke-width:2px
+</pre>
+    <figcaption><b>Dos roles, un contexto acotado, una base de datos.</b> API y worker no son dos microservicios sino dos despliegues del servicio Notificaciones; por eso comparten Postgres sin incurrir en el antipatrón de base compartida entre servicios. Las fronteras de microservicio reales son el contrato de la cola y el contrato HTTP del webhook. El replay se decide en la API pero se ejecuta en el worker: la API cambia el estado a PENDING, inserta el intento del ciclo nuevo y responde 202.</figcaption>
+  </figure>
+
+  <!-- 4 -->
+  <h2 id="hexagono">4. El hexágono</h2>
+  <p>Tres módulos Maven. <code>domain</code> y <code>application</code> no dependen de Spring ni de ninguna librería de infraestructura, y ArchUnit lo verifica en CI. Las flechas siempre apuntan hacia adentro.</p>
+  <figure class="diagram">
+<pre class="mermaid">
+flowchart LR
+  subgraph in["Adaptadores de entrada · infrastructure"]
+    rest["REST controllers\nGET /notification_events\nGET /{id}\nPOST /{id}/replay"]
+    seed["SQS listener (ElasticMQ / SQS)\nperfil worker"]
+    sched["Delivery scheduler\n@Scheduled cada 1 s · perfil worker"]
+  end
+
+  subgraph app["application · puertos de entrada (casos de uso)"]
+    uc1["ListNotificationEvents"]
+    uc2["GetNotificationEvent"]
+    uc3["ReplayNotificationEvent"]
+    uc4["RegisterNotificationEvent"]
+    uc5["ProcessDueDeliveries"]
+  end
+
+  subgraph dom["domain · Java puro"]
+    ne["NotificationEvent\nDeliveryStatus (máquina de estados)"]
+    sub["Subscription\nclient_id · events[] · url · event_signature_key"]
+    att["DeliveryAttempt\nnumber · next_attempt_at · result"]
+    pol["RetryPolicy\nbackoff exponencial + jitter"]
+  end
+
+  subgraph out["application · puertos de salida"]
+    p1["NotificationEventRepository"]
+    p2["SubscriptionRepository"]
+    p3["DeliveryAttemptRepository"]
+    p4["WebhookSender"]
+    p5["DeliveryMetrics"]
+    p6["Clock"]
+  end
+
+  subgraph outad["Adaptadores de salida · infrastructure"]
+    jpa["Spring Data JPA\nPostgreSQL + Flyway"]
+    http["RestClient HTTPS\nHMAC signer · timeouts"]
+    mm["Micrometer\nPrometheus registry"]
+  end
+
+  rest --> uc1 & uc2 & uc3
+  seed --> uc4
+  sched --> uc5
+  uc1 & uc2 & uc3 & uc4 & uc5 --> ne
+  uc4 --> sub
+  uc5 --> att & pol
+  uc3 --> att
+  uc1 & uc2 & uc3 & uc4 & uc5 --> p1
+  uc4 & uc5 --> p2
+  uc3 & uc5 --> p3
+  uc5 --> p4 & p5 & p6
+  p1 & p2 & p3 -.-> jpa
+  p4 -.-> http
+  p5 -.-> mm
+
+  style dom stroke:#B5602A,stroke-width:2px
+</pre>
+    <figcaption><b>El dominio no sabe que existe HTTP.</b> <code>WebhookSender</code> es una interfaz; en tests se reemplaza por un fake que devuelve 200, 500 o timeout, y la política de reintentos se prueba sin levantar nada. Línea continua: llamada directa. Línea punteada: implementación de un puerto.</figcaption>
+  </figure>
+
+  <h3>Reglas que ArchUnit hace cumplir</h3>
+  <ul class="tight">
+    <li><code>domain</code> no importa nada de <code>application</code> ni de <code>infrastructure</code>, ni paquetes <code>org.springframework</code>, <code>jakarta.persistence</code> o <code>com.fasterxml</code>.</li>
+    <li><code>application</code> solo importa <code>domain</code>. Los puertos son interfaces del paquete <code>application.port.in</code> y <code>application.port.out</code>.</li>
+    <li>Los controllers solo llaman puertos de entrada; nunca repositorios ni entidades JPA.</li>
+    <li>Las entidades JPA viven en <code>infrastructure.persistence</code> y se traducen al dominio con mappers explícitos. El dominio no lleva anotaciones.</li>
+  </ul>
+
+  <!-- 5 -->
+  <h2 id="estados">5. Ciclo de vida de una notificación</h2>
+  <p>El conjunto de datos de referencia solo trae <code>completed</code> y <code>failed</code>. Para que "definitely failed" signifique algo, el dominio necesita estados intermedios. Las transiciones inválidas lanzan excepción de dominio y el controller las traduce a 409.</p>
+  <figure class="diagram">
+<pre class="mermaid">
+stateDiagram-v2
+  direction LR
+  [*] --> PENDING : evento aceptado\n(suscripción activa encontrada)
+  PENDING --> COMPLETED : 2xx en el primer intento
+  PENDING --> RETRYING : 5xx / timeout / 429\ny quedan intentos
+  PENDING --> FAILED : 4xx definitivo\n(excepto 408 y 429)
+  RETRYING --> COMPLETED : 2xx en un reintento
+  RETRYING --> RETRYING : falla transitoria\ny quedan intentos
+  RETRYING --> FAILED : intentos agotados (máx. 5)\no 4xx definitivo en un reintento
+  FAILED --> PENDING : POST /replay\n(nuevo ciclo, contador de intentos en 0)
+  [*] --> SKIPPED : evento aceptado\nsin suscripción activa
+  SKIPPED --> [*]
+  COMPLETED --> [*]
+  note right of SKIPPED
+    replay responde 409
+  end note
+  note right of COMPLETED
+    replay responde 409. Reenvío de completados es una evolución
+  end note
+</pre>
+    <figcaption><b>Replay solo desde FAILED.</b> Un replay sobre COMPLETED responde 409 Conflict; sobre PENDING o RETRYING también, porque el sistema todavía está intentando. Cada replay crea un intento nuevo enlazado al evento, así que el historial completo queda auditable.</figcaption>
+  </figure>
+
+  <h3>Política de reintentos</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Intento</th><th>Espera antes del intento</th><th>Con jitter ±20 %</th><th>Estado si falla</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td class="num">0 s (inmediato)</td><td class="num">—</td><td><span class="pill warn">RETRYING</span></td></tr>
+      <tr><td class="num">2</td><td class="num">30 s</td><td class="num">24 – 36 s</td><td><span class="pill warn">RETRYING</span></td></tr>
+      <tr><td class="num">3</td><td class="num">2 min</td><td class="num">96 – 144 s</td><td><span class="pill warn">RETRYING</span></td></tr>
+      <tr><td class="num">4</td><td class="num">8 min</td><td class="num">6.4 – 9.6 min</td><td><span class="pill warn">RETRYING</span></td></tr>
+      <tr><td class="num">5</td><td class="num">15 min (tope)</td><td class="num">12 – 15 min</td><td><span class="pill bad">FAILED</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Base 30 segundos, factor 4, tope 15 minutos: unos 26 minutos en total hasta FAILED. El tope de 15 minutos no es casual, es el máximo de <code>DelaySeconds</code> de SQS, así la misma política sirve si en el futuro los reintentos se mueven a la cola. Un replay abre un ciclo nuevo: el contador vuelve a cero y el evento dispone otra vez de los cinco intentos. Para demostraciones los tiempos se acortan por configuración (por ejemplo base 2 s) para ver los cinco intentos en menos de un minuto. Los errores 4xx distintos de 408 y 429 no se reintentan: el endpoint del cliente está diciendo que la petición es inválida, y repetirla no cambia nada.</p>
+
+  <!-- 6 -->
+  <h2 id="seq-entrega">6. Secuencia: entrega con reintentos</h2>
+  <p>Del evento que emite la plataforma hasta el estado final. Es el flujo que cubre las cinco capacidades requeridas: verificación contra suscripción, entrega HTTPS, reintentos, persistencia del resultado y observabilidad.</p>
+  <figure class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant P as event-simulator
+  participant Q as Cola (ElasticMQ / SQS)
+  participant S as SQS listener adapter
+  participant R as RegisterNotificationEvent
+  participant SR as SubscriptionRepository
+  participant DB as PostgreSQL
+  participant W as Delivery scheduler
+  participant D as ProcessDueDeliveries
+  participant H as WebhookSender (HTTPS)
+  participant C as Webhook del cliente
+  participant M as Micrometer
+
+  P->>Q: publica {event_id, event_type, client_id, content, occurred_at}
+  S->>Q: long polling (recibe mensaje)
+  S->>R: register(event)
+  Note over S,R: si event_id ya existe, se confirma el mensaje y no se registra dos veces
+  R->>SR: findActive(client_id, event_type)
+  alt sin suscripción activa
+    SR-->>R: vacío
+    R->>DB: guardar evento como SKIPPED (no se entrega)
+    R->>M: notifications.skipped++
+  else suscripción encontrada
+    SR-->>R: subscription {url, secret}
+    R->>DB: guardar evento PENDING + DeliveryAttempt #1 (next_attempt_at = now) · COMMIT
+    R->>M: notifications.registered++
+    S->>Q: ack del mensaje (el listener termina aquí, en milisegundos)
+  end
+
+  loop scheduler cada 1 s, intentos vencidos y libres (o con arrendamiento vencido)
+    W->>D: processDue(lote = paralelismo HTTP del worker, 50, repetido mientras el lote vuelva lleno)
+    D->>DB: TX1: UPDATE … SET claimed_at = now(), claimed_by = instancia WHERE id IN (SELECT … WHERE next_attempt_at ≤ now() AND executed_at IS NULL AND (claimed_at IS NULL OR claimed_at anterior a now() - lease) ORDER BY next_attempt_at FOR UPDATE SKIP LOCKED LIMIT 50) RETURNING * · COMMIT
+    D->>H: send(url, payload, secret) en paralelo, fuera de transacción · lease = 2 × (timeout conexión + lectura)
+    H->>C: POST HTTPS · event-timestamp · event-signature (HMAC-SHA256) · x-cobre-event-id · x-cobre-attempt
+    alt 2xx
+      C-->>H: 200 OK
+      H-->>D: DeliveryResult.success(status, latency)
+      D->>DB: TX2: UPDATE attempt SET result = 200, executed_at = now() WHERE id = ? AND claimed_by = instancia AND executed_at IS NULL · event.status = COMPLETED · delivered_at = now() · si afecta 0 filas, descartar
+      D->>M: notifications.deliveries{status="completed"}++ · notifications.webhook.latency
+    else 5xx, timeout, 408 o 429
+      C-->>H: 503 / sin respuesta
+      H-->>D: DeliveryResult.transientFailure
+      D->>D: RetryPolicy.next(attemptNumber) → delay con jitter
+      alt quedan intentos
+        D->>DB: attempt.result = 503 · nuevo attempt #n+1 (next_attempt_at = now + delay) · status = RETRYING
+        D->>M: notifications.deliveries{status="retrying"}++
+      else intentos agotados
+        D->>DB: attempt.result = 503 · status = FAILED · failure_reason
+        D->>M: notifications.deliveries{status="failed"}++
+      end
+    else 4xx definitivo
+      C-->>H: 400 / 404 / 410
+      H-->>D: DeliveryResult.permanentFailure
+      D->>DB: status = FAILED · failure_reason = "client rejected"
+      D->>M: notifications.deliveries{status="failed"}++
+    end
+  end
+</pre>
+    <figcaption><b>El registro y la entrega son transacciones separadas.</b> El listener solo registra: evento e intento #1 en una transacción, ack del mensaje en milisegundos, así el visibility timeout de la cola solo debe cubrir el registro. El scheduler, cada segundo, reclama tantos intentos como POST puede ejecutar en paralelo y repite el reclamo mientras el lote vuelva lleno, y el arrendamiento dura el doble del tiempo máximo de un POST, de modo que ningún otro worker puede reclamar las mismas filas mientras el lote está en vuelo. La escritura del resultado es condicional a que la fila siga reclamada por esta instancia; si no, el resultado se descarta. Los tiempos de reclamo y vencimiento usan el reloj de Postgres, no el de cada worker. Si el servicio cae antes del commit del registro, la cola reentrega y el <code>event_id</code> como clave primaria evita duplicados. Registrar el evento nunca espera a la red del cliente. El worker toma intentos vencidos con <code>SKIP LOCKED</code>, lo que permite varias réplicas del worker sin entregas duplicadas. Cada métrica lleva la etiqueta <code>client_id</code>, así monitoreo puede responder una queja de un cliente concreto.</figcaption>
+  </figure>
+
+  <!-- 7 -->
+  <h2 id="seq-consulta">7. Secuencia: consulta aislada por cliente</h2>
+  <p>El <code>client_id</code> nunca viaja como parámetro. Sale del token, y todos los repositorios reciben ese valor como filtro obligatorio. Es la mitigación directa a Broken Object Level Authorization, la primera del OWASP API Top 10.</p>
+  <figure class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant C as Cliente (CLIENT002)
+  participant F as JWT filter (Spring Security)
+  participant Ctl as NotificationEventController
+  participant L as ListNotificationEvents
+  participant G as GetNotificationEvent
+  participant Repo as NotificationEventRepository
+  participant DB as PostgreSQL
+
+  C->>F: GET /notification_events?from=2024-03-15&to=2024-03-16&delivery_status=failed&limit=20<br/>Authorization: Bearer <jwt sub=CLIENT002>
+  F->>F: valida firma, expiración y audiencia
+  alt token inválido o ausente
+    F-->>C: 401 Unauthorized
+  else token válido
+    F->>Ctl: principal.clientId = CLIENT002
+    Ctl->>Ctl: valida rango de fechas y enum de delivery_status (400 si no cumple)
+    Ctl->>L: query(clientId=CLIENT002, from, to, deliveryStatus, limit, cursor?)
+    L->>Repo: search(clientId, filters, limit + 1, cursor)
+    Repo->>DB: SELECT ... WHERE client_id = 'CLIENT002' AND status = 'FAILED' AND created_at BETWEEN ... AND (created_at, event_id) anterior al cursor ORDER BY created_at DESC, event_id DESC LIMIT 21
+    DB-->>Repo: [EVT003]
+    Repo-->>L: Slice de NotificationEvent
+    L-->>Ctl: Slice de NotificationEvent
+    Ctl-->>C: 200 {items:[EVT003], next_cursor: null}
+  end
+
+  C->>F: GET /notification_events/EVT005 (EVT005 pertenece a CLIENT003)
+  F->>Ctl: principal.clientId = CLIENT002
+  Ctl->>G: get(clientId=CLIENT002, id=EVT005)
+  G->>Repo: findByIdAndClientId(EVT005, CLIENT002)
+  Repo->>DB: SELECT ... WHERE event_id = 'EVT005' AND client_id = 'CLIENT002'
+  DB-->>Repo: vacío
+  Repo-->>G: Optional.empty
+  G-->>Ctl: NotificationEventNotFound
+  Ctl-->>C: 404 Not Found (no 403: no se revela que el recurso existe)
+</pre>
+    <figcaption><b>404, no 403.</b> Un 403 confirma al atacante que el identificador existe y pertenece a otro. El repositorio nunca expone un <code>findById</code> sin cliente, así que el error de olvidar el filtro no puede ocurrir en un caso de uso nuevo.</figcaption>
+  </figure>
+
+  <!-- 8 -->
+  <h2 id="seq-replay">8. Secuencia: replay de una entrega fallida</h2>
+  <p>El replay no envía nada de forma síncrona. Encola un intento nuevo y responde 202; el mismo worker de la sección 6 lo entrega. Así la API no depende de la latencia del webhook del cliente y el replay hereda reintentos, firma y métricas sin código adicional.</p>
+  <figure class="diagram">
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant C as Cliente (CLIENT003)
+  participant F as JWT filter
+  participant Ctl as NotificationEventController
+  participant R as ReplayNotificationEvent
+  participant Repo as NotificationEventRepository
+  participant AR as DeliveryAttemptRepository
+  participant DB as PostgreSQL
+  participant W as Delivery scheduler
+
+  C->>F: POST /notification_events/EVT005/replay
+  F->>Ctl: principal.clientId = CLIENT003
+  Ctl->>R: replay(clientId=CLIENT003, id=EVT005)
+  R->>Repo: findByIdAndClientId(EVT005, CLIENT003)
+  alt no existe para ese cliente
+    Repo-->>R: Optional.empty
+    R-->>Ctl: NotificationEventNotFound
+    Ctl-->>C: 404 Not Found
+  else existe
+    Repo-->>R: event {status}
+    alt status != FAILED
+      R-->>Ctl: IllegalStateTransition(status → PENDING)
+      Ctl-->>C: 409 Conflict {"error":"replay allowed only when delivery_status is failed"}
+    else status == FAILED
+      R->>R: event.replay() → status = PENDING (transición validada en el dominio)
+      R->>DB: BEGIN · UPDATE event SET status = PENDING, cycle = cycle + 1 WHERE event_id = ? AND client_id = ? AND status = 'FAILED' · insert attempt #1 del ciclo nuevo (origin = REPLAY) · COMMIT
+      alt otro replay ganó la carrera (0 filas actualizadas)
+        DB-->>R: 0 filas actualizadas
+        Ctl-->>C: 409 Conflict
+      else
+        R-->>Ctl: ReplayAccepted {attempt_id}
+        Ctl-->>C: 202 Accepted · Location: /notification_events/EVT005
+      end
+    end
+  end
+  Note over W: en el siguiente tick el worker toma el intento<br/>y sigue la secuencia de entrega (sección 6)
+</pre>
+    <figcaption><b>Idempotencia por actualización condicional al estado.</b> Dos replays seguidos o simultáneos sobre el mismo evento: el segundo responde 409 porque su <code>UPDATE … WHERE status = 'FAILED'</code> no afecta ninguna fila. No hace falta una columna de versión. Nunca se crean dos intentos. El replay resuelve la suscripción vigente del cliente en el momento de entregar, no la que tenía el evento al fallar. Una cabecera <code>Idempotency-Key</code> para devolver la misma respuesta al reintentar la misma petición queda como evolución documentada.</figcaption>
+  </figure>
+
+  <!-- 9 -->
+  <h2 id="datos">9. Modelo de datos</h2>
+  <p>Tres tablas. <code>created_at</code> es la fecha del hecho de negocio, <code>occurred_at</code> del emisor, y es la que filtra la API; <code>received_at</code> es la hora de recepción y sirve para medir latencia. Los intentos se guardan uno por fila, agrupados por ciclo, para que una queja de cliente se responda con el historial exacto. La clave primaria es <code>event_id</code>: se asume que la plataforma garantiza identificadores globalmente únicos, como hace Cobre con sus identificadores prefijados.</p>
+  <figure class="diagram">
+<pre class="mermaid">
+erDiagram
+  SUBSCRIPTIONS ||--o{ NOTIFICATION_EVENTS : "resuelve destino de"
+  NOTIFICATION_EVENTS ||--o{ DELIVERY_ATTEMPTS : "tiene (ninguno si SKIPPED)"
+
+  SUBSCRIPTIONS {
+    varchar id PK "sub_xxxxxx, como en Cobre"
+    varchar client_id "índice con active"
+    text_array events "claves de evento, o * para todas"
+    varchar url "HTTPS obligatorio, sin IP privadas"
+    varchar description
+    varchar event_signature_key "10 a 64 chars, cifrado en reposo como evolución"
+    boolean active
+    timestamptz created_at
+  }
+  NOTIFICATION_EVENTS {
+    varchar event_id PK "EVT001"
+    varchar client_id "índice compuesto con created_at y status"
+    varchar event_type
+    text content
+    varchar delivery_status "PENDING RETRYING COMPLETED FAILED SKIPPED"
+    timestamptz created_at "= occurred_at del emisor"
+    timestamptz received_at "hora de recepción en la cola"
+    timestamptz delivered_at "null hasta COMPLETED"
+    varchar subscription_id FK "sub_xxxxxx, null si SKIPPED"
+    int cycle "0 en origen, +1 por replay"
+  }
+  DELIVERY_ATTEMPTS {
+    uuid id PK
+    varchar event_id FK
+    int cycle
+    int attempt_number "1 a 5 dentro del ciclo"
+    timestamptz next_attempt_at "índice para el worker"
+    timestamptz claimed_at "arrendamiento, null si libre"
+    varchar claimed_by "instancia del worker"
+    timestamptz executed_at
+    int response_status "null si timeout"
+    varchar failure_reason
+    int latency_ms
+    varchar origin "SYSTEM o REPLAY"
+  }
+</pre>
+    <figcaption><b>Un índice sostiene la API y otro sostiene el worker.</b> <code>(client_id, delivery_status, created_at DESC, event_id DESC)</code> sirve al filtro por estado con rango de fechas y keyset, y <code>(client_id, created_at DESC, event_id DESC)</code> al listado sin estado. <code>(next_attempt_at) WHERE executed_at IS NULL</code> hace que el sondeo del worker sea barato aunque la tabla crezca. <code>claimed_at</code> y <code>claimed_by</code> implementan el arrendamiento de la sección 13.</figcaption>
+  </figure>
+
+  <!-- 10 -->
+  <h2 id="despliegue">10. Local y AWS</h2>
+  <p>El código es el mismo en ambos. Cambian adaptadores de infraestructura y variables de entorno. El diseño de producción se describe sobre AWS; la demostración corre sobre el objetivo local.</p>
+
+  <div class="two">
+    <figure class="diagram">
+<pre class="mermaid">
+flowchart TB
+  subgraph compose["docker compose up · laptop"]
+    sim["event-simulator\nemisión continua + POST /simulator/events"]
+    mq["elasticmq\n(API SQS)"]
+    api["notifications-api\n(imagen única, perfil api)"]
+    app["notifications-worker\n(imagen única, perfil worker)"]
+    pg[("postgres:16")]
+    wm["wiremock\nreceptor de pruebas\n200 / 503 / timeout"]
+    prom["prometheus"]
+    graf["grafana\ndashboard provisionado"]
+  end
+  receiver["Receptor externo\n(internet)"]
+  sim -- "publica" --> mq
+  app -- "consume" --> mq
+  app --> pg
+  api --> pg
+  app -- "POST HTTPS" --> receiver
+  app -- "POST (dev)" --> wm
+  prom -- "scrape 5 s" --> api & app
+  graf --> prom
+</pre>
+      <figcaption><b>Local.</b> Ocho contenedores, costo cero. <code>docker compose up --scale notifications-worker=4</code> demuestra consumidores en competencia sin entregas duplicadas. WireMock permite ensayar los reintentos sin depender del receptor externo.</figcaption>
+    </figure>
+
+    <figure class="diagram">
+<pre class="mermaid">
+flowchart TB
+  subgraph aws["AWS · objetivo de diseño"]
+    alb["ALB + WAF\ningreso público, TLS, rate limiting"]
+    nat["NAT Gateway\negress del worker hacia webhooks"]
+    eb["Bus de eventos de la plataforma\n(EventBridge, existente) · regla por event_key"]
+    sqs["SQS + DLQ\ncola de entregas"]
+    api["ECS Fargate\nAPI self-service\n(autoscale por CPU)"]
+    wrk["ECS Fargate\nDelivery worker\n(autoscale por cola + intentos vencidos)"]
+    rds[("RDS PostgreSQL\nSingle-AZ inicial\nMulti-AZ en producción")]
+    ssm["SSM Parameter Store\nclave pública JWT · event_signature_keys"]
+    cw["CloudWatch\nmétricas, logs, alarmas"]
+  end
+  clients["Webhooks de clientes"]
+  clients2["Clientes de la API"] --> alb --> api
+  eb --> sqs
+  wrk -- "consume (pull)" --> sqs
+  wrk --> rds
+  api --> rds
+  wrk -- "POST HTTPS" --> nat --> clients
+  api & wrk --> ssm
+  api & wrk --> cw
+</pre>
+      <figcaption><b>AWS.</b> La API entra por ALB con WAF, donde vive el rate limiting por cliente; el worker sale por NAT Gateway con IP fija, que los clientes pueden poner en allowlist. Incluso aquí la plataforma no nos llama: el worker hace pull de la cola. El scheduler sobre la tabla de intentos se mantiene igual que en local; mover los reintentos a SQS con delay es una evolución. La API escala por tráfico HTTP; el worker escala por la suma de profundidad de la cola e intentos vencidos, porque los reintentos viven en Postgres y no en la cola.</figcaption>
+    </figure>
+  </div>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Responsabilidad</th><th>Local (demostración)</th><th>AWS (producción)</th><th>Qué cambia en el código</th></tr></thead>
+    <tbody>
+      <tr><td>Origen de eventos</td><td>event-simulator publica en ElasticMQ</td><td>Bus de la plataforma publica en SQS</td><td>Nada: mismo listener, otro endpoint</td></tr>
+      <tr><td>Cola de eventos</td><td>ElasticMQ en contenedor</td><td>SQS + DLQ</td><td>Solo la URL del endpoint</td></tr>
+      <tr><td>Reintentos de entrega</td><td>Tabla <code>delivery_attempts</code> + scheduler</td><td>Igual: tabla + scheduler</td><td>Nada. SQS con delay por mensaje es evolución</td></tr>
+      <tr><td>Base de datos</td><td>Postgres en contenedor</td><td>RDS PostgreSQL db.t4g.micro</td><td>Solo la URL de conexión</td></tr>
+      <tr><td>Secretos</td><td>Variables de entorno</td><td>SSM Parameter Store (gratis)</td><td>Solo configuración</td></tr>
+      <tr><td>Observabilidad</td><td>Prometheus + Grafana</td><td>CloudWatch + alarmas</td><td>Nada: Micrometer exporta a ambos</td></tr>
+      <tr><td>Cómputo</td><td>Dos contenedores de la misma imagen, perfiles <code>api</code> y <code>worker</code></td><td>Dos servicios Fargate de la misma imagen en subredes privadas; ALB con WAF delante de la API, NAT Gateway para la salida del worker</td><td>Nada: el perfil ya existe</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Qué observa monitoreo en near real-time</h3>
+  <!-- placeholder to keep order -->
+  <ul class="tight">
+    <li><span class="pill neutral">gauge</span> intentos pendientes vencidos: si crece, el worker no da abasto o el cliente está caído.</li>
+    <li><span class="pill neutral">counter</span> <code>notifications.deliveries{client_id, status, event_key}</code>: tasa de fallo por cliente, base de las alarmas.</li>
+    <li><span class="pill neutral">histogram</span> latencia del POST al webhook por cliente: detecta degradación del endpoint del cliente antes de que él se queje.</li>
+    <li><span class="pill neutral">log</span> una línea JSON por intento con <code>event_id</code>, <code>client_id</code>, <code>attempt_number</code>, <code>response_status</code> y <code>correlation_id</code>. Con eso se responde cualquier reclamo con evidencia.</li>
+  </ul>
+
+  <!-- 11 -->
+  <h2 id="patrones">11. Patrones aplicados y por qué no es Saga</h2>
+  <p>La plataforma de Cobre es event driven y de microservicios. Estos son los patrones que este diseño aplica de verdad, con el lugar exacto donde viven, y el que deliberadamente no aplica.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Patrón</th><th>Dónde vive en el diseño</th><th>Qué garantiza</th></tr></thead>
+    <tbody>
+      <tr><td>Tabla de trabajos con reclamo (estilo outbox)</td><td>Tabla <code>delivery_attempts</code>; el worker la drena. No es un outbox clásico porque no publica a un broker: el "consumidor" es el propio worker</td><td>Registrar el evento y programar su primer intento ocurren en una sola transacción local. Todo evento PENDING nace con su intento; SKIPPED no tiene intentos por definición.</td></tr>
+      <tr><td>Entrega al menos una vez + consumidor idempotente</td><td>Reintentos y replay de nuestro lado; <code>event_id</code> en cada POST para el lado del cliente</td><td>Podemos reenviar sin miedo. El contrato del webhook exige al cliente tolerar duplicados por <code>event_id</code>.</td></tr>
+      <tr><td>Reintento con backoff y dead letter</td><td><code>RetryPolicy</code> en el dominio; estado FAILED como cola de fallidos; replay como redrive manual</td><td>Un cliente caído no consume recursos de forma agresiva y el fallo definitivo queda visible y recuperable.</td></tr>
+      <tr><td>Consumidores en competencia</td><td>Réplicas del worker sobre la misma cola y <code>SKIP LOCKED</code> sobre la tabla</td><td>Escalado horizontal sin entregas duplicadas.</td></tr>
+      <tr><td>Notificación de eventos (Fowler)</td><td>Payload mínimo del webhook; la API self-service para el detalle</td><td>El cliente se entera de que algo pasó y consulta si necesita más. Menos acoplamiento al esquema interno.</td></tr>
+      <tr><td>Aislamiento por tenant</td><td><code>client_id</code> derivado del JWT y obligatorio en cada consulta del repositorio</td><td>Un cliente no puede ver ni reenviar eventos de otro.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Por qué no es un Saga</h3>
+  <p>Un Saga coordina una transacción de negocio que cruza varios servicios, cada uno con su transacción local, y define <b>compensaciones</b> para deshacer los pasos anteriores cuando uno posterior falla. El ejemplo canónico: crear orden, cobrar, reservar inventario; si el inventario falla, reembolsar.</p>
+  <ul class="tight">
+    <li><b>No hay transacción de negocio distribuida que mantener consistente.</b> El pago ya ocurrió antes de que el evento llegue a nosotros. Notificar es un efecto secundario del que no depende el resultado del pago.</li>
+    <li><b>No hay compensación.</b> Si el webhook falla definitivamente no se deshace nada aguas arriba. Reintentar y marcar FAILED no es compensar. Replay tampoco: es volver a ejecutar el mismo paso, no revertir otro.</li>
+    <li><b>Dónde sí vive un Saga:</b> en la plataforma que emite los eventos. Un pago que debita una cuenta, acredita otra y asienta en el ledger casi seguro se coordina con un Saga. Nuestro servicio sería un observador al final de esa cadena, nunca un participante con compensación.</li>
+    <li><b>Qué lo convertiría en Saga:</b> si dar de alta una suscripción exigiera verificar la URL con un challenge y registrar el endpoint en un tercero, con reversión del alta cuando el tercero falla. Ahí habría compensación. No está en alcance.</li>
+  </ul>
+
+  <!-- 12 -->
+  <h2 id="construccion">12. Contenedores y plan de construcción</h2>
+  <p>Decisiones de empaquetado, contenedores, arranque y orden de construcción. Cada una indica la alternativa considerada y la razón de la elección.</p>
+
+  <h3>Imágenes: dos, no tres ni una</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Imagen</th><th>La produce</th><th>Contiene</th><th>Por qué</th></tr></thead>
+    <tbody>
+      <tr><td><code>cobre/notifications</code></td><td>módulo <code>infrastructure</code></td><td>API y worker; el rol lo decide <code>SPRING_PROFILES_ACTIVE=api|worker</code></td><td>Un solo artefacto, un solo build, un solo tag. Lo que corre en la demostración es lo que corre en tests. Dos imágenes del mismo jar abrirían la puerta a que api y worker diverjan.</td></tr>
+      <tr><td><code>cobre/event-simulator</code></td><td>módulo <code>event-simulator</code></td><td>Doble de pruebas de la plataforma</td><td>Debe poder borrarse sin tocar la imagen real. No depende de <code>domain</code> ni de <code>application</code>; ArchUnit lo verifica.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><b>El perfil apaga beans, no solo configura.</b> Listener SQS y scheduler llevan <code>@Profile("worker")</code>; controllers y seguridad web llevan <code>@Profile("api")</code>. En perfil <code>api</code> el proceso no abre conexión a la cola. Flyway migra solo en la API; el worker espera a que la API esté healthy, y así escalar workers nunca produce carrera de migraciones.</p>
+  <p><b>Construcción: Dockerfile multi-stage con <code>mvnw</code>, sin Buildpacks ni Jib.</b> Etapa de build sobre <code>eclipse-temurin:21-jdk</code>: copia los POM y cachea dependencias en una capa, luego copia el código y empaqueta. Etapa final sobre <code>eclipse-temurin:21-jre</code>, usuario no root, jar extraído en capas para que las dependencias no se reconstruyan al cambiar una línea de Java. Reproducible con <code>docker compose build</code> en cualquier máquina con Docker, sin Java ni Maven instalados. Buildpacks descarga cientos de MB la primera vez y Jib es un plugin más que explicar.</p>
+
+  <h3>Contenedores: cinco core y tres opcionales</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Servicio</th><th>Imagen</th><th>Perfil Compose</th><th>Por qué está</th></tr></thead>
+    <tbody>
+      <tr><td><code>postgres</code></td><td><code>postgres:16-alpine</code></td><td>core</td><td>Única fuente de verdad; sin ella no hay API ni outbox</td></tr>
+      <tr><td><code>notifications-api</code></td><td><code>cobre/notifications</code>, perfil <code>api</code></td><td>core</td><td>Los tres endpoints self-service</td></tr>
+      <tr><td><code>notifications-worker</code></td><td><code>cobre/notifications</code>, perfil <code>worker</code></td><td>core</td><td>Entrega, reintentos y replay; aislado de la API para que un fallo no afecte al otro</td></tr>
+      <tr><td><code>elasticmq</code></td><td><code>softwaremill/elasticmq-native</code></td><td>core</td><td>Cola con API SQS; el mismo listener sirve en AWS</td></tr>
+      <tr><td><code>event-simulator</code></td><td><code>cobre/event-simulator</code></td><td>core</td><td>Ocupa el lugar de la plataforma emisora: emite los eventos del JSON y sigue generando eventos derivados</td></tr>
+      <tr><td><code>wiremock</code></td><td><code>wiremock/wiremock:3.13.1</code></td><td><code>dev</code></td><td>Receptor de pruebas para ensayar 503 y timeouts; solo archivos de configuración</td></tr>
+      <tr><td><code>prometheus</code></td><td><code>prom/prometheus</code></td><td><code>observability</code></td><td>Scrape de métricas; última fase</td></tr>
+      <tr><td><code>grafana</code></td><td><code>grafana/grafana</code></td><td><code>observability</code></td><td>Dashboard provisionado por archivo; última fase</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><b>Grafana se incorpora en la última fase como dashboard provisionado por archivo.</b> Alternativa considerada: incluirlo desde la fase de entrega para mostrar "near real-time" desde el inicio. Se descarta porque un dashboard con paneles vacíos o a medias comunica lo contrario de lo que pretende. Las métricas con nombre definitivo se definen en la fase de entrega en Micrometer; Grafana es entonces solo un archivo JSON con tres paneles. Mientras tanto, <code>/actuator/prometheus</code> ya cubre el requisito de observabilidad. <b>Ningún contenedor dedicado a infraestructura:</b> no hay nada que aprovisionar que Compose no levante ya. Flyway crea el esquema dentro de la API y ElasticMQ se configura con un archivo montado que declara la cola y su DLQ.</p>
+
+  <h3>Arranque</h3>
+  <ul class="tight">
+    <li><b>Cadena:</b> <code>postgres</code> y <code>elasticmq</code> → <code>notifications-api</code> (migra) → <code>notifications-worker</code> → <code>event-simulator</code>. Todo con <code>depends_on</code> y <code>condition: service_healthy</code>.</li>
+    <li><b>Healthchecks:</b> <code>pg_isready</code> para Postgres; <code>/actuator/health/readiness</code> para api y worker. Para ElasticMQ, <b>verificar en la primera fase</b> si la imagen nativa trae <code>wget</code>; si no, usar la imagen JVM <code>softwaremill/elasticmq</code> o dejar que el listener reintente la conexión al arrancar.</li>
+    <li><b>Una red, sin volumen para Postgres.</b> <code>docker compose down</code> deja el entorno limpio; Flyway rehace el esquema y el simulador vuelve a emitir.</li>
+    <li><b>Configuración:</b> <code>.env.example</code> versionado, <code>.env</code> ignorado. Para apuntar a un receptor distinto solo se edita <code>WEBHOOK_URL</code>. Puertos parametrizados en <code>.env</code> con un script <code>preflight</code> que verifica puertos libres y memoria disponible en Docker antes de arrancar.</li>
+    <li><b>Ciclo de desarrollo:</b> infraestructura en contenedores, aplicación en el host con <code>./mvnw spring-boot:run</code>. Reconstruir imagen por cada cambio es un loop de minutos; en el host es de segundos. Los tests de integración usan Testcontainers y no dependen de Compose.</li>
+  </ul>
+
+  <h3>Terraform: no</h3>
+  <p><b>No se escribe Terraform.</b> Alternativas consideradas: una carpeta <code>infra/terraform</code> escrita pero nunca aplicada, validada en CI; o un contenedor de Terraform en Compose. Se descartan porque código de infraestructura nunca aplicado es deuda visible sin nada que lo respalde, y porque Terraform no es un servicio de runtime. La infraestructura como código del alcance real es Compose, y el diseño AWS de la sección 10 nombra los módulos que harían falta: cola con DLQ, dos servicios Fargate, RDS y parámetros en SSM. Si se agrega en el futuro, será solo con <code>terraform validate</code> en CI, sin aplicarlo.</p>
+
+  <h3>Estructura del repositorio</h3>
+  <figure class="diagram"><pre style="margin:0;font-family:'IBM Plex Mono',monospace;font-size:13px;line-height:1.5">cobre-notifications/
+├── domain/                    Java puro
+├── application/               casos de uso y puertos, Java puro
+├── infrastructure/            Spring Boot: REST, JPA, SQS, RestClient, scheduler, security, metrics
+├── event-simulator/           doble de pruebas, sin dependencia del hexágono
+├── docker/
+│   ├── notifications.Dockerfile
+│   ├── simulator.Dockerfile
+│   ├── elasticmq/custom.conf          cola + DLQ declaradas
+│   ├── wiremock/mappings/             escenarios 200 / 503 / timeout
+│   ├── prometheus/prometheus.yml
+│   └── grafana/provisioning/          datasource + dashboard JSON
+├── docs/
+│   ├── notification_events.json      datos de referencia
+│   ├── 01-system-design.md            este documento
+│   ├── 02-security.md                 análisis OWASP
+│   └── 03-ai-usage.md                 anexo de uso de IA
+├── compose.yaml               perfiles: core (implícito), dev, observability
+├── .env.example
+├── Makefile                   build · up · up-all · emit · replay · token · logs · down · preflight
+└── .github/workflows/ci.yml   mvnw verify + docker compose build</pre></figure>
+
+  <h3>Plan de implementación por fases</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Fase</th><th>Al cierre debe funcionar</th><th>Qué queda cubierto</th></tr></thead>
+    <tbody>
+      <tr><td>Núcleo, ingestión y API</td><td><code>domain</code> y <code>application</code> completos con tests de máquina de estados y política de reintentos. ElasticMQ, listener SQS y simulador emitiendo los eventos del JSON. API con los tres endpoints sobre Postgres, JWT con aislamiento por cliente, 404 para evento ajeno, 409 para replay no permitido. ArchUnit verde. Compose con <code>api</code>, <code>worker</code> en modo solo ingestión, <code>postgres</code>, <code>elasticmq</code> y <code>event-simulator</code>.</td><td>Eventos entrando por la cola y visibles en la API; consulta, detalle y validación del replay</td></tr>
+      <tr><td>Entrega</td><td><code>WebhookSender</code> HTTPS con HMAC y timeouts. Scheduler cada 1 s con <code>SKIP LOCKED</code>, arrendamiento por lote y escritura condicional del resultado. Estados RETRYING y FAILED reales, replay ejecutado por el worker con ciclo nuevo. Tope de filas por cliente por lote. WireMock con los tres fallos del conjunto de referencia. Métricas Micrometer con nombres definitivos. Un test de integración end-to-end con Testcontainers y el test de reclamo concurrente. <b>Fuera de esta fase por control de alcance:</b> cifrado en reposo de la clave de firma, caché de suscripciones, lotes adaptativos, circuit breaker por suscripción, test de carga. <b>Al cierre, el alcance funcional queda congelado.</b></td><td>Entrega completa: webhook firmado, reintentos, replay, aislamiento entre clientes</td></tr>
+      <tr><td>Observabilidad y documentación</td><td>Documento de diseño y documento de seguridad en <code>docs/</code>, anexo de uso de IA, README con arranque en un comando. Grafana con tres paneles provisionados. GitHub Actions. Ensayo completo de la demostración con la URL del receptor inyectada por variable de entorno.</td><td>Diseño, seguridad, anexo de IA, demostración ensayada</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Registro del uso de IA</h3>
+  <p>El uso de IA en el proyecto se documenta con prompts y capturas. Método: cada sesión de trabajo con IA se registra en <code>docs/03-ai-usage.md</code> con fecha, modelo, objetivo, prompt resumido y qué se aceptó o rechazó del resultado; las capturas de pantalla van en <code>docs/ai/</code> con nombre por fecha. El registro empieza con la fase de diseño y continúa durante la construcción.</p>
+
+  <h3>Fuera de alcance</h3>
+  <ul class="tight">
+    <li>Kubernetes, Helm, Kind, registry remoto de imágenes, imágenes multi-arquitectura o distroless.</li>
+    <li>Terraform aplicado, Vault o Secrets Manager en local, base de datos por proceso.</li>
+    <li>Circuit breaker, rate limiting, trazas distribuidas, Loki, Alertmanager, tests de carga.</li>
+    <li>Módulo <code>contract</code> compartido entre el simulador y el servicio: el contrato se declara dos veces a propósito para no acoplar un doble de pruebas al artefacto real.</li>
+  </ul>
+  <p>Todo lo anterior se lista en el README como evoluciones con una frase de justificación cada una. Una lista explícita de lo que no se hizo y por qué es más útil para el lector que tres cosas a medias.</p>
+
+  <!-- 13 -->
+  <h2 id="concurrencia">13. Concurrencia: cuatro workers y un mensaje</h2>
+  <p>Con varias réplicas del worker hay tres puntos donde un mismo evento podría procesarse dos veces. Cada uno tiene su barrera, y ninguna barrera sola cubre los tres. La garantía resultante es <b>al menos una vez hacia el cliente, exactamente una vez en nuestro estado</b>.</p>
+
+  <figure>
+    <svg class="hand" viewBox="0 0 900 300" role="img" aria-label="Cuatro workers compiten por un mensaje en la cola y por filas en la tabla de intentos; tres barreras evitan el doble procesamiento: visibility timeout, clave primaria y SKIP LOCKED con arrendamiento.">
+      <defs>
+        <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <!-- queue -->
+      <rect x="20" y="110" width="120" height="70" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <text x="80" y="138" text-anchor="middle" font-size="12.5" font-weight="600" fill="currentColor">Cola SQS</text>
+      <text x="80" y="156" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">1 mensaje</text>
+      <!-- barrier 1 -->
+      <line x1="185" y1="60" x2="185" y2="240" stroke="#B5602A" stroke-width="2" stroke-dasharray="6 4"/>
+      <text x="185" y="48" text-anchor="middle" font-size="11" font-weight="600" fill="#B5602A">1 · visibility timeout</text>
+      <text x="185" y="262" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.75">un worker lo ve; los otros tres no</text>
+      <!-- workers -->
+      <g font-size="11.5" fill="currentColor">
+        <rect x="250" y="70" width="110" height="34" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/><text x="305" y="92" text-anchor="middle">worker 1</text>
+        <rect x="250" y="115" width="110" height="34" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/><text x="305" y="137" text-anchor="middle">worker 2</text>
+        <rect x="250" y="160" width="110" height="34" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/><text x="305" y="182" text-anchor="middle">worker 3</text>
+        <rect x="250" y="205" width="110" height="34" rx="3" fill="none" stroke="currentColor" stroke-width="1.2"/><text x="305" y="227" text-anchor="middle">worker 4</text>
+      </g>
+      <line x1="140" y1="145" x2="248" y2="87" stroke="currentColor" stroke-width="1.5" marker-end="url(#arr2)"/>
+      <!-- barrier 2 -->
+      <line x1="420" y1="60" x2="420" y2="240" stroke="#B5602A" stroke-width="2" stroke-dasharray="6 4"/>
+      <text x="420" y="48" text-anchor="middle" font-size="11" font-weight="600" fill="#B5602A">2 · PK event_id</text>
+      <text x="420" y="262" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.75">segundo INSERT falla → ack sin intento</text>
+      <!-- db events -->
+      <rect x="470" y="95" width="130" height="100" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <text x="535" y="120" text-anchor="middle" font-size="12.5" font-weight="600" fill="currentColor">Postgres</text>
+      <text x="535" y="140" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.8">notification_events</text>
+      <text x="535" y="158" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.8">delivery_attempts</text>
+      <text x="535" y="178" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.6">cycle · claimed_at</text>
+      <line x1="360" y1="87" x2="468" y2="130" stroke="currentColor" stroke-width="1.5" marker-end="url(#arr2)"/>
+      <!-- barrier 3 -->
+      <line x1="655" y1="60" x2="655" y2="240" stroke="#B5602A" stroke-width="2" stroke-dasharray="6 4"/>
+      <text x="655" y="48" text-anchor="middle" font-size="11" font-weight="600" fill="#B5602A">3 · SKIP LOCKED + arrendamiento</text>
+      <text x="655" y="262" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.75">una fila, un worker, un POST</text>
+      <!-- polling arrows from workers to db -->
+      <line x1="600" y1="145" x2="360" y2="222" stroke="currentColor" stroke-width="1" opacity="0.5" marker-end="url(#arr2)"/>
+      <line x1="600" y1="145" x2="360" y2="177" stroke="currentColor" stroke-width="1" opacity="0.5" marker-end="url(#arr2)"/>
+      <line x1="600" y1="145" x2="360" y2="132" stroke="currentColor" stroke-width="1" opacity="0.5" marker-end="url(#arr2)"/>
+      <text x="470" y="215" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.6">polling cada 1 s</text>
+      <!-- client -->
+      <rect x="720" y="110" width="160" height="70" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+      <text x="800" y="138" text-anchor="middle" font-size="12.5" font-weight="600" fill="currentColor">Webhook cliente</text>
+      <text x="800" y="156" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">idempotente por event_id</text>
+      <line x1="600" y1="145" x2="718" y2="145" stroke="currentColor" stroke-width="1.5" marker-end="url(#arr2)"/>
+      <text x="660" y="135" text-anchor="middle" font-size="10.5" fill="currentColor">POST</text>
+    </svg>
+    <figcaption><b>Tres barreras en serie.</b> La cola evita que cuatro workers reciban el mismo mensaje a la vez; la clave primaria absorbe una reentrega; el bloqueo con salto y el arrendamiento garantizan que cada intento lo ejecuta un solo worker. Lo único que queda es el POST duplicado tras una caída entre el envío y la grabación del resultado, y eso lo absorbe el cliente por <code>event_id</code>.</figcaption>
+  </figure>
+
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Dónde puede duplicarse</th><th>Barrera</th><th>Qué pasa en el peor caso</th></tr></thead>
+    <tbody>
+      <tr><td>Cuatro workers hacen polling de la cola y llega un mensaje</td><td><b>Visibility timeout de SQS / ElasticMQ.</b> El worker que lo recibe lo oculta a los demás; se borra solo cuando el listener termina sin excepción (modo <code>ON_SUCCESS</code>). Timeout configurado mayor al tiempo de registro.</td><td>El worker se cae después de registrar y antes de confirmar. El mensaje reaparece y otro worker lo recibe. Pasa a la barrera 2.</td></tr>
+      <tr><td>Dos workers registran el mismo <code>event_id</code></td><td><b>Clave primaria.</b> Evento e intento #1 se insertan en una sola transacción. La segunda inserción falla por unicidad; el código la trata como "ya registrado", confirma el mensaje y no crea intento.</td><td>Ninguno. Postgres serializa la carrera aunque ocurra en el mismo milisegundo. También cubre que el productor emita dos veces el mismo <code>event_id</code>.</td></tr>
+      <tr><td>Cuatro workers hacen polling de <code>delivery_attempts</code> y hay filas vencidas</td><td><b><code>FOR UPDATE SKIP LOCKED</code> + arrendamiento por lote + escritura condicional.</b> TX1 corta: toma tantas filas vencidas y libres como POST puede ejecutar en paralelo, marca <code>claimed_at</code> y <code>claimed_by</code> con el reloj de Postgres, confirma. Los POST corren fuera de transacción y en paralelo. TX2 graba el resultado solo si la fila sigue reclamada por esta instancia. El arrendamiento dura el doble del tiempo máximo de un POST, así que un lote entero cabe dentro de él.</td><td>El worker se cae entre el POST y TX2. El arrendamiento vence y otro worker repite el POST. <b>Duplicado hacia el cliente, inevitable sin transacción distribuida.</b> El contrato del webhook exige idempotencia por <code>event_id</code>, igual que Stripe o GitHub.</td></tr>
+      <tr><td>Dos replays simultáneos sobre el mismo evento FAILED</td><td><b>Actualización condicional al estado:</b> <code>UPDATE … WHERE event_id = ? AND status = 'FAILED'</code>. Ambos leen FAILED; el segundo UPDATE afecta cero filas y responde 409.</td><td>Ninguno. Solo se crea un intento.</td></tr>
+      <tr><td>API y worker actualizan el mismo evento a la vez</td><td>Toda transición de estado es un UPDATE condicional al estado de origen.</td><td>Quien pierde ve cero filas afectadas y no pisa el estado del otro.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Por qué el POST no va dentro de la transacción del lock</h3>
+  <p>Sería más simple mantener el <code>FOR UPDATE</code> abierto durante el HTTP: si el worker muere, la transacción se revierte sola y la fila queda libre. Pero un webhook lento retiene una conexión de base de datos hasta cinco segundos por intento, y con cuatro workers y lotes de cincuenta filas el pool se agota bajo carga. El arrendamiento cuesta dos columnas y una condición en el <code>WHERE</code>, y es la respuesta directa a la pregunta de qué pasa con el pool bajo carga.</p>
+
+  <h3>Por qué no cola FIFO</h3>
+  <p>SQS FIFO ofrece deduplicación por <code>MessageDeduplicationId</code> durante cinco minutos y orden por grupo. No hace falta: los eventos son independientes, el orden no importa y la clave primaria deduplica sin ventana de tiempo. FIFO limita el throughput y añade configuración sin quitar ninguna de las tres barreras.</p>
+
+  <h3>Cómo se demuestra</h3>
+  <ul class="tight">
+    <li><b>Test de integración</b> con Testcontainers: veinte intentos vencidos, cuatro pollers concurrentes sobre la misma tabla, y la aserción de que cada intento fue reclamado exactamente una vez y ejecutado exactamente una vez.</li>
+    <li><b>Test de registro duplicado:</b> el mismo mensaje entregado dos veces al listener produce un solo evento y un solo intento.</li>
+    <li><b>En el entorno local:</b> <code>docker compose up -d --scale notifications-worker=4</code>, emitir veinte eventos, y mostrar en el registro de peticiones de WireMock exactamente veinte POST.</li>
+  </ul>
+
+  <!-- 14 -->
+  <h2 id="capacidad">14. Capacidad y elección del motor</h2>
+  <p>Análisis de capacidad en tres escenarios de carga y comparación de Postgres, DynamoDB y MongoDB para este dominio. Los tres escenarios asumen 1.3 intentos por evento y consultas de API del 10 % del volumen.</p>
+
+  <h3>Los números</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th></th><th>E1 · 100 k/día</th><th>E2 · 100 k/hora</th><th>E3 · 1 M/hora</th></tr></thead>
+    <tbody>
+      <tr><td>Eventos/s, promedio · pico</td><td class="num">1.2 · 20</td><td class="num">28 · 300</td><td class="num">280 · 3 000</td></tr>
+      <tr><td>Transacciones de escritura/s en pico (≈3 por evento)</td><td class="num">60</td><td class="num">900</td><td class="num">9 000 sin lotes · ~1 500 con lotes</td></tr>
+      <tr><td>POST HTTPS en vuelo en pico (Little, 0.35 s medio)</td><td class="num">9</td><td class="num">137</td><td class="num">1 365</td></tr>
+      <tr><td>Peor caso, todos los clientes en timeout de 5 s</td><td class="num">130</td><td class="num">1 950</td><td class="num">19 500</td></tr>
+      <tr><td>Workers necesarios (50 POST en vuelo por worker)</td><td class="num">1 + 1 HA</td><td class="num">3 + 1 HA</td><td class="num">28, más con clientes lentos</td></tr>
+      <tr><td>Filas nuevas por día</td><td class="num">230 k</td><td class="num">5.5 M</td><td class="num">55 M</td></tr>
+      <tr><td>Instancia RDS aproximada</td><td>db.t4g.micro</td><td>db.t4g.medium / m7g.large</td><td>m7g.xlarge a 2xlarge + réplica</td></tr>
+      <tr><td>p99 escritura evento+intento, aprox.</td><td class="num">≈5 ms</td><td class="num">10 a 15 ms</td><td class="num">20 a 40 ms</td></tr>
+      <tr><td>p99 consulta API, aprox.</td><td class="num">≈10 ms</td><td class="num">≈20 ms</td><td class="num">30 a 50 ms en réplica</td></tr>
+      <tr><td>Primer cuello de botella</td><td>ninguno</td><td>HTTP saliente a clientes lentos</td><td>HTTP saliente; luego vacuum y bloat de intentos</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><b>El motor no es el primer límite en ningún escenario.</b> Cada evento cuesta a la base unos 5 ms de CPU repartidos en tres escrituras cortas e indexadas, y cuesta al HTTP saliente entre 300 y 5 000 ms de espera. La base espera mil veces menos que el webhook. Cambiar de motor sube el techo de escritura, que no es el problema, y no toca la espera del cliente, que sí lo es.</p>
+
+  <h3>Postgres, DynamoDB y MongoDB en este dominio</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Aspecto</th><th>Postgres</th><th>DynamoDB</th><th>MongoDB</th></tr></thead>
+    <tbody>
+      <tr><td>Consulta por cliente, rango de fechas y estado, paginada</td><td>Un índice compuesto, keyset pagination</td><td>Single table por cliente más un GSI por combinación de estado; todo lo no previsto es escaneo</td><td>Índice compuesto, viable</td></tr>
+      <tr><td>Outbox con reclamo atómico</td><td><code>SKIP LOCKED</code> + arrendamiento, demostrable en local</td><td>No existe; GSI sparse por fragmentos y escrituras condicionales, o mover reintentos a SQS con delay</td><td><code>findOneAndUpdate</code> atómico, viable</td></tr>
+      <tr><td>Transacción evento + intento</td><td>ACID sin límite práctico</td><td><code>TransactWriteItems</code>, doble costo</td><td>Multi-documento, más lenta, exige réplica</td></tr>
+      <tr><td>Filtros ad hoc para monitoreo y quejas</td><td>SQL libre</td><td>Solo lo que los índices anticipan</td><td>Aggregation pipeline</td></tr>
+      <tr><td>Costo mensual aproximado E1 / E2 / E3</td><td class="num">50 / 200 / 600 USD</td><td class="num">2 / 150 a 250 / 1 500 a 2 500 USD</td><td>DocumentDB no es MongoDB completo; Atlas fuera de AWS</td></tr>
+      <tr><td>Techo de escalado</td><td>Vertical hasta ~10 k tx/s afinado; horizontal solo en lectura</td><td>Sin techo práctico</td><td>Sharding, con operación propia</td></tr>
+      <tr><td>Entorno local idéntico a producción</td><td>Sí, contenedor oficial</td><td>DynamoDB Local o LocalStack, con diferencias sutiles</td><td>Sí</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><b>Decisión: Postgres.</b> El requisito de la API es exactamente lo que un índice relacional resuelve sin diseñar claves por adelantado, y el reclamo de intentos se demuestra con un test de integración legible. DynamoDB es más barato en E1 y escala más en E3, pero obliga a rediseñar el reclamo y a anticipar cada filtro en un GSI. <b>MongoDB no aporta ventaja diferencial</b> frente a ninguno de los dos aquí. La respuesta cambiaría solo con E3 sostenido o multi-región activa-activa, y en ese caso el movimiento correcto no es DynamoDB como base principal sino <b>SQS con delay como programador de reintentos y la base solo como registro</b>, que sirve igual para Postgres y para DynamoDB, y que el hexágono permite porque es un adaptador nuevo detrás del mismo puerto.</p>
+
+  <h3>Decisiones derivadas del análisis de capacidad</h3>
+  <ul class="tight">
+    <li><b>Scheduler cada 1 segundo, sin camino especial para el primer intento.</b> Latencia evento→entrega p50 de unos 500 ms con un solo mecanismo de entrega. La alternativa de ejecutar el intento #1 en línea dentro del listener se descartó: exige un executor propio, un arrendamiento que empieza antes del POST y una arista que el hexágono no tiene.</li>
+    <li><b>Reclamo por lote igual al paralelismo HTTP del worker (50, virtual threads)</b> con <code>UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED LIMIT 50) RETURNING</code>, repetido dentro del mismo tick mientras el lote vuelva lleno, y tope de filas por cliente dentro del lote para que un cliente con miles de reintentos no monopolice a los workers. Lotes mayores e intervalo adaptativo quedan como evolución para E3.</li>
+    <li><b>Tope del backoff en 15 minutos</b>, el máximo de <code>DelaySeconds</code> de SQS, para que la política sirva sin cambios si los reintentos migran a la cola. Ya reflejado en la sección 5.</li>
+    <li><b>Índice parcial del outbox</b> <code>(next_attempt_at) WHERE executed_at IS NULL</code>: contiene solo las filas pendientes y no crece con la tabla. La métrica de intentos vencidos se calcula sobre ese índice, nunca con <code>COUNT(*)</code> sobre la tabla completa.</li>
+    <li><b>Paginación por keyset</b> en la API, nunca por offset.</li>
+    <li><b>Evoluciones documentadas, fuera del alcance actual:</b> circuit breaker por suscripción para clientes caídos; caché en memoria de suscripciones; honrar <code>Retry-After</code> en 429; replay masivo por rango de fechas y estado.</li>
+    <li><b>Evoluciones de producción, con su precondición:</b> particionado mensual por <code>created_at</code> desde E2, que exige cambiar la clave primaria a <code>(event_id, created_at)</code> y la clave foránea de intentos a compuesta, con archivo a S3 antes de borrar particiones por retención financiera; <code>fillfactor=70</code> en intentos, que solo beneficia al reclamo porque la escritura del resultado toca una columna indexada; PgBouncer desde E2; réplica de lectura para la API desde E3.</li>
+  </ul>
+
+  <h3>Señales para cambiar el almacenamiento, y qué se hace antes</h3>
+  <p>Señales: commit p99 sostenido por encima de 20 ms con lotes ya aplicados; autovacuum que no alcanza a la tabla de intentos, con más de 20 % de tuplas muertas; o requisito real de multi-región activa-activa. Antes de cambiar de motor, en orden: lotes, fillfactor, particionado, caché de suscripciones, separar tabla caliente de histórico, réplica de lectura, reintentos a SQS con delay. Solo después, y solo por patrón, DynamoDB para el estado caliente con Postgres para consulta e histórico.</p>
+
+  <h3>Test de carga local</h3>
+  <p>Diez minutos en la laptop, sin pretender simular AWS: cuatro workers, WireMock con 300 ms de retardo fijo y 10 % de 503, una ráfaga de 5 000 eventos desde el simulador, y 60 segundos de <code>oha</code> con 50 conexiones sobre el GET de la API. Se miden entregas por segundo, p50 y p99 evento→entrega, transacciones por segundo de Postgres, p99 de la API y CPU de Docker. Resultado esperable: cuatro workers con 50 POST en vuelo cada uno y 300 ms por POST dan unas 600 entregas por segundo, limitadas por WireMock, API p99 por debajo de 50 ms y Postgres por debajo del 20 % de CPU. Conclusión: en local y sin afinar, la base absorbe cientos de eventos por segundo; el diseño soporta cien mil eventos por hora con una instancia mediana, y un millón por hora con particionado, réplica y lotes. El límite lo pone el webhook del cliente, no Postgres. El repositorio es un puerto: si el volumen cambia el patrón de acceso, el cambio es un adaptador, no un rediseño.</p>
+
+  <!-- 15 -->
+  <h2 id="cobre-real">15. Contraste con la API pública de Cobre</h2>
+  <p>Cobre ya ofrece en producción una API de notificaciones y suscripciones documentada públicamente. Este diseño adopta sus nombres, su esquema de evento y su algoritmo de firma, de modo que un cliente actual no tendría que cambiar su integración. Y el contraste muestra con precisión qué agrega este diseño.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Aspecto</th><th>Cobre hoy (documentación pública)</th><th>Este diseño</th></tr></thead>
+    <tbody>
+      <tr><td>Suscripción</td><td><code>POST /v1/subscriptions</code> con <code>url</code> (HTTPS), <code>events[]</code>, <code>description</code>, <code>event_signature_key</code> opcional (10 a 64 caracteres, devuelto enmascarado)</td><td>Misma entidad y mismos campos. Sin CRUD en el alcance: se carga por seed, una por cliente con todas las claves y la URL del receptor configurado</td></tr>
+      <tr><td>Esquema del evento</td><td><code>id</code>, <code>event_key</code>, <code>created_at</code>, <code>content</code></td><td>Mismos campos más <code>client_id</code>; el número de intento viaja en el header <code>x-cobre-attempt</code>. El conjunto de datos de referencia usa <code>event_type</code>; la API lo expone con ese nombre y el webhook lo envía como <code>event_key</code>, mismo valor</td></tr>
+      <tr><td>Firma</td><td>Headers <code>event-timestamp</code> y <code>event-signature</code>; HMAC-SHA256 en UTF-8 de <code>timestamp + "." + cuerpo_crudo</code> con la clave</td><td>Adoptado verbatim</td></tr>
+      <tr><td>Reintentos</td><td><b>3 reintentos a 200, 400 y 1 000 ms, solo errores de conexión; un 4xx no se reintenta; best-effort, sin reencolar</b></td><td>5 intentos en ~26 minutos con backoff y jitter; reintenta 5xx, timeout, 408 y 429; FAILED persistido y auditable. <b>Es la mejora central de este diseño</b></td></tr>
+      <tr><td>Garantía documentada</td><td>"No dependa de webhooks como única fuente de verdad; reconcilie por polling"</td><td>Al menos una vez con historial por intento; la API self-service es la reconciliación</td></tr>
+      <tr><td>Consultar notificaciones</td><td>No existe</td><td><code>GET /notification_events</code> con filtros. Funcionalidad nueva</td></tr>
+      <tr><td>Reenviar</td><td>No existe</td><td><code>POST …/replay</code> desde FAILED. Funcionalidad nueva</td></tr>
+      <tr><td>Receptor idempotente</td><td>"Diseñe su webhook para procesar duplicados con seguridad"</td><td>Mismo requisito, en el contrato del webhook</td></tr>
+      <tr><td>Autenticación de la API</td><td><code>POST /auth</code> con <code>user_id</code> y <code>secret</code> del portal; responde <code>access_token</code> JWT firmado RS256, <code>type: Bearer</code>, <code>expiration_time: 1200</code> (20 min). El cliente cachea el token y lo renueva al 95 % de su vida; un 401 se reintenta una vez con token nuevo</td><td>Resource server que valida el mismo JWT con la clave pública del emisor. El endpoint <code>/auth</code> queda fuera del alcance: nuestra API vive detrás del emisor que Cobre ya tiene. El nombre del claim que identifica al cliente y la audiencia esperada son configurables, porque los claims del token real no están documentados</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Fuentes: <a href="https://docs.cobre.com/notifications-subscriptions-1886572m0">Notifications &amp; Subscriptions</a>, <a href="https://docs.cobre.com/subscribe-to-events-25933276e0.md">Subscribe to events</a>, <a href="https://docs.cobre.com/list-all-available-events-25933279e0.md">List all available events</a>, <a href="https://docs.cobre.com/authentication-1886552m0">Authentication</a>. Consultadas el 2026-09-15.</p>
+
+  <!-- 16 -->
+  <h2 id="decisiones">16. Decisiones cerradas</h2>
+  <p>Decisiones de detalle que completan el diseño: modelo de suscripción, firma, idempotencia del replay, emisión de tokens, contrato del webhook, observabilidad y seguridad.</p>
+
+  <h3>Suscripción</h3>
+  <p><b>Una suscripción es una URL más una lista de claves de evento, igual que en Cobre.</b> En el alcance actual <b>un evento produce exactamente una notificación</b>: <code>event_id</code> es la clave primaria y la notificación referencia la única suscripción activa del cliente que incluya la clave del evento. Si un cliente tuviera dos suscripciones que coincidan, el sistema toma la más antigua y lo registra en log; entregar a varias exigiría una tabla intermedia notificación-por-suscripción y queda como evolución declarada. Las suscripciones iniciales se cargan por migración de datos, una por cliente con comodín y la URL del receptor configurada; sin CRUD en el alcance, es la única forma de crearlas. Sin suscripción activa para la clave, el evento se guarda como SKIPPED, que no es replayable en este alcance: responde 409 con la razón. Con más clientes: índice <code>(client_id, active)</code>, y el CRUD de suscripciones como evolución con los cuatro endpoints que Cobre ya expone.</p>
+
+  <h3>Firma del webhook</h3>
+  <p><b>Se implementa, con el algoritmo y los headers de Cobre.</b> <code>event-signature = HMAC-SHA256(event_signature_key, event-timestamp + "." + cuerpo)</code>. La clave se guarda en la base y nunca se devuelve completa por la API; el cifrado en reposo y la rotación con dos claves activas son evoluciones. Ventana de tolerancia de 5 minutos sobre el timestamp, documentada para el receptor. Es lo que permite al cliente verificar que el POST proviene de Cobre y no fue alterado.</p>
+
+  <h3>Idempotencia del replay</h3>
+  <p><b>Solo regla de estado más bloqueo optimista.</b> Dos replays sobre el mismo evento: el segundo recibe 409. La cabecera <code>Idempotency-Key</code> se retira del alcance y se menciona como evolución. Secuencia 8 y modelo de datos actualizados.</p>
+
+  <h3>Tokens JWT en el entorno local</h3>
+  <p><b>RS256 con un par de claves generado en local, igual que el token real de Cobre.</b> <code>make token CLIENT=CLIENT002</code> firma con la clave privada un JWT con <code>sub</code> igual al cliente, audiencia fija y expiración de 20 minutos, la misma vida que documenta Cobre. La API valida solo con la clave pública, que es lo que haría en producción contra el JWKS del emisor de Cobre. El origen de la clave, el claim de cliente y la audiencia son configuración; la equivalencia exacta con el token real se verifica cuando se integre. El endpoint <code>POST /auth</code> no se implementa porque ya existe en la plataforma; en local lo sustituye el comando.</p>
+
+  <h3>Contrato del webhook</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Parte</th><th>Contenido</th></tr></thead>
+    <tbody>
+      <tr><td>Método y tipo</td><td><code>POST</code>, <code>Content-Type: application/json; charset=utf-8</code></td></tr>
+      <tr><td>Headers</td><td><code>event-timestamp</code> (UTC ISO 8601), <code>event-signature</code> (HMAC-SHA256 hex), <code>x-cobre-event-id</code>, <code>x-cobre-attempt</code> (número de intento)</td></tr>
+      <tr><td>Cuerpo</td><td><code>{"id","event_key","client_id","created_at","content"}</code>. <code>content</code> es texto en el conjunto de datos de referencia; en producción sería el objeto del recurso, como en Cobre</td></tr>
+      <tr><td>Reglas para el receptor</td><td>Responder 2xx en menos de 5 segundos; procesar en segundo plano si tarda más; ser idempotente por <code>id</code>; verificar la firma antes de procesar; no asumir orden de llegada entre eventos; 4xx salvo 408 y 429 significa "no reintentes"; 5xx, 408, 429 o timeout significa "reintenta"</td></tr>
+      <tr><td>Timeouts nuestros</td><td>3 s de conexión, 5 s de lectura, sin seguir redirecciones</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Contrato de la API REST</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Endpoint</th><th>Entrada</th><th>Salida</th><th>Códigos</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET /notification_events</code></td><td><code>from</code>, <code>to</code>: fecha ISO 8601, sobre <code>created_at</code>, ambos inclusivos, <code>to</code> por defecto ahora. <code>delivery_status</code>: <code>pending</code>, <code>retrying</code>, <code>completed</code>, <code>failed</code>, <code>skipped</code>, en minúscula como el conjunto de referencia. <code>limit</code> 1 a 100, por defecto 20. <code>cursor</code> opaco</td><td><code>{"items":[…], "next_cursor": "…" | null}</code>. Cada item: <code>event_id</code>, <code>event_type</code>, <code>client_id</code>, <code>content</code>, <code>created_at</code>, <code>delivery_status</code>, <code>delivery_date</code> (null hasta COMPLETED), <code>attempts_count</code></td><td>200, 400 filtro inválido, 401</td></tr>
+      <tr><td><code>GET /notification_events/{notification_event_id}</code></td><td>Identificador en la ruta</td><td>El item anterior más <code>attempts[]</code>: por intento <code>cycle</code>, <code>attempt_number</code>, <code>executed_at</code>, <code>response_status</code>, <code>failure_reason</code>, <code>latency_ms</code>, <code>origin</code>; y <code>next_attempt_at</code> mientras esté PENDING o RETRYING</td><td>200, 401, 404 si no existe o pertenece a otro cliente</td></tr>
+      <tr><td><code>POST /notification_events/{notification_event_id}/replay</code></td><td>Sin cuerpo</td><td><code>{"event_id", "cycle", "delivery_status": "pending"}</code> y header <code>Location</code> al detalle</td><td>202 aceptado, 401, 404, 409 si el estado no es <code>failed</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>El campo <code>event_type</code> del conjunto de referencia y el <code>event_key</code> de Cobre son el mismo concepto; la API expone <code>event_type</code> por fidelidad al conjunto de referencia y el webhook envía <code>event_key</code> por fidelidad al contrato de Cobre, con el mismo valor.</p>
+
+  <h3>Observabilidad</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Métrica (Micrometer)</th><th>Tipo · etiquetas</th><th>Para qué</th></tr></thead>
+    <tbody>
+      <tr><td><code>notifications.registered</code></td><td>counter · <code>client_id</code>, <code>event_key</code></td><td>Eventos registrados desde la cola</td></tr>
+      <tr><td><code>notifications.deliveries</code></td><td>counter · <code>client_id</code>, <code>status</code>, <code>event_key</code></td><td>Tasa de entregas por estado; base de las alarmas</td></tr>
+      <tr><td><code>notifications.webhook.latency</code></td><td>timer/histogram · <code>client_id</code></td><td>p95 del POST por cliente; detecta degradación del endpoint del cliente</td></tr>
+      <tr><td><code>notifications.attempts.due</code></td><td>gauge, calculado sobre el índice parcial, publicado por cada worker y agregado con <code>max</code></td><td>Intentos vencidos sin reclamar; si sube, el worker no da abasto</td></tr>
+      <tr><td><code>notifications.leases.expired</code></td><td>counter</td><td>Arrendamientos vencidos retomados por otro worker; cada uno es un POST potencialmente duplicado</td></tr>
+      <tr><td><code>notifications.skipped</code></td><td>counter · <code>client_id</code>, <code>event_key</code></td><td>Eventos sin suscripción activa</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p><b>Tres paneles en Grafana:</b> tasa de entregas por estado <code>sum by (status) (rate(notifications_deliveries_total[1m]))</code>; latencia p95 por cliente <code>histogram_quantile(0.95, sum by (le, client_id) (rate(notifications_webhook_latency_seconds_bucket[1m])))</code>; intentos vencidos <code>notifications_attempts_due</code>. El timer de latencia se publica con histograma de percentiles habilitado para que la consulta p95 exista. <b>Alarmas, cada una con su acción:</b> intentos vencidos por encima de 30 segundos de trabajo del worker durante 5 minutos → escalar workers o revisar Postgres; tasa de fallo de un cliente por encima del 20 % con al menos 50 entregas en 10 minutos → avisar al cliente, su endpoint está degradado; métrica de intentos vencidos ausente durante 2 minutos → no queda ningún worker vivo, reiniciar; mensajes en la DLQ mayores que cero → un evento no se pudo registrar, revisar el mensaje y redrenar a mano; arrendamientos vencidos por encima de 10 por minuto → los POST duran más que el arrendamiento, revisar timeouts. <b>DLQ:</b> un mensaje pasa a la cola de fallidos tras 5 recepciones sin ack; nunca se redrena automáticamente. Logs JSON con <code>event_id</code>, <code>client_id</code>, <code>attempt_number</code>, <code>response_status</code>, <code>correlation_id</code>. <b>Acceso del equipo interno:</b> como propietario de la información, responde una queja de cliente consultando directamente la tabla de intentos, los paneles por cliente y los logs; la API self-service es exclusivamente para clientes y no expone datos de un cliente a otro, ni siquiera a roles internos.</p>
+
+  <h3>Seguridad: cinco vulnerabilidades del OWASP API Top 10</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Vulnerabilidad</th><th>Cómo afectaría a esta API</th><th>Mitigación y dónde vive</th></tr></thead>
+    <tbody>
+      <tr><td>API1 · Broken Object Level Authorization</td><td>Un cliente consulta o reenvía <code>EVT005</code> de otro cliente cambiando el id</td><td><code>client_id</code> sale del JWT, nunca de la petición; el repositorio no expone búsquedas sin cliente; lo ajeno responde 404. Sección 7</td></tr>
+      <tr><td>API2 · Broken Authentication</td><td>Tokens sin expiración, secretos en query, firma no verificada</td><td>JWT RS256 con <code>exp</code> de 20 min y <code>aud</code>, validado con clave pública, solo en header <code>Authorization</code>; 401 sin detalle; la clave privada nunca está en la API ni en el repo</td></tr>
+      <tr><td>API7 · Server-Side Request Forgery</td><td>Una suscripción con <code>url</code> apuntando a <code>169.254.169.254</code> o a la red interna convierte al worker en proxy hacia Cobre</td><td>Validación en aplicación al registrar y al entregar: solo HTTPS, resolver DNS, rechazar rangos privados, loopback y link-local, y <b>conectar a la IP ya resuelta</b> para cerrar el DNS rebinding, lo que exige Apache HttpClient 5 con resolutor propio detrás de <code>RestClient</code>, con redirecciones deshabilitadas. En AWS, security group de egreso del worker solo hacia internet e IMDSv2 con límite de un salto; NAT no es una mitigación, solo gobierna la salida. En perfil <code>local</code> se permite una allowlist explícita (WireMock por HTTP y un receptor de demostración aunque sea HTTP), con advertencia en log. <b>La más relevante para un servicio que hace POST a URL definidas por el cliente</b></td></tr>
+      <tr><td>API4 · Unrestricted Resource Consumption</td><td>Páginas de un millón de filas, webhooks que cuelgan, replays en bucle</td><td>Tamaño de página máximo 100 y paginación por keyset; timeouts 3 s y 5 s; backoff con tope; tope de filas por cliente por lote; replay solo desde FAILED. Rate limiting por cliente en el ALB con WAF en AWS; en local no aplica</td></tr>
+      <tr><td>API8 · Security Misconfiguration</td><td>Actuator público, stack traces en errores, CORS abierto, Swagger en producción</td><td>Actuator en puerto de gestión interno; errores con formato fijo sin detalle interno; Swagger solo en perfil local; contenedor no root; dependencias gestionadas por el BOM de Spring Boot</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p><b>Mapeo a la lista clásica OWASP Top 10 (2021)</b>, para cubrir ambas listas: API1 y API4 caen en <b>A01 Broken Access Control</b>; API2 en <b>A07 Identification and Authentication Failures</b>; API7 en <b>A10 Server-Side Request Forgery</b>; API8 en <b>A05 Security Misconfiguration</b>. Además, la firma HMAC y el cifrado TLS obligatorio cubren <b>A02 Cryptographic Failures</b>, y JPA con parámetros enlazados más validación de entrada cubren <b>A03 Injection</b>.</p>
+
+  <!-- 17 -->
+  <h2 id="revision">17. Registro de cambios de diseño</h2>
+  <p>Cambios aplicados a este documento tras dos revisiones de consistencia contra los requisitos, con la sección afectada y el motivo. Se conserva como trazabilidad de las decisiones.</p>
+  <h3>Versión 2</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Problema detectado</th><th>Cambio aplicado</th></tr></thead>
+    <tbody>
+      <tr><td>Carga inicial de datos con estados pre-asignados contradecía el flujo de registro, la cardinalidad evento-intento y el modelo</td><td>Eliminada. Un solo camino de datos: el simulador emite los eventos del conjunto de referencia y sigue generando derivados; el estado lo calcula el sistema; WireMock reproduce los tres fallos en local</td></tr>
+      <tr><td>Arrendamiento no cubría el lote: un worker lento superaba el arrendamiento de sus últimas filas y otro las reclamaba</td><td>Lote igual al paralelismo HTTP, arrendamiento igual al doble del tiempo máximo de un POST, escritura del resultado condicional a <code>claimed_by</code>, reloj de Postgres</td></tr>
+      <tr><td>Primer intento en línea sin executor acotado ni arista en el hexágono</td><td>Eliminado; scheduler cada 1 s</td></tr>
+      <tr><td>Tras un replay, el contador de intentos ya estaba agotado; faltaba RETRYING → FAILED por 4xx definitivo</td><td>Ciclos de entrega: el replay abre un ciclo con contador en cero; transición agregada</td></tr>
+      <tr><td>Columna <code>version</code> redundante con la actualización condicional por estado</td><td>Eliminada; reemplazada por <code>cycle</code></td></tr>
+      <tr><td>"Preparado para particionar" imposible con la clave primaria actual; afirmación sobre updates HOT incorrecta</td><td>Reescrito como evolución con su precondición de clave compuesta; afirmación HOT acotada al reclamo</td></tr>
+      <tr><td>NAT citado como mitigación de SSRF</td><td>Reemplazado por validación en aplicación con cliente HTTP que fija la IP resuelta, security group de egreso e IMDSv2</td></tr>
+      <tr><td>"Cambiar a JWKS es una línea" sin conocer los claims del token real</td><td>Claim de cliente y audiencia configurables; equivalencia por verificar</td></tr>
+      <tr><td>Sin contrato REST; mitigaciones prometidas pero excluidas del alcance; alarmas con umbrales absolutos y sin acción; sin política de DLQ</td><td>Tabla de contrato por endpoint; tope por cliente incluido en el alcance y cifrado en reposo declarado evolución; alarmas relativas con acción y alarma por métrica ausente; DLQ con 5 recepciones y redrenado manual</td></tr>
+      <tr><td>Scheduler 5 s frente a 2 s, réplicas 3 frente a 4, métricas con dos nombres, <code>received_at</code> prometido y ausente, <code>subscription_id</code> no nulo con SKIPPED, tres respuestas a los reintentos en AWS</td><td>Unificado en todas las secciones</td></tr>
+      <tr><td>Sin resumen, supuestos, no-objetivos, riesgos abiertos, criterios de aceptación ni glosario</td><td>Secciones agregadas: resumen al inicio, 18, 19 y 20</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3>Versión 2.1</h3>
+  <p>Verificación bajo protocolo estricto: solo contradicciones internas con cita textual, requisitos sin cubrir y errores de hecho con fuente. Resultado: diez contradicciones de nombres y cifras entre secciones, cero requisitos sin cubrir, cero errores de hecho. Corregidas: nombre del filtro <code>delivery_status</code> en la secuencia 7; conteo de métricas; aristas del caso de uso de entrega hacia suscripciones y eventos en el hexágono; paralelismo por worker fijado en 50 con reclamo repetido dentro del tick y cifras de workers y test de carga recalculadas; regla de 408 y 429 en todas las secciones; cifrado en reposo marcado como evolución en el modelo; número de intento solo en header; código 503 de WireMock; nombre del campo de log; qué escribe la API en el replay.</p>
+  <h3>Versión 1</h3>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Problema detectado</th><th>Cambio aplicado</th></tr></thead>
+    <tbody>
+      <tr><td>Headers del webhook distintos entre la secuencia 6 y el contrato</td><td>Unificados con los nombres de Cobre en la secuencia 6</td></tr>
+      <tr><td>Paginación por página y total en la secuencia 7, keyset en las secciones 14 y 16</td><td>Keyset en todas: <code>limit</code>, <code>cursor</code>, respuesta con <code>next_cursor</code>, sin <code>total</code></td></tr>
+      <tr><td>Modelo de suscripción inconsistente: una clave, lista, y "una entrega por suscripción" con <code>event_id</code> como PK</td><td>Un evento produce una notificación; suscripción con <code>events[]</code>; tipos alineados; entrega múltiple declarada como evolución</td></tr>
+      <tr><td><b>Carrera del primer intento en línea:</b> intento sin reclamar mientras el POST está en vuelo, y visibility timeout que no cubría el HTTP</td><td>El intento #1 nace reclamado en la transacción del registro; ack inmediato; POST en hilo aparte con el arrendamiento tomado</td></tr>
+      <tr><td>SKIPPED ausente de la máquina de estados; replay de SKIPPED y COMPLETED sin definir</td><td>Agregado a la sección 5; ambos responden 409; reenvío de completados como evolución</td></tr>
+      <tr><td>Scheduler "cada 5 s" contra "adaptativo"; seed sin proceso dueño</td><td>Scheduler fijo cada 2 s, lote fijo de 100; seed en perfil api tras Flyway, idempotente</td></tr>
+      <tr><td>Nombres de métricas distintos entre secuencia 6 y sección 16; "JWT secret" en SSM con RS256</td><td>Nombres unificados; SSM guarda la clave pública y las claves de firma</td></tr>
+      <tr><td><b>"Sin ALB ni NAT" en el diseño de producción</b></td><td>ALB con WAF delante de la API, NAT Gateway para el worker, subredes privadas</td></tr>
+      <tr><td>Validación anti-SSRF bloquea a WireMock y a receptores HTTP de demostración; DNS rebinding</td><td>Allowlist por perfil local; conexión a la IP resuelta</td></tr>
+      <tr><td>Índice compuesto en orden subóptimo; "Transactional Outbox" como nombre; 429 sin <code>Retry-After</code></td><td>Índices reordenados; renombrado a tabla de trabajos con reclamo; <code>Retry-After</code> como evolución</td></tr>
+      <tr><td>Fase de entrega sobrecargada; sin método de registro del uso de IA; seguridad solo con la lista API</td><td>Fase de entrega recortada en la sección 12; método de registro definido; mapeo a OWASP 2021 agregado</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Los datos de autenticación de Cobre citados en la sección 15 provienen de su documentación pública, leída el 2026-09-15 en la URL indicada.</p>
+
+  <!-- 18 -->
+  <h2 id="supuestos">18. Supuestos, no-objetivos y riesgos abiertos</h2>
+  <h3>Supuestos</h3>
+  <ul class="tight">
+    <li>La plataforma emisora garantiza <code>event_id</code> globalmente único. Un <code>event_id</code> repetido con contenido distinto se ignora, se registra en log y se cuenta en métrica.</li>
+    <li>El conjunto de datos de referencia es una plantilla de eventos, no un estado inicial: sus campos de resultado son el desenlace esperado en local, no datos pre-cargados.</li>
+    <li>El token JWT de producción lo emite la plataforma de Cobre; el claim de cliente y la audiencia se configuran al integrar.</li>
+    <li>Un cliente tiene una suscripción activa por clave de evento. Entregar a varias suscripciones del mismo cliente queda fuera del alcance.</li>
+    <li>El receptor del cliente es idempotente por <code>id</code> y tolera entregas fuera de orden, como exige el contrato de Cobre.</li>
+  </ul>
+  <h3>No-objetivos</h3>
+  <ul class="tight">
+    <li>CRUD de suscripciones, rotación de claves de firma, replay de eventos completados o SKIPPED, replay masivo por rango.</li>
+    <li>Circuit breaker por suscripción, rate limiting en la aplicación, caché de suscripciones, cifrado en reposo de la clave de firma.</li>
+    <li>Despliegue en AWS, Terraform, Kubernetes, multi-región, trazas distribuidas.</li>
+    <li>Reintentos vía SQS con delay, particionado, PgBouncer, réplica de lectura: evoluciones con precondiciones descritas en la sección 14.</li>
+  </ul>
+  <h3>Riesgos abiertos</h3>
+  <ul class="tight">
+    <li><b>Compatibilidad de versiones.</b> Spring Boot 4.1 con Spring Cloud AWS 4.1 se verifica en la primera fase; alternativa: Spring Boot 4.0.</li>
+    <li><b>Healthcheck de ElasticMQ.</b> Si la imagen nativa no trae cliente HTTP, se usa la imagen JVM o el listener reintenta la conexión.</li>
+    <li><b>POST duplicado tras caída entre el envío y la escritura del resultado.</b> Inherente a la entrega al menos una vez; se mide con <code>notifications.leases.expired</code>.</li>
+    <li><b>Despliegue con dos versiones conviviendo.</b> Flyway migra desde la API; los cambios de esquema siguen la regla de expandir primero y contraer después, y el contrato de la cola se mantiene compatible con la versión anterior del worker.</li>
+    <li><b>Retención y regulación.</b> El contenido de los eventos puede incluir datos financieros; la retención definitiva y el archivo previo al borrado se definen con el área de cumplimiento.</li>
+  </ul>
+
+  <!-- 19 -->
+  <h2 id="aceptacion">19. Criterios de aceptación</h2>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Criterio</th><th>Cómo se verifica</th></tr></thead>
+    <tbody>
+      <tr><td>Los diez eventos del conjunto de referencia llegan por la cola y quedan visibles en la API con su cliente y su fecha original</td><td>Test de integración con ElasticMQ y Postgres en Testcontainers</td></tr>
+      <tr><td>Con WireMock fallando para EVT003, EVT005 y EVT009, el sistema termina con exactamente esos tres en <code>failed</code> y los otros siete en <code>completed</code></td><td>Test de extremo a extremo comparando contra el archivo</td></tr>
+      <tr><td>Cada POST lleva <code>event-timestamp</code> y <code>event-signature</code> verificables con la clave de la suscripción</td><td>Test unitario del firmador y verificación en WireMock</td></tr>
+      <tr><td>Un cliente no puede ver ni reenviar eventos de otro: 404</td><td>Test de API con dos tokens</td></tr>
+      <tr><td>Replay sobre <code>completed</code>, <code>pending</code>, <code>retrying</code> o <code>skipped</code> responde 409; sobre <code>failed</code> responde 202 y el worker lo entrega en un ciclo nuevo</td><td>Test de API y de integración</td></tr>
+      <tr><td>Veinte intentos vencidos y cuatro workers concurrentes: cada intento se ejecuta exactamente una vez</td><td>Test de integración de reclamo concurrente</td></tr>
+      <tr><td>El mismo mensaje entregado dos veces por la cola produce un solo evento y un solo intento</td><td>Test de integración del listener</td></tr>
+      <tr><td>El dominio y la aplicación no dependen de Spring ni de JPA</td><td>ArchUnit en CI</td></tr>
+      <tr><td><code>/actuator/prometheus</code> expone las seis métricas con sus etiquetas</td><td>Test de contrato del endpoint</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <!-- 20 -->
+  <h2 id="glosario">20. Glosario</h2>
+  <div class="tablewrap">
+  <table>
+    <tbody>
+      <tr><td><b>Arrendamiento</b></td><td>Marca temporal con la que un worker declara que un intento es suyo durante un plazo; vencido el plazo, otro worker puede tomarlo.</td></tr>
+      <tr><td><b>Ciclo</b></td><td>Conjunto de hasta cinco intentos de entrega. El registro original abre el ciclo 0; cada replay abre uno nuevo.</td></tr>
+      <tr><td><b>DLQ</b></td><td>Cola de mensajes fallidos: donde SQS deposita un mensaje que no pudo confirmarse tras varias recepciones.</td></tr>
+      <tr><td><b>Keyset</b></td><td>Paginación por cursor sobre las columnas ordenadas, en lugar de por desplazamiento numérico; su costo no crece con la página.</td></tr>
+      <tr><td><b>Puerto y adaptador</b></td><td>En arquitectura hexagonal, el puerto es la interfaz que el núcleo define; el adaptador es la implementación técnica que la cumple.</td></tr>
+      <tr><td><b>SKIP LOCKED</b></td><td>Cláusula de PostgreSQL que hace que una consulta salte las filas bloqueadas por otra transacción en lugar de esperar.</td></tr>
+      <tr><td><b>SSRF</b></td><td>Falsificación de petición del lado del servidor: lograr que el servidor haga peticiones a destinos internos que el atacante no alcanza directamente.</td></tr>
+      <tr><td><b>Visibility timeout</b></td><td>Tiempo durante el cual SQS oculta un mensaje recibido a los demás consumidores hasta que se confirme o expire.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+</body>
+</html>
