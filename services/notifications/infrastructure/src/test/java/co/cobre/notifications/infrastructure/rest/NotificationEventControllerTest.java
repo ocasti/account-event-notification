@@ -37,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(NotificationEventController.class)
 @EnableConfigurationProperties(JwtProperties.class)
-@Import({SecurityConfig.class, ClientIdResolver.class, NotificationEventResponseMapper.class, ApiExceptionHandler.class})
+@Import({SecurityConfig.class, ClientIdResolver.class, AuthenticatedClientArgumentResolver.class, WebMvcConfig.class, NotificationEventResponseMapper.class, ApiExceptionHandler.class})
 class NotificationEventControllerTest {
     @Autowired
     private MockMvc mockMvc;

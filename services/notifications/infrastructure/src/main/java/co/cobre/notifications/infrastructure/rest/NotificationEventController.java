@@ -12,11 +12,9 @@ import co.cobre.notifications.infrastructure.rest.NotificationEventDetailRespons
 import co.cobre.notifications.infrastructure.rest.NotificationEventPageResponse;
 import co.cobre.notifications.infrastructure.rest.ReplayResponse;
 import co.cobre.notifications.infrastructure.rest.NotificationEventResponseMapper;
-import co.cobre.notifications.infrastructure.security.ClientIdResolver;
+import co.cobre.notifications.infrastructure.security.AuthenticatedClient;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,23 +34,17 @@ public class NotificationEventController {
     private final GetNotificationEvent getNotificationEvent;
     private final ReplayNotificationEvent replayNotificationEvent;
     private final NotificationEventResponseMapper mapper;
-    private final ClientIdResolver clientIdResolver;
 
-    /**
-     * Creates a new notification event controller.
-     */
     public NotificationEventController(
         ListNotificationEvents listNotificationEvents,
         GetNotificationEvent getNotificationEvent,
         ReplayNotificationEvent replayNotificationEvent,
-        NotificationEventResponseMapper mapper,
-        ClientIdResolver clientIdResolver
+        NotificationEventResponseMapper mapper
     ) {
         this.listNotificationEvents = listNotificationEvents;
         this.getNotificationEvent = getNotificationEvent;
         this.replayNotificationEvent = replayNotificationEvent;
         this.mapper = mapper;
-        this.clientIdResolver = clientIdResolver;
     }
 
     /**
@@ -60,11 +52,9 @@ public class NotificationEventController {
      */
     @GetMapping
     public NotificationEventPageResponse list(
-        @AuthenticationPrincipal Jwt jwt,
+        @AuthenticatedClient ClientId clientId,
         @Valid @ModelAttribute ListRequest request
     ) {
-        ClientId clientId = clientIdResolver.resolve(jwt);
-
         var query = new ListNotificationEventsQuery(
             clientId,
             request.from(),
@@ -83,10 +73,9 @@ public class NotificationEventController {
      */
     @GetMapping("/{notification_event_id}")
     public NotificationEventDetailResponse get(
-        @AuthenticationPrincipal Jwt jwt,
+        @AuthenticatedClient ClientId clientId,
         @PathVariable("notification_event_id") String id
     ) {
-        ClientId clientId = clientIdResolver.resolve(jwt);
         var eventId = new EventId(id);
 
         var detail = getNotificationEvent.get(clientId, eventId);
@@ -98,10 +87,9 @@ public class NotificationEventController {
      */
     @PostMapping("/{notification_event_id}/replay")
     public ResponseEntity<ReplayResponse> replay(
-        @AuthenticationPrincipal Jwt jwt,
+        @AuthenticatedClient ClientId clientId,
         @PathVariable("notification_event_id") String id
     ) {
-        ClientId clientId = clientIdResolver.resolve(jwt);
         var eventId = new EventId(id);
 
         var result = replayNotificationEvent.replay(clientId, eventId);
