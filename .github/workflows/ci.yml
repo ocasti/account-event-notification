@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: read
+  checks: write        # publish the test summary as a check on the commit
+  pull-requests: write # allow the test reporter to annotate pull requests
 
 # One run per branch: a new push cancels the previous run of the same ref.
 concurrency:
@@ -38,6 +40,28 @@ jobs:
       - name: Maven verify (event-simulator)
         working-directory: services/event-simulator
         run: ./mvnw -B -ntp verify
+
+      # Test results as a check on the commit, with per-test annotations on failure.
+      - name: Publish test results
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Test results
+          path: 'services/**/target/surefire-reports/TEST-*.xml'
+          reporter: java-junit
+          fail-on-error: true
+
+      # Keep the raw reports and the coverage site for inspection when something fails.
+      - name: Upload test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            services/**/target/surefire-reports/
+            services/**/target/site/jacoco/
+          retention-days: 14
+          if-no-files-found: ignore
 
       - name: Validate Docker Compose configuration
         run: |
