@@ -13,22 +13,22 @@ public class WebhookPayloadMapper {
     private final JsonMapper jsonMapper;
 
     public WebhookPayloadMapper(JsonMapper jsonMapper) {
-        var mapper = JsonMapper.builder()
+        this.jsonMapper = JsonMapper.builder()
             .addModule(new JavaTimeModule())
             .build();
-        this.jsonMapper = mapper;
     }
 
     public String toJson(NotificationEvent event) {
         try {
-            var payload = new WebhookPayload(
-                event.eventId().value(),
-                event.eventKey().value(),
-                event.clientId().value(),
-                event.createdAt(),
-                event.content()
-            );
-            return jsonMapper.writeValueAsString(payload);
+            var iso8601Time = event.createdAt().toString();
+            var json = "{" +
+                "\"id\":\"" + event.eventId().value() + "\"," +
+                "\"event_key\":\"" + event.eventKey().value() + "\"," +
+                "\"client_id\":\"" + event.clientId().value() + "\"," +
+                "\"created_at\":\"" + iso8601Time + "\"," +
+                "\"content\":" + jsonMapper.writeValueAsString(event.content()) +
+                "}";
+            return json;
         } catch (Exception e) {
             throw new RuntimeException("Failed to serialize webhook payload", e);
         }

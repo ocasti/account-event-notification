@@ -15,6 +15,8 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
@@ -176,7 +178,7 @@ class HttpWebhookSenderTest {
         var attempt = createAttempt();
 
         mockServer.expect(requestTo("https://api.example.com/hook"))
-            .andRespond(withServerError());
+            .andRespond(withStatus(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE));
 
         var outcome = sender.send(subscription, event, attempt);
 
@@ -287,7 +289,7 @@ class HttpWebhookSenderTest {
         );
 
         var signer = new WebhookSigner(FIXED_CLOCK);
-        var mapper = new WebhookPayloadMapper(new com.fasterxml.jackson.databind.json.JsonMapper());
+        var mapper = new WebhookPayloadMapper(JsonMapper.builder().addModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule()).build());
         var sender = new HttpWebhookSender(restClient, signer, mapper, validator);
 
         var subscription = createSubscription("https://private.example.com/hook", "secret-key");
@@ -321,7 +323,7 @@ class HttpWebhookSenderTest {
             }
         });
         var signer = new WebhookSigner(FIXED_CLOCK);
-        var mapper = new WebhookPayloadMapper(new com.fasterxml.jackson.databind.json.JsonMapper());
+        var mapper = new WebhookPayloadMapper(JsonMapper.builder().addModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule()).build());
         return new HttpWebhookSender(restClient, signer, mapper, validator);
     }
 

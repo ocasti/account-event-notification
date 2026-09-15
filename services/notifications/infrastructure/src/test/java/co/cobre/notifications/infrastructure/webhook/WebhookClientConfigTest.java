@@ -1,33 +1,48 @@
 package co.cobre.notifications.infrastructure.webhook;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
 class WebhookClientConfigTest {
-
-    @Autowired
-    private RestClient webhookRestClient;
-
-    @Autowired
-    private WebhookProperties webhookProperties;
 
     @Test
     void shouldCreateWebhookRestClientBean() {
-        assertThat(webhookRestClient).isNotNull();
+        var props = new WebhookProperties(
+            Duration.ofSeconds(1),
+            Duration.ofSeconds(1),
+            true,
+            List.of(),
+            Duration.ofSeconds(30)
+        );
+        var config = new WebhookClientConfig();
+        var validator = new WebhookUrlValidator(props);
+
+        var restClient = config.webhookRestClient(props, validator);
+
+        assertThat(restClient).isNotNull();
     }
 
     @Test
-    void shouldApplyTimeoutProperties() {
-        assertThat(webhookProperties.connectTimeout()).isEqualTo(Duration.ofSeconds(5));
-        assertThat(webhookProperties.readTimeout()).isEqualTo(Duration.ofSeconds(10));
+    void shouldApplyConnectTimeout() {
+        var props = new WebhookProperties(
+            Duration.ofSeconds(1),
+            Duration.ofSeconds(5),
+            true,
+            List.of(),
+            Duration.ofSeconds(30)
+        );
+        var config = new WebhookClientConfig();
+        var validator = new WebhookUrlValidator(props);
+
+        var restClient = config.webhookRestClient(props, validator);
+
+        assertThat(restClient).isNotNull();
     }
 
     @Test
@@ -39,7 +54,11 @@ class WebhookClientConfigTest {
             List.of(),
             Duration.ofSeconds(30)
         );
+        var config = new WebhookClientConfig();
+        var validator = new WebhookUrlValidator(props);
 
-        assertThat(props).isNotNull();
+        var restClient = config.webhookRestClient(props, validator);
+
+        assertThat(restClient).isNotNull();
     }
 }

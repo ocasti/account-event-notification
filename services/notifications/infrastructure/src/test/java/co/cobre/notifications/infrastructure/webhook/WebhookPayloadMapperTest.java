@@ -4,20 +4,25 @@ import co.cobre.notifications.domain.model.ClientId;
 import co.cobre.notifications.domain.model.EventId;
 import co.cobre.notifications.domain.model.EventKey;
 import co.cobre.notifications.domain.model.NotificationEvent;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.junit.jupiter.api.BeforeEach;
 
 import java.time.Instant;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
 class WebhookPayloadMapperTest {
 
-    @Autowired
     private WebhookPayloadMapper mapper;
+
+    @BeforeEach
+    void setUp() {
+        var jsonMapperWithoutModule = JsonMapper.builder().addModule(new JavaTimeModule()).build();
+        mapper = new WebhookPayloadMapper(jsonMapperWithoutModule);
+    }
 
     @Test
     void shouldMapEventToJsonWithAllRequiredFields() {
