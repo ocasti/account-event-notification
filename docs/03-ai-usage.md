@@ -36,3 +36,29 @@ Each entry records the goal, the prompt in summary, what was produced, and what 
 - **Accepted from agents:** pinning ElasticMQ to 1.6.12 because 1.7 removed the statistics endpoint used by the healthcheck; Grafana on port 3001; `.dockerignore`.
 - **Resolved by the orchestrator:** both the Maven and the Docker agent produced Dockerfiles; the Maven agent's version was kept because it was validated against the real POMs.
 - **Rejected:** none.
+
+## Session 5 — 2026-09-15 — Domain layer with TDD (step 3, part 1)
+
+- **Goal:** build the domain module layer by layer: raw skeleton first, then value objects, then tests in red, then the minimal implementation to green.
+- **Prompts (summary):** to a Haiku sub-agent, "create the raw class skeleton with these exact signatures, every method throwing UnsupportedOperationException, no logic"; then "add value objects EventId, ClientId, EventKey, WebhookUrl with constructor validation; write these test cases; run them red; implement until green", with the full case list (state transitions, replay cycle, retry delays 0/30 s/2 min/8 min/15 min, jitter bounds, subscription matching).
+- **Output:** 14 classes in `domain/model`, `domain/policy`, `domain/exception`; 9 test classes, 89 tests.
+- **Verified:** red phase failed with 56 errors from unimplemented methods and no compilation errors; green phase 89/89; no dependency outside the JDK in main; tests use only JUnit 5 and AssertJ.
+- **Accepted:** implementation as delivered after reading the state machine, the aggregate transitions, the retry policy and the value objects.
+- **Rejected:** none.
+
+## Session 6 — 2026-09-15 — Application layer with TDD (step 3, part 2)
+
+- **Goal:** ports, commands, queries and use cases: raw skeleton, tests in red, minimal implementation, refactor in green.
+- **Prompts (summary):** to a Haiku sub-agent, "create the raw skeleton with these exact port and use case signatures"; then "write these test cases with Mockito for the four ports and a fixed Clock, run red, implement to green" with the full semantics of each use case; then "refactor ProcessDueDeliveries: no nulls, a single executed-attempt builder, exhaustive switch over the sealed outcome".
+- **Output:** 4 outbound port interfaces, 6 records, 5 use cases; 5 test classes, 17 tests.
+- **Verified:** red phase 17 failures from unimplemented methods; green 17/17 with the 89 domain tests still passing; refactor diff touches only the implementation file and stays green.
+- **Accepted:** implementation after reading register, replay and delivery processing.
+- **Changed:** the first delivery-processing implementation used nulls, duplicated a twelve-argument constructor and chained instanceof checks; it was refactored under green tests before merging.
+
+## Session 7 — 2026-09-15 — Parameter objects refactor
+
+- **Goal:** remove long parameter lists from the core after a review comment: methods and logic constructors should take at most three arguments; anything larger becomes a parameter object.
+- **Prompts (summary):** to a Haiku sub-agent, "introduce EventData, DeliveryResult, DeliveryClaim and DeliveryWorkerSettings; change these signatures; keep the 106 tests green adjusting only call sites; add tests for the new records".
+- **Output:** four new records; `NotificationEvent.register/skipped`, `DeliveryAttemptRepository.claimDue` and the `ProcessDueDeliveries` constructor reduced; `DeliveryAttempt.executed(...)` replaces a twelve-argument reconstruction.
+- **Verified:** 115 tests green; an automated scan shows the remaining signatures above three parameters are data records or dependency-injection constructors.
+- **Accepted:** as delivered.
