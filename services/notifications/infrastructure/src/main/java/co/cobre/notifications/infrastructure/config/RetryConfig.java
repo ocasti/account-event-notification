@@ -1,28 +1,27 @@
 package co.cobre.notifications.infrastructure.config;
 
 import co.cobre.notifications.domain.RetryPolicy;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.util.random.RandomGenerator;
 
-/**
- * Configuration for retry behavior.
- */
 @Configuration
+@EnableConfigurationProperties(RetryProperties.class)
 public class RetryConfig {
 
-    /**
-     * Creates a retry policy bean.
-     */
     @Bean
-    RetryPolicy retryPolicy() {
-        return RetryPolicy.standard();
+    RetryPolicy retryPolicy(RetryProperties props) {
+        return new RetryPolicy(
+            props.baseDelay(),
+            props.factor(),
+            props.maxDelay(),
+            props.jitterRatio(),
+            props.maxAttempts()
+        );
     }
 
-    /**
-     * Creates a random generator bean using java.util.Random to ensure compatibility with slim JRE images where jdk.random module is unavailable.
-     */
     @Bean
     RandomGenerator randomGenerator() {
         return new java.util.Random();

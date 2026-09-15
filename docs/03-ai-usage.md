@@ -105,3 +105,12 @@ Each entry records the goal, the prompt in summary, what was produced, and what 
 - **Output:** `ListRequest.status()`, `AuthenticatedClientArgumentResolver` registered through `WebMvcConfig`, controller signatures `(@AuthenticatedClient ClientId, ...)` with four collaborators and no try/catch, payload built from the record; 251 tests.
 - **Verified:** full suite with Testcontainers re-run by the orchestrating session before merging; the agent had reported 200 because it ran without Docker.
 - **Rejected:** none.
+
+## Session 13 — 2026-09-15 — Simulator, first full start and delivery fixes
+
+- **Goal:** build the event simulator, start the whole stack with `make up`, and fix what only a real container run reveals.
+- **Prompts (summary):** to a Haiku sub-agent, the simulator in three commits (raw skeleton, tests in red, implementation) with the queue contract, the catalog loaded from the reference dataset, derived events, an SQS publisher, an emission scheduler and a manual endpoint; follow-ups to use Jackson 3, keep properties as a record and add the validation test. Then, after `make up`, two more agents: "random generator available in the JRE image" and "no HTTP client retries, parallel batch with virtual threads, configurable retry policy with a fast local profile".
+- **Output:** `services/event-simulator` with 21 tests; both Docker images build from real code (445 MB and 362 MB); CI now builds the images; the stack starts with six healthy containers and events flow queue → worker → WireMock → API.
+- **Defects found only at container start, all fixed in production code or configuration:** `RandomGenerator.getDefault()` needs a JDK module absent from the JRE image; the AWS region key was nested under the wrong YAML level (boot tests had masked it by setting the region explicitly); the HTTP client retried 503s on its own; the claimed batch was processed sequentially; `@EnableScheduling` made the executor ambiguous for the pure-Java use case, solved with `@Primary`.
+- **Verified:** 256 tests green across the two services with Testcontainers; functional check against the running stack (statuses, webhook count, replay 202/409/404, 401 without token).
+- **Rejected:** Jackson 2 `ObjectMapper` bean; properties class with setters; leaving the WireMock request journal disabled.

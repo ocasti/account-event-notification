@@ -17,6 +17,8 @@ import co.cobre.notifications.domain.RetryPolicy;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.random.RandomGenerator;
 
 /**
@@ -32,6 +34,7 @@ public final class ProcessDueDeliveries {
     private final RandomGenerator random;
     private final Clock clock;
     private final DeliveryWorkerSettings settings;
+    private final Executor executor;
 
     /**
      * Creates a new process due deliveries use case.
@@ -44,7 +47,8 @@ public final class ProcessDueDeliveries {
         RetryPolicy retryPolicy,
         RandomGenerator random,
         Clock clock,
-        DeliveryWorkerSettings settings
+        DeliveryWorkerSettings settings,
+        Executor executor
     ) {
         this.events = events;
         this.attempts = attempts;
@@ -54,6 +58,7 @@ public final class ProcessDueDeliveries {
         this.random = random;
         this.clock = clock;
         this.settings = settings;
+        this.executor = executor;
     }
 
     /**
@@ -62,9 +67,15 @@ public final class ProcessDueDeliveries {
     public int processBatch() {
         var claim = new DeliveryClaim(clock.instant(), settings.batchSize(), settings.maxPerClient(), settings.workerId(), settings.lease());
         var claimed = attempts.claimDue(claim);
-        for (var attempt : claimed) {
-            process(attempt);
-        }
+        var futures = claimed.stream()
+            .map(attempt -> CompletableFuture.runAsync(() -> {
+                try {
+                    process(attempt);
+                } catch (Exception ignored) {
+                }
+            }, executor))
+            .toArray(CompletableFuture[]::new);
+        CompletableFuture.allOf(futures).join();
         return claimed.size();
     }
 

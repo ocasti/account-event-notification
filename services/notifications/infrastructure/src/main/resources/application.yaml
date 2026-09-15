@@ -31,6 +31,12 @@ notifications:
     lease: 16s
     poll-interval: 1s
     gauge-interval: 5s
+  retry:
+    base-delay: 30s
+    factor: 4
+    max-delay: 15m
+    jitter-ratio: 0.2
+    max-attempts: 5
   webhook:
     connect-timeout: 3s
     read-timeout: 5s
