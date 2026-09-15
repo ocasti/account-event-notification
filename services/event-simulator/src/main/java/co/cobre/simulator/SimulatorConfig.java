@@ -19,6 +19,7 @@ public class SimulatorConfig {
 
     @Bean
     RandomGenerator randomGenerator() {
-        return RandomGenerator.getDefault();
+        // Use java.util.Random instead of RandomGenerator.getDefault() for compatibility with slim JRE images where jdk.random module is unavailable.
+        return new java.util.Random();
     }
 }
