@@ -61,4 +61,18 @@ public class DeliveryMetrics {
     public void attemptsDue(int count) {
         throw new UnsupportedOperationException("not implemented");
     }
+
+    /**
+     * Records a batch processing result.
+     */
+    public void batchProcessed(int count) {
+        throw new UnsupportedOperationException("not implemented");
+    }
+
+    /**
+     * Records a scheduler error.
+     */
+    public void schedulerError() {
+        throw new UnsupportedOperationException("not implemented");
+    }
 }
