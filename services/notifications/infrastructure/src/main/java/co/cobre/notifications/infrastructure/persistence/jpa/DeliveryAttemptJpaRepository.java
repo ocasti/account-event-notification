@@ -29,7 +29,7 @@ public interface DeliveryAttemptJpaRepository extends JpaRepository<DeliveryAtte
         @Param("limit") int limit
     );
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = "UPDATE delivery_attempts SET claimed_at = now(), claimed_by = :workerId " +
                    "WHERE id IN (SELECT CAST(id AS uuid) FROM (VALUES :ids) AS t(id))",
            nativeQuery = true)
@@ -38,7 +38,7 @@ public interface DeliveryAttemptJpaRepository extends JpaRepository<DeliveryAtte
         @Param("workerId") String workerId
     );
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE DeliveryAttemptEntity da " +
            "SET da.executedAt = :executedAt, da.responseStatus = :responseStatus, " +
            "    da.failureReason = :failureReason, da.latencyMs = :latencyMs " +

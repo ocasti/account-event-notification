@@ -35,7 +35,7 @@ public interface NotificationEventJpaRepository extends JpaRepository<Notificati
         Pageable pageable
     );
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE NotificationEventEntity ne " +
            "SET ne.status = :newStatus, ne.cycle = :cycle, ne.deliveredAt = :deliveredAt " +
            "WHERE ne.eventId = :eventId AND ne.status = :expectedStatus")
