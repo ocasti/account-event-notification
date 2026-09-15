@@ -29,6 +29,8 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.random.RandomGenerator;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,6 +39,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -57,14 +60,15 @@ class ProcessDueDeliveriesTest {
         return random;
     }
 
-    private ProcessDueDeliveries createUseCase(Clock clock, RandomGenerator random) {
+    private ProcessDueDeliveries createUseCase(Clock clock, RandomGenerator random, Executor executor) {
         var settings = new DeliveryWorkerSettings("worker-1", 20, 5, Duration.ofSeconds(16));
         return new ProcessDueDeliveries(
             events, attempts, subscriptions, sender,
             RetryPolicy.standard(),
             random,
             clock,
-            settings
+            settings,
+            executor
         );
     }
 
@@ -74,7 +78,7 @@ class ProcessDueDeliveriesTest {
         Clock clock = Clock.fixed(now, ZoneId.of("UTC"));
         RandomGenerator random = fixedRandom(0.5);
 
-        ProcessDueDeliveries useCase = createUseCase(clock, random);
+        ProcessDueDeliveries useCase = createUseCase(clock, random, (Runnable::run));
 
         EventId eventId = new EventId("evt-123");
         ClientId clientId = new ClientId("client-1");
@@ -109,7 +113,7 @@ class ProcessDueDeliveriesTest {
         Clock clock = Clock.fixed(now, ZoneId.of("UTC"));
         RandomGenerator random = fixedRandom(0.5);
 
-        ProcessDueDeliveries useCase = createUseCase(clock, random);
+        ProcessDueDeliveries useCase = createUseCase(clock, random, (Runnable::run));
 
         EventId eventId = new EventId("evt-success");
         ClientId clientId = new ClientId("client-1");
@@ -188,7 +192,7 @@ class ProcessDueDeliveriesTest {
         Clock clock = Clock.fixed(now, ZoneId.of("UTC"));
         RandomGenerator random = fixedRandom(0.5);
 
-        ProcessDueDeliveries useCase = createUseCase(clock, random);
+        ProcessDueDeliveries useCase = createUseCase(clock, random, (Runnable::run));
 
         EventId eventId = new EventId("evt-retry");
         ClientId clientId = new ClientId("client-1");
@@ -258,7 +262,7 @@ class ProcessDueDeliveriesTest {
         Clock clock = Clock.fixed(now, ZoneId.of("UTC"));
         RandomGenerator random = fixedRandom(0.5);
 
-        ProcessDueDeliveries useCase = createUseCase(clock, random);
+        ProcessDueDeliveries useCase = createUseCase(clock, random, (Runnable::run));
 
         EventId eventId = new EventId("evt-exhausted");
         ClientId clientId = new ClientId("client-1");
@@ -328,7 +332,7 @@ class ProcessDueDeliveriesTest {
         Clock clock = Clock.fixed(now, ZoneId.of("UTC"));
         RandomGenerator random = fixedRandom(0.5);
 
-        ProcessDueDeliveries useCase = createUseCase(clock, random);
+        ProcessDueDeliveries useCase = createUseCase(clock, random, (Runnable::run));
 
         EventId eventId = new EventId("evt-permanent");
         ClientId clientId = new ClientId("client-1");
@@ -398,7 +402,7 @@ class ProcessDueDeliveriesTest {
         Clock clock = Clock.fixed(now, ZoneId.of("UTC"));
         RandomGenerator random = fixedRandom(0.5);
 
-        ProcessDueDeliveries useCase = createUseCase(clock, random);
+        ProcessDueDeliveries useCase = createUseCase(clock, random, (Runnable::run));
 
         EventId eventId = new EventId("evt-record-fail");
         ClientId clientId = new ClientId("client-1");
@@ -461,7 +465,7 @@ class ProcessDueDeliveriesTest {
         Clock clock = Clock.fixed(now, ZoneId.of("UTC"));
         RandomGenerator random = fixedRandom(0.5);
 
-        ProcessDueDeliveries useCase = createUseCase(clock, random);
+        ProcessDueDeliveries useCase = createUseCase(clock, random, (Runnable::run));
 
         EventId eventId = new EventId("evt-no-sub");
         ClientId clientId = new ClientId("client-1");
@@ -516,5 +520,63 @@ class ProcessDueDeliveriesTest {
 
         NotificationEvent updated = failedCaptor.getValue();
         assertThat(updated.status()).isEqualTo(DeliveryStatus.FAILED);
+    }
+
+    @Test
+    void shouldProcessBatchInParallelWithRealExecutor() {
+        Instant now = Instant.parse("2025-01-01T12:00:00Z");
+        Clock clock = Clock.fixed(now, ZoneId.of("UTC"));
+        RandomGenerator random = fixedRandom(0.5);
+        Executor executor = Executors.newFixedThreadPool(2);
+
+        ProcessDueDeliveries useCase = createUseCase(clock, random, executor);
+
+        EventId eventId1 = new EventId("evt-1");
+        EventId eventId2 = new EventId("evt-2");
+        EventId eventId3 = new EventId("evt-3");
+        EventId eventId4 = new EventId("evt-4");
+        EventId eventId5 = new EventId("evt-5");
+        ClientId clientId = new ClientId("client-1");
+        String subscriptionId = "sub-1";
+
+        var attemptsList = List.of(
+            new DeliveryAttempt(java.util.UUID.randomUUID(), eventId1, 0, 1, now.minusSeconds(60),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM),
+            new DeliveryAttempt(java.util.UUID.randomUUID(), eventId2, 0, 1, now.minusSeconds(60),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM),
+            new DeliveryAttempt(java.util.UUID.randomUUID(), eventId3, 0, 1, now.minusSeconds(60),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM),
+            new DeliveryAttempt(java.util.UUID.randomUUID(), eventId4, 0, 1, now.minusSeconds(60),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM),
+            new DeliveryAttempt(java.util.UUID.randomUUID(), eventId5, 0, 1, now.minusSeconds(60),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM)
+        );
+
+        var claim = new DeliveryClaim(now, 20, 5, "worker-1", Duration.ofSeconds(16));
+        when(attempts.claimDue(claim)).thenReturn(attemptsList);
+
+        for (var attempt : attemptsList) {
+            var event = new NotificationEvent(
+                attempt.eventId(), clientId, new EventKey("order.created"), "Order created",
+                Instant.parse("2025-01-01T11:00:00Z"), Instant.parse("2025-01-01T11:00:01Z"),
+                DeliveryStatus.PENDING, Optional.of(subscriptionId), 0, Optional.empty()
+            );
+            var subscription = new Subscription(
+                subscriptionId, clientId, Set.of(new EventKey("order.created")),
+                WebhookUrl.of("https://example.com/webhook"), Optional.empty(), Optional.empty(),
+                true, Instant.parse("2025-01-01T10:00:00Z")
+            );
+            lenient().when(events.findById(attempt.eventId())).thenReturn(Optional.of(event));
+            lenient().when(subscriptions.findById(subscriptionId)).thenReturn(Optional.of(subscription));
+            lenient().when(sender.send(subscription, event, attempt))
+                .thenReturn(new DeliveryOutcome.Success(200, Duration.ofMillis(50)));
+            lenient().when(this.attempts.recordResultIf(any(DeliveryAttempt.class), eq("worker-1"))).thenReturn(true);
+            lenient().when(this.events.transition(eq(attempt.eventId()), eq(DeliveryStatus.PENDING), any(NotificationEvent.class))).thenReturn(true);
+        }
+
+        int count = useCase.processBatch();
+
+        assertThat(count).isEqualTo(5);
+        verify(sender, times(5)).send(any(Subscription.class), any(NotificationEvent.class), any(DeliveryAttempt.class));
     }
 }

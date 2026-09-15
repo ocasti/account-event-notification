@@ -1,4 +1,10 @@
 notifications:
+  retry:
+    base-delay: ${RETRY_BASE_DELAY:2s}
+    factor: 4
+    max-delay: ${RETRY_MAX_DELAY:10s}
+    jitter-ratio: 0.2
+    max-attempts: 5
   webhook:
     allowlist: ${WEBHOOK_ALLOWLIST:wiremock}
     require-https: false
