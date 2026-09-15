@@ -1,5 +1,6 @@
 package co.cobre.notifications.application.usecase;
 
+import co.cobre.notifications.application.UseCase;
 import co.cobre.notifications.application.command.RegisterEventCommand;
 import co.cobre.notifications.application.command.RegistrationResult;
 import co.cobre.notifications.application.port.out.DeliveryAttemptRepository;
@@ -15,6 +16,7 @@ import java.time.Clock;
 /**
  * Use case for registering a new notification event.
  */
+@UseCase
 public final class RegisterNotificationEvent {
     private final NotificationEventRepository events;
     private final DeliveryAttemptRepository attempts;

@@ -1,5 +1,6 @@
 package co.cobre.notifications.application.usecase;
 
+import co.cobre.notifications.application.UseCase;
 import co.cobre.notifications.application.port.out.DeliveryAttemptRepository;
 import co.cobre.notifications.application.port.out.NotificationEventRepository;
 import co.cobre.notifications.application.query.ReplayResult;
@@ -16,6 +17,7 @@ import java.time.Clock;
 /**
  * Use case for replaying a failed notification event.
  */
+@UseCase
 public final class ReplayNotificationEvent {
     private final NotificationEventRepository events;
     private final DeliveryAttemptRepository attempts;

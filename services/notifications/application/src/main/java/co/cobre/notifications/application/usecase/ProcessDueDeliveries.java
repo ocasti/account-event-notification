@@ -1,5 +1,6 @@
 package co.cobre.notifications.application.usecase;
 
+import co.cobre.notifications.application.UseCase;
 import co.cobre.notifications.application.port.out.DeliveryClaim;
 import co.cobre.notifications.application.port.out.DeliveryAttemptRepository;
 import co.cobre.notifications.application.port.out.NotificationEventRepository;
@@ -21,6 +22,7 @@ import java.util.random.RandomGenerator;
 /**
  * Use case for processing delivery attempts that are due.
  */
+@UseCase
 public final class ProcessDueDeliveries {
     private final NotificationEventRepository events;
     private final DeliveryAttemptRepository attempts;
