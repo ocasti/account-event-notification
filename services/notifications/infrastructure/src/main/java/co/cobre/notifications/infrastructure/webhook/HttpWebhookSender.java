@@ -1,10 +1,10 @@
 package co.cobre.notifications.infrastructure.webhook;
 
-import co.cobre.notifications.application.port.out.WebhookSender;
-import co.cobre.notifications.domain.model.DeliveryAttempt;
-import co.cobre.notifications.domain.model.DeliveryOutcome;
-import co.cobre.notifications.domain.model.NotificationEvent;
-import co.cobre.notifications.domain.model.Subscription;
+import co.cobre.notifications.application.port.WebhookSender;
+import co.cobre.notifications.domain.DeliveryAttempt;
+import co.cobre.notifications.domain.DeliveryOutcome;
+import co.cobre.notifications.domain.NotificationEvent;
+import co.cobre.notifications.domain.Subscription;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;

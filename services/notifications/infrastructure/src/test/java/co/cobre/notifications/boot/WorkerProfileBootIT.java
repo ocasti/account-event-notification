@@ -1,7 +1,7 @@
 package co.cobre.notifications.boot;
 
-import co.cobre.notifications.infrastructure.messaging.AccountEventListener;
-import co.cobre.notifications.infrastructure.scheduler.DeliveryScheduler;
+import co.cobre.notifications.infrastructure.worker.AccountEventListener;
+import co.cobre.notifications.infrastructure.worker.DeliveryScheduler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;

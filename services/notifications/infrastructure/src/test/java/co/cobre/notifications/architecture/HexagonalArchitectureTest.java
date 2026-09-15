@@ -63,7 +63,7 @@ public class HexagonalArchitectureTest {
 
 
     /**
-     * Tests that JPA entities reside in persistence.entity package.
+     * Tests that JPA entities reside in the infrastructure.persistence package.
      */
     @Test
     void entities_should_reside_in_persistence_entity() {
@@ -71,7 +71,7 @@ public class HexagonalArchitectureTest {
             .that()
             .areAnnotatedWith(Entity.class)
             .should()
-            .resideInAPackage("..infrastructure.persistence.entity..");
+            .resideInAPackage("..infrastructure.persistence..");
         rule.check(classes);
     }
 
@@ -86,6 +86,41 @@ public class HexagonalArchitectureTest {
             .should()
             .dependOnClassesThat()
             .resideInAPackage("..infrastructure.persistence..")
+            .allowEmptyShould(true);
+        rule.check(classes);
+    }
+
+    /**
+     * Tests that infrastructure.worker does not depend on infrastructure.rest or
+     * infrastructure.security, keeping the worker process isolated from the api process.
+     */
+    @Test
+    void infrastructure_worker_should_not_depend_on_infrastructure_rest_or_security() {
+        ArchRule rule = noClasses()
+            .that()
+            .resideInAPackage("..infrastructure.worker..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAnyPackage(
+                "..infrastructure.rest..",
+                "..infrastructure.security.."
+            )
+            .allowEmptyShould(true);
+        rule.check(classes);
+    }
+
+    /**
+     * Tests that infrastructure.rest does not depend on infrastructure.worker,
+     * keeping the api process isolated from the worker process.
+     */
+    @Test
+    void infrastructure_rest_should_not_depend_on_infrastructure_worker() {
+        ArchRule rule = noClasses()
+            .that()
+            .resideInAPackage("..infrastructure.rest..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("..infrastructure.worker..")
             .allowEmptyShould(true);
         rule.check(classes);
     }

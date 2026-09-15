@@ -89,3 +89,11 @@ Each entry records the goal, the prompt in summary, what was produced, and what 
 - **Verified:** `mvnw verify` on main: 242 tests, 0 failures, integration tests included.
 - **Lessons:** area tests in green did not guarantee the application started; the boot tests found four wiring defects. Spring considers every declared constructor, so a class with two needs an explicit `@Autowired`. Spring Boot 4 provides Jackson 3 (`tools.jackson`) beans.
 - **Rejected:** replacing production beans with test substitutes to make the context start; attributing a failure to dynamic properties without evidence in the report.
+
+## Session 11 — 2026-09-15 — Flat packages, CI reporting and coverage
+
+- **Goal:** simplify the package structure after a review comment ("too nested"), and make the pipeline show test results and coverage.
+- **Prompts (summary):** to a Sonnet sub-agent (chosen over Haiku because the move touched every file), "one package per adapter, a `worker` package for the worker process, git mv, rewrite package and import declarations, update ArchUnit, keep 242 tests green"; CI and POM edits made by the orchestrating session.
+- **Output:** packages `domain`, `application.port`, `application.usecase`, `infrastructure.{config,persistence,rest,security,webhook,worker}`; two new ArchUnit rules isolating `worker` from `rest` and `security`; JaCoCo on every module; CI publishes Surefire results as a check and uploads reports and coverage as artifacts.
+- **Verified:** 244 tests green locally and in CI with Testcontainers on the runner; coverage domain 92 %, application 93 %.
+- **Rejected:** none.

@@ -1,6 +1,6 @@
 package co.cobre.notifications.infrastructure.webhook;
 
-import co.cobre.notifications.domain.model.NotificationEvent;
+import co.cobre.notifications.domain.NotificationEvent;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 

@@ -1,16 +1,16 @@
 package co.cobre.notifications.application.usecase;
 
 import co.cobre.notifications.application.UseCase;
-import co.cobre.notifications.application.port.out.DeliveryAttemptRepository;
-import co.cobre.notifications.application.port.out.NotificationEventRepository;
-import co.cobre.notifications.application.query.ReplayResult;
-import co.cobre.notifications.domain.exception.NotificationEventNotFoundException;
-import co.cobre.notifications.domain.exception.ReplayNotAllowedException;
-import co.cobre.notifications.domain.model.AttemptOrigin;
-import co.cobre.notifications.domain.model.ClientId;
-import co.cobre.notifications.domain.model.DeliveryAttempt;
-import co.cobre.notifications.domain.model.DeliveryStatus;
-import co.cobre.notifications.domain.model.EventId;
+import co.cobre.notifications.application.port.DeliveryAttemptRepository;
+import co.cobre.notifications.application.port.NotificationEventRepository;
+import co.cobre.notifications.application.usecase.ReplayResult;
+import co.cobre.notifications.domain.NotificationEventNotFoundException;
+import co.cobre.notifications.domain.ReplayNotAllowedException;
+import co.cobre.notifications.domain.AttemptOrigin;
+import co.cobre.notifications.domain.ClientId;
+import co.cobre.notifications.domain.DeliveryAttempt;
+import co.cobre.notifications.domain.DeliveryStatus;
+import co.cobre.notifications.domain.EventId;
 
 import java.time.Clock;
 

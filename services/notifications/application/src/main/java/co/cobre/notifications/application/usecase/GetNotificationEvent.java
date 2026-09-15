@@ -1,12 +1,12 @@
 package co.cobre.notifications.application.usecase;
 
 import co.cobre.notifications.application.UseCase;
-import co.cobre.notifications.application.port.out.DeliveryAttemptRepository;
-import co.cobre.notifications.application.port.out.NotificationEventRepository;
-import co.cobre.notifications.application.query.NotificationEventDetail;
-import co.cobre.notifications.domain.exception.NotificationEventNotFoundException;
-import co.cobre.notifications.domain.model.ClientId;
-import co.cobre.notifications.domain.model.EventId;
+import co.cobre.notifications.application.port.DeliveryAttemptRepository;
+import co.cobre.notifications.application.port.NotificationEventRepository;
+import co.cobre.notifications.application.usecase.NotificationEventDetail;
+import co.cobre.notifications.domain.NotificationEventNotFoundException;
+import co.cobre.notifications.domain.ClientId;
+import co.cobre.notifications.domain.EventId;
 
 /**
  * Use case for retrieving a notification event with its delivery attempts.

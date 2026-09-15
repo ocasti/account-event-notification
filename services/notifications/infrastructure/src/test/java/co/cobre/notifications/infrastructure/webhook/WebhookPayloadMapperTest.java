@@ -1,9 +1,9 @@
 package co.cobre.notifications.infrastructure.webhook;
 
-import co.cobre.notifications.domain.model.ClientId;
-import co.cobre.notifications.domain.model.EventId;
-import co.cobre.notifications.domain.model.EventKey;
-import co.cobre.notifications.domain.model.NotificationEvent;
+import co.cobre.notifications.domain.ClientId;
+import co.cobre.notifications.domain.EventId;
+import co.cobre.notifications.domain.EventKey;
+import co.cobre.notifications.domain.NotificationEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import tools.jackson.databind.json.JsonMapper;
@@ -32,7 +32,7 @@ class WebhookPayloadMapperTest {
             "{\"name\":\"John\"}",
             Instant.parse("2025-09-15T10:00:00Z"),
             Instant.parse("2025-09-15T10:00:01Z"),
-            co.cobre.notifications.domain.model.DeliveryStatus.PENDING,
+            co.cobre.notifications.domain.DeliveryStatus.PENDING,
             Optional.of("sub-789"),
             0,
             Optional.empty()
@@ -56,7 +56,7 @@ class WebhookPayloadMapperTest {
             "content",
             Instant.parse("2025-09-15T10:00:00Z"),
             Instant.parse("2025-09-15T10:00:01Z"),
-            co.cobre.notifications.domain.model.DeliveryStatus.PENDING,
+            co.cobre.notifications.domain.DeliveryStatus.PENDING,
             Optional.empty(),
             0,
             Optional.empty()
@@ -78,7 +78,7 @@ class WebhookPayloadMapperTest {
             "content",
             Instant.parse("2025-09-15T10:00:00Z"),
             Instant.parse("2025-09-15T10:00:01Z"),
-            co.cobre.notifications.domain.model.DeliveryStatus.PENDING,
+            co.cobre.notifications.domain.DeliveryStatus.PENDING,
             Optional.empty(),
             0,
             Optional.empty()

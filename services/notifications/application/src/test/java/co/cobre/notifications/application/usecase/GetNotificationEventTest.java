@@ -1,15 +1,15 @@
 package co.cobre.notifications.application.usecase;
 
-import co.cobre.notifications.application.port.out.DeliveryAttemptRepository;
-import co.cobre.notifications.application.port.out.NotificationEventRepository;
-import co.cobre.notifications.application.query.NotificationEventDetail;
-import co.cobre.notifications.domain.exception.NotificationEventNotFoundException;
-import co.cobre.notifications.domain.model.ClientId;
-import co.cobre.notifications.domain.model.DeliveryAttempt;
-import co.cobre.notifications.domain.model.EventData;
-import co.cobre.notifications.domain.model.EventId;
-import co.cobre.notifications.domain.model.EventKey;
-import co.cobre.notifications.domain.model.NotificationEvent;
+import co.cobre.notifications.application.port.DeliveryAttemptRepository;
+import co.cobre.notifications.application.port.NotificationEventRepository;
+import co.cobre.notifications.application.usecase.NotificationEventDetail;
+import co.cobre.notifications.domain.NotificationEventNotFoundException;
+import co.cobre.notifications.domain.ClientId;
+import co.cobre.notifications.domain.DeliveryAttempt;
+import co.cobre.notifications.domain.EventData;
+import co.cobre.notifications.domain.EventId;
+import co.cobre.notifications.domain.EventKey;
+import co.cobre.notifications.domain.NotificationEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -46,11 +46,11 @@ class GetNotificationEventTest {
             "Order created",
             Instant.parse("2025-01-01T11:00:00Z")
         );
-        var subscription = new co.cobre.notifications.domain.model.Subscription(
+        var subscription = new co.cobre.notifications.domain.Subscription(
             "sub-123",
             clientId,
             java.util.Set.of(new EventKey("order.created")),
-            co.cobre.notifications.domain.model.WebhookUrl.of("https://example.com/webhook"),
+            co.cobre.notifications.domain.WebhookUrl.of("https://example.com/webhook"),
             Optional.empty(),
             Optional.empty(),
             true,
@@ -66,7 +66,7 @@ class GetNotificationEventTest {
             eventId,
             0,
             Instant.parse("2025-01-01T11:00:01Z"),
-            co.cobre.notifications.domain.model.AttemptOrigin.SYSTEM
+            co.cobre.notifications.domain.AttemptOrigin.SYSTEM
         );
 
         when(events.findByClientAndId(clientId, eventId)).thenReturn(Optional.of(event));

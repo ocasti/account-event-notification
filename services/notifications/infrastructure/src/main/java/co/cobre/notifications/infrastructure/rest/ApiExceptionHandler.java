@@ -1,9 +1,9 @@
 package co.cobre.notifications.infrastructure.rest;
 
-import co.cobre.notifications.domain.exception.IllegalStateTransitionException;
-import co.cobre.notifications.domain.exception.NotificationEventNotFoundException;
-import co.cobre.notifications.domain.exception.ReplayNotAllowedException;
-import co.cobre.notifications.infrastructure.rest.dto.ErrorResponse;
+import co.cobre.notifications.domain.IllegalStateTransitionException;
+import co.cobre.notifications.domain.NotificationEventNotFoundException;
+import co.cobre.notifications.domain.ReplayNotAllowedException;
+import co.cobre.notifications.infrastructure.rest.ErrorResponse;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;

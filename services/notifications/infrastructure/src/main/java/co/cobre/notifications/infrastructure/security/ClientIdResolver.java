@@ -1,6 +1,6 @@
 package co.cobre.notifications.infrastructure.security;
 
-import co.cobre.notifications.domain.model.ClientId;
+import co.cobre.notifications.domain.ClientId;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
