@@ -97,3 +97,11 @@ Each entry records the goal, the prompt in summary, what was produced, and what 
 - **Output:** packages `domain`, `application.port`, `application.usecase`, `infrastructure.{config,persistence,rest,security,webhook,worker}`; two new ArchUnit rules isolating `worker` from `rest` and `security`; JaCoCo on every module; CI publishes Surefire results as a check and uploads reports and coverage as artifacts.
 - **Verified:** 244 tests green locally and in CI with Testcontainers on the runner; coverage domain 92 %, application 93 %.
 - **Rejected:** none.
+
+## Session 12 — 2026-09-15 — Controller and webhook cleanup
+
+- **Goal:** answer three review questions with code: no error handling in controllers, request objects that own their parsing, and an argument resolver for the authenticated client; plus two webhook defects found while reading the code.
+- **Prompts (summary):** to a Haiku sub-agent, four commits with tests first: "ListRequest owns status parsing", "@AuthenticatedClient argument resolver", "serialize the payload record with the JsonMapper", "no timestamp header without a signature".
+- **Output:** `ListRequest.status()`, `AuthenticatedClientArgumentResolver` registered through `WebMvcConfig`, controller signatures `(@AuthenticatedClient ClientId, ...)` with four collaborators and no try/catch, payload built from the record; 251 tests.
+- **Verified:** full suite with Testcontainers re-run by the orchestrating session before merging; the agent had reported 200 because it ran without Docker.
+- **Rejected:** none.
