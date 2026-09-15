@@ -1,0 +1,52 @@
+{
+  "mappings": [
+    {
+      "name": "webhook - EVT003 always 503",
+      "priority": 1,
+      "request": {
+        "method": "POST",
+        "urlPath": "/webhook",
+        "bodyPatterns": [
+          { "contains": "\"EVT003\"" }
+        ]
+      },
+      "response": {
+        "status": 503,
+        "headers": { "Content-Type": "application/json" },
+        "jsonBody": { "error": "service unavailable", "event": "EVT003" }
+      }
+    },
+    {
+      "name": "webhook - EVT005 always 503",
+      "priority": 1,
+      "request": {
+        "method": "POST",
+        "urlPath": "/webhook",
+        "bodyPatterns": [
+          { "contains": "\"EVT005\"" }
+        ]
+      },
+      "response": {
+        "status": 503,
+        "headers": { "Content-Type": "application/json" },
+        "jsonBody": { "error": "service unavailable", "event": "EVT005" }
+      }
+    },
+    {
+      "name": "webhook - EVT009 always 503",
+      "priority": 1,
+      "request": {
+        "method": "POST",
+        "urlPath": "/webhook",
+        "bodyPatterns": [
+          { "contains": "\"EVT009\"" }
+        ]
+      },
+      "response": {
+        "status": 503,
+        "headers": { "Content-Type": "application/json" },
+        "jsonBody": { "error": "service unavailable", "event": "EVT009" }
+      }
+    }
+  ]
+}
