@@ -1,6 +1,6 @@
 package co.cobre.notifications.infrastructure.config;
 
-import co.cobre.notifications.domain.policy.RetryPolicy;
+import co.cobre.notifications.domain.RetryPolicy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 

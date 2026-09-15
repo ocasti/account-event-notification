@@ -1,18 +1,18 @@
 package co.cobre.notifications.application.usecase;
 
 import co.cobre.notifications.application.UseCase;
-import co.cobre.notifications.application.port.out.DeliveryClaim;
-import co.cobre.notifications.application.port.out.DeliveryAttemptRepository;
-import co.cobre.notifications.application.port.out.NotificationEventRepository;
-import co.cobre.notifications.application.port.out.SubscriptionRepository;
-import co.cobre.notifications.application.port.out.WebhookSender;
-import co.cobre.notifications.domain.model.DeliveryAttempt;
-import co.cobre.notifications.domain.model.DeliveryOutcome;
-import co.cobre.notifications.domain.model.DeliveryResult;
-import co.cobre.notifications.domain.model.DeliveryStatus;
-import co.cobre.notifications.domain.model.NotificationEvent;
-import co.cobre.notifications.domain.model.Subscription;
-import co.cobre.notifications.domain.policy.RetryPolicy;
+import co.cobre.notifications.application.port.DeliveryClaim;
+import co.cobre.notifications.application.port.DeliveryAttemptRepository;
+import co.cobre.notifications.application.port.NotificationEventRepository;
+import co.cobre.notifications.application.port.SubscriptionRepository;
+import co.cobre.notifications.application.port.WebhookSender;
+import co.cobre.notifications.domain.DeliveryAttempt;
+import co.cobre.notifications.domain.DeliveryOutcome;
+import co.cobre.notifications.domain.DeliveryResult;
+import co.cobre.notifications.domain.DeliveryStatus;
+import co.cobre.notifications.domain.NotificationEvent;
+import co.cobre.notifications.domain.Subscription;
+import co.cobre.notifications.domain.RetryPolicy;
 
 import java.time.Clock;
 import java.time.Instant;

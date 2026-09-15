@@ -1,6 +1,6 @@
 package co.cobre.notifications.infrastructure.webhook;
 
-import co.cobre.notifications.domain.model.WebhookUrl;
+import co.cobre.notifications.domain.WebhookUrl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

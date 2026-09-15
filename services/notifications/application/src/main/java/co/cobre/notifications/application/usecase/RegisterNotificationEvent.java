@@ -1,15 +1,15 @@
 package co.cobre.notifications.application.usecase;
 
 import co.cobre.notifications.application.UseCase;
-import co.cobre.notifications.application.command.RegisterEventCommand;
-import co.cobre.notifications.application.command.RegistrationResult;
-import co.cobre.notifications.application.port.out.DeliveryAttemptRepository;
-import co.cobre.notifications.application.port.out.NotificationEventRepository;
-import co.cobre.notifications.application.port.out.SubscriptionRepository;
-import co.cobre.notifications.domain.model.AttemptOrigin;
-import co.cobre.notifications.domain.model.DeliveryAttempt;
-import co.cobre.notifications.domain.model.EventData;
-import co.cobre.notifications.domain.model.NotificationEvent;
+import co.cobre.notifications.application.usecase.RegisterEventCommand;
+import co.cobre.notifications.application.usecase.RegistrationResult;
+import co.cobre.notifications.application.port.DeliveryAttemptRepository;
+import co.cobre.notifications.application.port.NotificationEventRepository;
+import co.cobre.notifications.application.port.SubscriptionRepository;
+import co.cobre.notifications.domain.AttemptOrigin;
+import co.cobre.notifications.domain.DeliveryAttempt;
+import co.cobre.notifications.domain.EventData;
+import co.cobre.notifications.domain.NotificationEvent;
 
 import java.time.Clock;
 

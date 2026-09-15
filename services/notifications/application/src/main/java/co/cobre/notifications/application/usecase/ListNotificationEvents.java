@@ -1,9 +1,9 @@
 package co.cobre.notifications.application.usecase;
 
 import co.cobre.notifications.application.UseCase;
-import co.cobre.notifications.application.port.out.NotificationEventRepository;
-import co.cobre.notifications.application.query.ListNotificationEventsQuery;
-import co.cobre.notifications.application.query.NotificationEventPage;
+import co.cobre.notifications.application.port.NotificationEventRepository;
+import co.cobre.notifications.application.usecase.ListNotificationEventsQuery;
+import co.cobre.notifications.application.usecase.NotificationEventPage;
 
 /**
  * Use case for listing notification events.

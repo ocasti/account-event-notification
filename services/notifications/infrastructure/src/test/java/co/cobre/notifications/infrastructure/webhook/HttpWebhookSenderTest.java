@@ -1,6 +1,6 @@
 package co.cobre.notifications.infrastructure.webhook;
 
-import co.cobre.notifications.domain.model.*;
+import co.cobre.notifications.domain.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;

@@ -1,12 +1,12 @@
 package co.cobre.notifications.application.usecase;
 
-import co.cobre.notifications.application.port.out.NotificationEventRepository;
-import co.cobre.notifications.application.query.ListNotificationEventsQuery;
-import co.cobre.notifications.application.query.NotificationEventPage;
-import co.cobre.notifications.domain.model.ClientId;
-import co.cobre.notifications.domain.model.DeliveryStatus;
-import co.cobre.notifications.domain.model.EventData;
-import co.cobre.notifications.domain.model.NotificationEvent;
+import co.cobre.notifications.application.port.NotificationEventRepository;
+import co.cobre.notifications.application.usecase.ListNotificationEventsQuery;
+import co.cobre.notifications.application.usecase.NotificationEventPage;
+import co.cobre.notifications.domain.ClientId;
+import co.cobre.notifications.domain.DeliveryStatus;
+import co.cobre.notifications.domain.EventData;
+import co.cobre.notifications.domain.NotificationEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -43,9 +43,9 @@ class ListNotificationEventsTest {
         );
 
         var data = new EventData(
-            new co.cobre.notifications.domain.model.EventId("evt-1"),
+            new co.cobre.notifications.domain.EventId("evt-1"),
             clientId,
-            new co.cobre.notifications.domain.model.EventKey("order.created"),
+            new co.cobre.notifications.domain.EventKey("order.created"),
             "Order created",
             Instant.parse("2025-01-01T11:00:00Z")
         );
