@@ -22,6 +22,10 @@ public class ClientIdResolver {
      * Resolves the client ID from a JWT token.
      */
     public ClientId resolve(Jwt jwt) {
-        throw new UnsupportedOperationException("not implemented");
+        String claim = jwt.getClaimAsString(props.clientClaim());
+        if (claim == null) {
+            throw new IllegalArgumentException("Missing required claim: " + props.clientClaim());
+        }
+        return new ClientId(claim);
     }
 }
