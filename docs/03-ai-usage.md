@@ -62,3 +62,11 @@ Each entry records the goal, the prompt in summary, what was produced, and what 
 - **Output:** four new records; `NotificationEvent.register/skipped`, `DeliveryAttemptRepository.claimDue` and the `ProcessDueDeliveries` constructor reduced; `DeliveryAttempt.executed(...)` replaces a twelve-argument reconstruction.
 - **Verified:** 115 tests green; an automated scan shows the remaining signatures above three parameters are data records or dependency-injection constructors.
 - **Accepted:** as delivered.
+
+## Session 8 — 2026-09-15 — Infrastructure skeleton (step 3, part 3)
+
+- **Goal:** raw Spring Boot skeleton of the infrastructure layer with correct stereotypes and no logic, plus the ArchUnit rules that enforce layer independence.
+- **Prompts (summary):** two Haiku sub-agents in parallel on disjoint packages: "base, config, persistence, messaging, scheduler, metrics, resources, migrations and the architecture test" and "rest, security and webhook"; both with the exact class map, the rule "stereotypes over @Bean, constructor injection, at most four collaborators", and the `@UseCase` annotation approach so use cases become beans without depending on Spring.
+- **Output:** 44 classes under `infrastructure`, 4 profile YAML files, 2 Flyway migrations, 1 architecture test; `@UseCase` in `application`.
+- **Verified:** module compiles; ArchUnit passes on the merged tree (domain and application free of Spring, JPA and Jackson; entities only under persistence; rest does not touch persistence).
+- **Changed by the orchestrator:** added Apache HttpClient 5 to the POM after the agent reported it was not transitive; corrected the Flyway placeholder syntax in the subscriptions migration.

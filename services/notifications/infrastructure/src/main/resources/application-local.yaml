@@ -1,0 +1,4 @@
+notifications:
+  webhook:
+    allowlist: ${WEBHOOK_ALLOWLIST:wiremock}
+    require-https: false

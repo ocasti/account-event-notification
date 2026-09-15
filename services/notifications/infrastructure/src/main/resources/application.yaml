@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: notifications
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/notifications}
+    username: ${POSTGRES_USER:notifications}
+    password: ${POSTGRES_PASSWORD:notifications}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: false
+  cloud:
+    aws:
+      sqs:
+        endpoint: ${SQS_ENDPOINT:http://localhost:9324}
+        region:
+          static: ${SQS_REGION:us-east-1}
+      credentials:
+        access-key: ${AWS_ACCESS_KEY_ID:local}
+        secret-key: ${AWS_SECRET_ACCESS_KEY:local}
+
+notifications:
+  sqs:
+    queue-name: ${SQS_QUEUE_NAME:account-events}
+  worker:
+    worker-id: ${HOSTNAME:worker-local}
+    batch-size: 50
+    max-per-client: 10
+    lease: 16s
+    poll-interval: 1s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    distribution:
+      percentiles-histogram:
+        "notifications.webhook.latency": true
