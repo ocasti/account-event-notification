@@ -29,6 +29,7 @@ public class WebhookClientConfig {
         var httpClient = HttpClientBuilder.create()
             .setConnectionManager(connectionManager)
             .disableRedirectHandling()
+            .disableAutomaticRetries()
             .build();
 
         var requestFactory = new HttpComponentsClientHttpRequestFactory(httpClient);
