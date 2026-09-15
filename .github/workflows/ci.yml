@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# One run per branch: a new push cancels the previous run of the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # Unit tests, ArchUnit rules and Testcontainers-based integration tests.
+      # Testcontainers uses the Docker daemon that ubuntu-latest runners ship by default.
+      - name: Maven verify
+        run: ./mvnw -B -ntp verify
+
+      - name: Validate Docker Compose configuration
+        run: |
+          cp -n .env.example .env
+          docker compose --profile infra --profile app --profile observability config -q
+
+  docker:
+    name: Build images
+    # Disabled until the first compilable module exists: the Dockerfiles run ./mvnw package
+    # inside the build stage, so there is nothing to build yet. Enable by removing this `if`.
+    if: false
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build cobre/notifications (API and worker, one image)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/notifications.Dockerfile
+          push: false
+          tags: cobre/notifications:ci
+          cache-from: type=gha,scope=notifications
+          cache-to: type=gha,mode=max,scope=notifications
+
+      - name: Build cobre/event-simulator
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/simulator.Dockerfile
+          push: false
+          tags: cobre/event-simulator:ci
+          cache-from: type=gha,scope=simulator
+          cache-to: type=gha,mode=max,scope=simulator
