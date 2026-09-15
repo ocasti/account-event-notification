@@ -45,3 +45,12 @@ Each entry records the goal, the prompt in summary, what was produced, and what 
 - **Verified:** red phase failed with 56 errors from unimplemented methods and no compilation errors; green phase 89/89; no dependency outside the JDK in main; tests use only JUnit 5 and AssertJ.
 - **Accepted:** implementation as delivered after reading the state machine, the aggregate transitions, the retry policy and the value objects.
 - **Rejected:** none.
+
+## Session 6 — 2026-09-15 — Application layer with TDD (step 3, part 2)
+
+- **Goal:** ports, commands, queries and use cases: raw skeleton, tests in red, minimal implementation, refactor in green.
+- **Prompts (summary):** to a Haiku sub-agent, "create the raw skeleton with these exact port and use case signatures"; then "write these test cases with Mockito for the four ports and a fixed Clock, run red, implement to green" with the full semantics of each use case; then "refactor ProcessDueDeliveries: no nulls, a single executed-attempt builder, exhaustive switch over the sealed outcome".
+- **Output:** 4 outbound port interfaces, 6 records, 5 use cases; 5 test classes, 17 tests.
+- **Verified:** red phase 17 failures from unimplemented methods; green 17/17 with the 89 domain tests still passing; refactor diff touches only the implementation file and stays green.
+- **Accepted:** implementation after reading register, replay and delivery processing.
+- **Changed:** the first delivery-processing implementation used nulls, duplicated a twelve-argument constructor and chained instanceof checks; it was refactored under green tests before merging.
