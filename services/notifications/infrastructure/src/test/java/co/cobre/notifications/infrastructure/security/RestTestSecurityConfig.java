@@ -9,12 +9,16 @@ import com.nimbusds.jwt.SignedJWT;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.web.SecurityFilterChain;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -27,6 +31,7 @@ import java.util.List;
 import java.util.UUID;
 
 @TestConfiguration
+@EnableWebSecurity
 public class RestTestSecurityConfig {
     private static final KeyPair KEY_PAIR;
     private static final RSAPublicKey PUBLIC_KEY;
@@ -43,6 +48,20 @@ public class RestTestSecurityConfig {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("Failed to generate RSA key pair", e);
         }
+    }
+
+    @Bean
+    @Primary
+    public SecurityFilterChain apiSecurity(HttpSecurity http) throws Exception {
+        http
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(authz -> authz
+                .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
+                .anyRequest().authenticated()
+            )
+            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}));
+        return http.build();
     }
 
     @Bean

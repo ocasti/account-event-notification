@@ -18,10 +18,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -66,19 +66,11 @@ public class NotificationEventController {
     @GetMapping
     public NotificationEventPageResponse list(
         @AuthenticationPrincipal Jwt jwt,
-        @RequestParam(required = false) Instant from,
-        @RequestParam(required = false) Instant to,
-        @RequestParam(required = false) String deliveryStatus,
-        @RequestParam(defaultValue = "20") int limit,
-        @RequestParam(required = false) String cursor
+        @Valid @ModelAttribute ListRequest request
     ) {
         ClientId clientId = clientIdResolver.resolve(jwt);
 
-        if (limit < 1 || limit > 100) {
-            throw new IllegalArgumentException("Limit must be between 1 and 100");
-        }
-
-        Optional<DeliveryStatus> status = Optional.ofNullable(deliveryStatus)
+        Optional<DeliveryStatus> status = request.deliveryStatus()
             .map(s -> {
                 try {
                     return DeliveryStatus.valueOf(s.toUpperCase());
@@ -89,11 +81,11 @@ public class NotificationEventController {
 
         var query = new ListNotificationEventsQuery(
             clientId,
-            Optional.ofNullable(from),
-            Optional.ofNullable(to),
+            request.from(),
+            request.to(),
             status,
-            limit,
-            Optional.ofNullable(cursor)
+            request.limit(),
+            request.cursor()
         );
 
         var page = listNotificationEvents.list(query);

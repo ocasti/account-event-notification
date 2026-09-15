@@ -15,6 +15,12 @@ public record ListRequest(
     Optional<String> deliveryStatus,
     @Min(1)
     @Max(100)
-    int limit,
+    Integer limit,
     Optional<String> cursor
-) {}
+) {
+    public ListRequest {
+        if (limit == null) {
+            limit = 20;
+        }
+    }
+}

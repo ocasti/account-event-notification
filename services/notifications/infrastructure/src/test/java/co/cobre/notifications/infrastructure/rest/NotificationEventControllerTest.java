@@ -9,15 +9,18 @@ import co.cobre.notifications.domain.exception.ReplayNotAllowedException;
 import co.cobre.notifications.domain.model.*;
 import co.cobre.notifications.infrastructure.rest.mapper.NotificationEventResponseMapper;
 import co.cobre.notifications.infrastructure.security.ClientIdResolver;
+import co.cobre.notifications.infrastructure.security.JwtProperties;
 import co.cobre.notifications.infrastructure.security.RestTestSecurityConfig;
 import co.cobre.notifications.infrastructure.security.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import io.micrometer.core.instrument.MeterRegistry;
 
 import java.time.Instant;
 import java.util.List;
@@ -33,10 +36,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(NotificationEventController.class)
-@Import({SecurityConfig.class, ClientIdResolver.class, NotificationEventResponseMapper.class, ApiExceptionHandler.class, RestTestSecurityConfig.class})
+@EnableConfigurationProperties(JwtProperties.class)
+@Import({ClientIdResolver.class, NotificationEventResponseMapper.class, ApiExceptionHandler.class, RestTestSecurityConfig.class})
 @TestPropertySource(properties = {
     "notifications.jwt.audience=account-event-notification",
-    "notifications.jwt.client-claim=sub"
+    "notifications.jwt.client-claim=sub",
+    "notifications.jwt.public-key=classpath:test-jwt-public.pem",
+    "spring.jpa.database=h2"
 })
 class NotificationEventControllerTest {
     @Autowired
@@ -50,6 +56,9 @@ class NotificationEventControllerTest {
 
     @MockitoBean
     private ReplayNotificationEvent replayNotificationEvent;
+
+    @MockitoBean
+    private MeterRegistry meterRegistry;
 
     @Test
     void list_withoutToken_returns401() throws Exception {
