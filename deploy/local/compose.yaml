@@ -89,7 +89,7 @@ services:
   wiremock:
     image: wiremock/wiremock:3.13.1
     profiles: [infra]
-    command: ["--port", "8080", "--disable-banner", "--no-request-journal"]
+    command: ["--port", "8080", "--disable-banner", "--max-request-journal-entries", "5000"]
     volumes:
       - ./wiremock/mappings:/home/wiremock/mappings:ro
     ports:
