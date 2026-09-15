@@ -21,3 +21,4 @@ docker/keys/*.pem
 # Build artifacts
 *.jar
 !.mvn/wrapper/*.jar
+.claude/

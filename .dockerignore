@@ -1,0 +1,11 @@
+.git
+.github
+.claude
+.claude/
+target/
+*/target/
+docs/
+docker/keys/
+.env
+*.md
+!README.md

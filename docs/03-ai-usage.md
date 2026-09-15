@@ -26,3 +26,13 @@ Each entry records the goal, the prompt in summary, what was produced, and what 
 - **Goal:** create the repository skeleton: ignore rules, environment template, Makefile, preflight and token scripts, README, this log.
 - **Prompts (summary):** "start step 0 with repo name account-event-notification".
 - **Output:** files listed above; first commit.
+
+## Session 4 — 2026-09-15 — Project structure without application code (steps 1 and 2)
+
+- **Goal:** build the repository structure in parallel with one agent per area, without writing any Java source yet.
+- **Prompts (summary):** three sub-agents launched in isolated git worktrees with an explicit write area each: "Compose stack and container configuration under docker/"; "Maven multi-module skeleton, wrapper and Dockerfiles, no .java files"; "GitHub Actions workflow and OWASP security report". Each had a mandatory verification list and committed to its own branch with attribution trailers; the branches were merged into main by the orchestrating session.
+- **Output:** `compose.yaml` with profiles infra/app/observability and healthchecks; ElasticMQ queue and DLQ config; WireMock mappings failing EVT003/EVT005/EVT009; Prometheus scrape config; Grafana datasource and dashboard; root and module POMs; Maven wrapper; two multi-stage Dockerfiles; CI workflow; `docs/02-security.md`.
+- **Verified:** five infrastructure containers healthy; WireMock returns 503 for the three failing ids and 200 otherwise; both queues listed; `./mvnw -DskipTests verify` succeeds with no sources; Spring Boot 4.1.1 resolves with Spring Cloud AWS 4.1.1; workflow YAML valid; every mitigation in the security report cites an RFC section.
+- **Accepted from agents:** pinning ElasticMQ to 1.6.12 because 1.7 removed the statistics endpoint used by the healthcheck; Grafana on port 3001; `.dockerignore`.
+- **Resolved by the orchestrator:** both the Maven and the Docker agent produced Dockerfiles; the Maven agent's version was kept because it was validated against the real POMs.
+- **Rejected:** none.
