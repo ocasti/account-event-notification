@@ -30,7 +30,9 @@ public class SimulatorController {
 
     @PostMapping
     public ResponseEntity<EmitResponse> emit(@Valid @RequestBody EmitRequest request) {
-        throw new UnsupportedOperationException("not implemented");
+        ReferenceEvent event = generator.fromRequest(request.clientId(), request.eventType(), request.content());
+        publisher.publish(event);
+        return ResponseEntity.accepted().body(new EmitResponse(event.eventId()));
     }
 
     public record EmitRequest(

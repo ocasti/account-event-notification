@@ -30,11 +30,16 @@ public class EmissionScheduler {
 
     @EventListener(ApplicationReadyEvent.class)
     public void emitReference() {
-        throw new UnsupportedOperationException("not implemented");
+        if (properties.emitReferenceOnStart()) {
+            for (ReferenceEvent event : catalog.all()) {
+                publisher.publish(event);
+            }
+        }
     }
 
     @Scheduled(fixedDelayString = "${simulator.emit-interval:2s}", initialDelayString = "${simulator.emit-interval:2s}")
     public void emitDerived() {
-        throw new UnsupportedOperationException("not implemented");
+        ReferenceEvent derived = generator.derive();
+        publisher.publish(derived);
     }
 }

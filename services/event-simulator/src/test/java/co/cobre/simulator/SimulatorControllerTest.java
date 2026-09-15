@@ -37,7 +37,9 @@ class SimulatorControllerTest {
             .thenReturn(event);
 
         SimulatorController.EmitRequest request = new SimulatorController.EmitRequest("CLIENT123", "account.created", "Account created");
+        controller.emit(request);
 
         verify(generator).fromRequest("CLIENT123", "account.created", "Account created");
+        verify(publisher).publish(event);
     }
 }

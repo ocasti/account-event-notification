@@ -1,6 +1,7 @@
 package co.cobre.simulator;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
 
@@ -12,14 +13,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class EventCatalogTest {
 
-    private final ObjectMapper mapper = new ObjectMapper();
-    private final SimulatorProperties properties = new SimulatorProperties(
-        new ClassPathResource("notification_events.json"),
-        null,
-        false,
-        "test-queue"
-    );
-    private final EventCatalog catalog = new EventCatalog(properties, mapper);
+    private ObjectMapper mapper;
+    private SimulatorProperties properties;
+    private EventCatalog catalog;
+
+    @BeforeEach
+    void setUp() {
+        mapper = new ObjectMapper();
+        properties = new SimulatorProperties(
+            new ClassPathResource("notification_events.json"),
+            null,
+            false,
+            "test-queue"
+        );
+        catalog = new EventCatalog(properties, mapper);
+    }
 
     @Test
     void loadsAllTenEventsFromJson() {

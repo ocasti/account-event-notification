@@ -1,5 +1,6 @@
 package co.cobre.simulator;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.awspring.cloud.sqs.operations.SqsTemplate;
 import org.springframework.stereotype.Component;
 
@@ -11,13 +12,21 @@ public class SqsEventPublisher {
 
     private final SqsTemplate sqsTemplate;
     private final SimulatorProperties properties;
+    private final ObjectMapper mapper;
 
-    public SqsEventPublisher(SqsTemplate sqsTemplate, SimulatorProperties properties) {
+    public SqsEventPublisher(SqsTemplate sqsTemplate, SimulatorProperties properties, ObjectMapper mapper) {
         this.sqsTemplate = sqsTemplate;
         this.properties = properties;
+        this.mapper = mapper;
     }
 
     public void publish(ReferenceEvent event) {
-        throw new UnsupportedOperationException("not implemented");
+        AccountEventMessage message = AccountEventMessage.from(event);
+        try {
+            String json = mapper.writeValueAsString(message);
+            sqsTemplate.send(properties.queueName(), json);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to publish event", e);
+        }
     }
 }

@@ -22,10 +22,32 @@ public class EventGenerator {
     }
 
     public ReferenceEvent derive() {
-        throw new UnsupportedOperationException("not implemented");
+        ReferenceEvent template = catalog.pick(random);
+        return new ReferenceEvent(
+            generateNewEventId(),
+            template.eventType(),
+            template.clientId(),
+            template.content(),
+            clock.instant()
+        );
     }
 
     public ReferenceEvent fromRequest(String clientId, String eventType, String content) {
-        throw new UnsupportedOperationException("not implemented");
+        return new ReferenceEvent(
+            generateNewEventId(),
+            eventType,
+            clientId,
+            content,
+            clock.instant()
+        );
+    }
+
+    private String generateNewEventId() {
+        StringBuilder id = new StringBuilder("EVT-");
+        for (int i = 0; i < 8; i++) {
+            int digit = random.nextInt(16);
+            id.append(String.format("%X", digit));
+        }
+        return id.toString();
     }
 }

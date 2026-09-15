@@ -1,5 +1,6 @@
 package co.cobre.simulator;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -20,5 +21,10 @@ public class SimulatorConfig {
     @Bean
     RandomGenerator randomGenerator() {
         return RandomGenerator.getDefault();
+    }
+
+    @Bean
+    ObjectMapper objectMapper() {
+        return new ObjectMapper();
     }
 }

@@ -18,6 +18,12 @@ public record AccountEventMessage(
 ) {
 
     static AccountEventMessage from(ReferenceEvent event) {
-        throw new UnsupportedOperationException("not implemented");
+        return new AccountEventMessage(
+            event.eventId(),
+            event.eventType(),
+            event.clientId(),
+            event.content(),
+            event.occurredAt().toString()
+        );
     }
 }
