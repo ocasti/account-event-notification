@@ -4,6 +4,7 @@ import co.cobre.notifications.infrastructure.messaging.AccountEventListener;
 import co.cobre.notifications.infrastructure.scheduler.DeliveryScheduler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -29,6 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = "spring.flyway.enabled=true"
 )
+@AutoConfigureMockMvc
 @ActiveProfiles({"worker", "local"})
 class WorkerProfileBootIT extends BootTestSupport {
 
