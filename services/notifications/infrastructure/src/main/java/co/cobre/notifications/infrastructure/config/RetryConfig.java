@@ -21,10 +21,10 @@ public class RetryConfig {
     }
 
     /**
-     * Creates a random generator bean.
+     * Creates a random generator bean using java.util.Random to ensure compatibility with slim JRE images where jdk.random module is unavailable.
      */
     @Bean
     RandomGenerator randomGenerator() {
-        return RandomGenerator.getDefault();
+        return new java.util.Random();
     }
 }

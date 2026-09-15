@@ -159,15 +159,18 @@ services:
     profiles: [app]
     environment:
       SERVER_PORT: 8080
-      SIMULATOR_EMIT_INTERVAL_MS: ${SIMULATOR_EMIT_INTERVAL_MS:-2000}
+      SIMULATOR_EMIT_INTERVAL: ${SIMULATOR_EMIT_INTERVAL:-2s}
       SIMULATOR_EMIT_REFERENCE_ON_START: ${SIMULATOR_EMIT_REFERENCE_ON_START:-true}
-      SIMULATOR_EVENTS_FILE: /app/data/notification_events.json
+      # The reference dataset is mounted from docs/ so there is a single source of truth locally.
+      SIMULATOR_EVENTS_FILE: file:/app/data/notification_events.json
       SQS_ENDPOINT: ${SQS_ENDPOINT:-http://elasticmq:9324}
       SQS_QUEUE_NAME: ${SQS_QUEUE_NAME:-account-events}
       SQS_REGION: ${SQS_REGION:-us-east-1}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}
       JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75 -XX:+UseSerialGC
+    volumes:
+      - ../../docs/notification_events.json:/app/data/notification_events.json:ro
     ports:
       - "${SIMULATOR_PORT:-8090}:8080"
     depends_on:
