@@ -102,12 +102,6 @@ public class NotificationEventRepositoryAdapter implements NotificationEventRepo
     }
 
     private DeliveryStatusEntity mapStatusToEntity(DeliveryStatus status) {
-        return switch (status) {
-            case PENDING -> DeliveryStatusEntity.REGISTERED;
-            case RETRYING -> DeliveryStatusEntity.SCHEDULED;
-            case COMPLETED -> DeliveryStatusEntity.DELIVERED;
-            case FAILED -> DeliveryStatusEntity.FAILED;
-            case SKIPPED -> DeliveryStatusEntity.SKIPPED;
-        };
+        return DeliveryStatusEntity.valueOf(status.name());
     }
 }

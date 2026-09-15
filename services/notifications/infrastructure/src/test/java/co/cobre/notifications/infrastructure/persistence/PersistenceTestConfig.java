@@ -9,17 +9,8 @@ import co.cobre.notifications.infrastructure.persistence.mapper.SubscriptionEnti
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneId;
-
 @TestConfiguration
 public class PersistenceTestConfig {
-
-    @Bean
-    public Clock clock() {
-        return Clock.fixed(Instant.parse("2024-01-15T12:00:00Z"), ZoneId.of("UTC"));
-    }
 
     @Bean
     public NotificationEventEntityMapper notificationEventEntityMapper() {

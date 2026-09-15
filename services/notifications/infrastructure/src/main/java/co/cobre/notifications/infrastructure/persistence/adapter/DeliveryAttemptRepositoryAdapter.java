@@ -54,11 +54,10 @@ public class DeliveryAttemptRepositoryAdapter implements DeliveryAttemptReposito
     @Override
     @Transactional
     public List<DeliveryAttempt> claimDue(DeliveryClaim claim) {
-        var leaseExpiry = claim.now().minus(claim.lease());
+        long leaseSeconds = claim.lease().getSeconds();
 
         var allClaimed = jpaRepository.claimDueAttempts(
-            claim.now(),
-            leaseExpiry,
+            leaseSeconds,
             claim.limit()
         );
 
@@ -84,7 +83,7 @@ public class DeliveryAttemptRepositoryAdapter implements DeliveryAttemptReposito
             .map(row -> (UUID) row.get("id"))
             .collect(Collectors.toSet());
 
-        jpaRepository.updateClaimedBatch(ids, claim.now(), claim.workerId());
+        jpaRepository.updateClaimedBatch(ids, claim.workerId());
 
         return jpaRepository.findAllById(ids)
             .stream()

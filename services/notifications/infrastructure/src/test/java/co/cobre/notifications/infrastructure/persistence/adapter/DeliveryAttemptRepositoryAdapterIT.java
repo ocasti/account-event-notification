@@ -303,7 +303,7 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
         entity.setContent("{}");
         entity.setCreatedAt(Instant.now());
         entity.setReceivedAt(Instant.now());
-        entity.setStatus(DeliveryStatusEntity.REGISTERED);
+        entity.setStatus(DeliveryStatusEntity.PENDING);
         entity.setCycle(0);
         eventJpaRepository.save(entity);
     }

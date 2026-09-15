@@ -45,22 +45,10 @@ public class NotificationEventEntityMapper {
     }
 
     private DeliveryStatus mapStatusToDomain(DeliveryStatusEntity entity) {
-        return switch (entity) {
-            case REGISTERED -> DeliveryStatus.PENDING;
-            case SCHEDULED -> DeliveryStatus.RETRYING;
-            case DELIVERED -> DeliveryStatus.COMPLETED;
-            case FAILED -> DeliveryStatus.FAILED;
-            case SKIPPED -> DeliveryStatus.SKIPPED;
-        };
+        return DeliveryStatus.valueOf(entity.name());
     }
 
     private DeliveryStatusEntity mapStatusToEntity(DeliveryStatus domain) {
-        return switch (domain) {
-            case PENDING -> DeliveryStatusEntity.REGISTERED;
-            case RETRYING -> DeliveryStatusEntity.SCHEDULED;
-            case COMPLETED -> DeliveryStatusEntity.DELIVERED;
-            case FAILED -> DeliveryStatusEntity.FAILED;
-            case SKIPPED -> DeliveryStatusEntity.SKIPPED;
-        };
+        return DeliveryStatusEntity.valueOf(domain.name());
     }
 }

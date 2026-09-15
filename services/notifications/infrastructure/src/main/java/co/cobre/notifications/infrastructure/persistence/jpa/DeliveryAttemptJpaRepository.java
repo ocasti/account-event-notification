@@ -20,22 +20,21 @@ public interface DeliveryAttemptJpaRepository extends JpaRepository<DeliveryAtte
     @Query(value = "SELECT d.id, e.client_id FROM delivery_attempts d " +
                    "JOIN notification_events e ON e.event_id = d.event_id " +
                    "WHERE d.executed_at IS NULL " +
-                   "AND d.next_attempt_at <= :now " +
-                   "AND (d.claimed_at IS NULL OR d.claimed_at < :leaseExpiry) " +
+                   "AND d.next_attempt_at <= now() " +
+                   "AND (d.claimed_at IS NULL OR d.claimed_at < now() - make_interval(secs => :leaseSeconds)) " +
                    "ORDER BY d.next_attempt_at ASC " +
                    "LIMIT :limit", nativeQuery = true)
     List<Map<String, Object>> claimDueAttempts(
-        @Param("now") Instant now,
-        @Param("leaseExpiry") Instant leaseExpiry,
+        @Param("leaseSeconds") long leaseSeconds,
         @Param("limit") int limit
     );
 
     @Modifying
-    @Query("UPDATE DeliveryAttemptEntity da SET da.claimedAt = :now, da.claimedBy = :workerId " +
-           "WHERE da.id IN :ids")
+    @Query(value = "UPDATE delivery_attempts SET claimed_at = now(), claimed_by = :workerId " +
+                   "WHERE id IN (SELECT CAST(id AS uuid) FROM (VALUES :ids) AS t(id))",
+           nativeQuery = true)
     void updateClaimedBatch(
         @Param("ids") Set<UUID> ids,
-        @Param("now") Instant now,
         @Param("workerId") String workerId
     );
 
