@@ -788,7 +788,7 @@ flowchart TB
   <p><b>No se escribe Terraform.</b> Alternativas consideradas: una carpeta <code>infra/terraform</code> escrita pero nunca aplicada, validada en CI; o un contenedor de Terraform en Compose. Se descartan porque código de infraestructura nunca aplicado es deuda visible sin nada que lo respalde, y porque Terraform no es un servicio de runtime. La infraestructura como código del alcance real es Compose, y el diseño AWS de la sección 10 nombra los módulos que harían falta: cola con DLQ, dos servicios Fargate, RDS y parámetros en SSM. Si se agrega en el futuro, será solo con <code>terraform validate</code> en CI, sin aplicarlo.</p>
 
   <h3>Estructura del repositorio</h3>
-  <figure class="diagram"><pre style="margin:0;font-family:'IBM Plex Mono',monospace;font-size:13px;line-height:1.5">cobre-notifications/
+  <figure class="diagram"><pre style="margin:0;font-family:'IBM Plex Mono',monospace;font-size:13px;line-height:1.5">account-event-notification/
 ├── services/
 │   ├── notifications/         proyecto Maven propio (pom.xml, mvnw): reactor de tres módulos
 │   │   ├── domain/            Java puro
@@ -808,7 +808,7 @@ flowchart TB
 │   └── simulator.Dockerfile
 ├── docs/
 │   ├── notification_events.json      datos de referencia
-│   ├── 01-system-design.md            este documento
+│   ├── 01-system-design.html          este documento
 │   ├── 02-security.md                 análisis OWASP
 │   └── 03-ai-usage.md                 anexo de uso de IA
 ├── .env.example
