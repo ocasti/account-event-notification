@@ -18,7 +18,7 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 @Testcontainers
-@SpringBootTest(
+@SpringBootTest(classes = {AccountEventListener.class, AccountEventMessageMapper.class, MessagingTestConfig.class},
     properties = {
         "spring.profiles.active=worker",
         "notifications.sqs.queue-name=account-events-test",
@@ -26,6 +26,12 @@ import static org.mockito.Mockito.verify;
         "spring.cloud.aws.credentials.access-key=local",
         "spring.cloud.aws.credentials.secret-key=local"
     })
+@ImportAutoConfiguration({
+    io.awspring.cloud.autoconfigure.core.AwsAutoConfiguration.class,
+    io.awspring.cloud.autoconfigure.core.CredentialsProviderAutoConfiguration.class,
+    io.awspring.cloud.autoconfigure.core.RegionProviderAutoConfiguration.class,
+    io.awspring.cloud.autoconfigure.sqs.SqsAutoConfiguration.class
+})
 class AccountEventListenerIT {
 
     @Container
