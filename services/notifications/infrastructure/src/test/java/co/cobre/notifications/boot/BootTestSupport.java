@@ -16,7 +16,8 @@ import java.util.Base64;
 
 /**
  * Base class for boot tests with singleton Testcontainers: PostgreSQL and ElasticMQ.
- * Generates a temporary RSA public key file and configures all required properties.
+ * Generates a temporary RSA public key file and configures SQS/JWT properties.
+ * Webhook and JWT audience/client-claim properties come from production YAML.
  */
 public abstract class BootTestSupport {
 
