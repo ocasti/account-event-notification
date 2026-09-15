@@ -16,7 +16,7 @@ public class WebhookClientConfig {
      * No redirects allowed, custom timeout handling, DNS resolver integration.
      */
     @Bean
-    public RestClient webhookRestClient(WebhookProperties props) {
+    public RestClient webhookRestClient(WebhookProperties props, WebhookUrlValidator validator) {
         throw new UnsupportedOperationException("not implemented");
     }
 }

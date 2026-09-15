@@ -1,6 +1,7 @@
 package co.cobre.notifications.infrastructure.webhook;
 
 import co.cobre.notifications.domain.model.NotificationEvent;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import org.springframework.stereotype.Component;
 
 /**
@@ -8,11 +9,16 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class WebhookPayloadMapper {
+    private final JsonMapper jsonMapper;
+
+    public WebhookPayloadMapper(JsonMapper jsonMapper) {
+        this.jsonMapper = jsonMapper;
+    }
 
     /**
-     * Maps a notification event to a webhook payload.
+     * Maps a notification event to a JSON string.
      */
-    public WebhookPayload toPayload(NotificationEvent event) {
+    public String toJson(NotificationEvent event) {
         throw new UnsupportedOperationException("not implemented");
     }
 }
