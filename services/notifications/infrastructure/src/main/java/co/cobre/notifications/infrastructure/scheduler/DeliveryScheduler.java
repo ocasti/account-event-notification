@@ -2,8 +2,6 @@ package co.cobre.notifications.infrastructure.scheduler;
 
 import co.cobre.notifications.application.usecase.ProcessDueDeliveries;
 import co.cobre.notifications.infrastructure.metrics.DeliveryMetrics;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -14,8 +12,6 @@ import org.springframework.stereotype.Component;
 @Component
 @Profile("worker")
 public class DeliveryScheduler {
-
-    private static final Logger logger = LoggerFactory.getLogger(DeliveryScheduler.class);
 
     private final ProcessDueDeliveries processDueDeliveries;
     private final DeliveryMetrics metrics;
@@ -36,12 +32,6 @@ public class DeliveryScheduler {
      */
     @Scheduled(fixedDelayString = "${notifications.worker.poll-interval:1s}")
     public void tick() {
-        try {
-            int processed = processDueDeliveries.processBatch();
-            metrics.batchProcessed(processed);
-        } catch (Exception e) {
-            logger.error("Scheduler error processing batch", e);
-            metrics.schedulerError();
-        }
+        throw new UnsupportedOperationException("not implemented");
     }
 }

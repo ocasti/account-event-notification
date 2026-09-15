@@ -1,6 +1,5 @@
 package co.cobre.notifications.infrastructure.messaging;
 
-import co.cobre.notifications.application.command.RegistrationResult;
 import co.cobre.notifications.application.usecase.RegisterNotificationEvent;
 import co.cobre.notifications.infrastructure.metrics.DeliveryMetrics;
 import io.awspring.cloud.sqs.annotation.SqsListener;
@@ -36,13 +35,6 @@ public class AccountEventListener {
      */
     @SqsListener("${notifications.sqs.queue-name}")
     public void onMessage(AccountEventMessage message) {
-        var command = mapper.toCommand(message);
-        var result = registerNotificationEvent.register(command);
-
-        switch (result) {
-            case REGISTERED -> metrics.registered(command.clientId().value(), command.eventKey().value());
-            case SKIPPED -> metrics.skipped(command.clientId().value(), command.eventKey().value());
-            case DUPLICATE -> {}
-        }
+        throw new UnsupportedOperationException("not implemented");
     }
 }
