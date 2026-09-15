@@ -1,8 +1,8 @@
 package co.cobre.notifications.infrastructure.rest.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import org.springframework.web.bind.annotation.BindParam;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -13,8 +13,8 @@ import java.util.Optional;
 public record ListRequest(
     Optional<Instant> from,
     Optional<Instant> to,
-    @JsonProperty("delivery_status")
-    Optional<String> delivery_status,
+    @BindParam("delivery_status")
+    Optional<String> deliveryStatus,
     @Min(1)
     @Max(100)
     Integer limit,
@@ -24,9 +24,5 @@ public record ListRequest(
         if (limit == null) {
             limit = 20;
         }
-    }
-
-    public Optional<String> deliveryStatus() {
-        return delivery_status;
     }
 }
