@@ -22,7 +22,15 @@ public class SecurityConfig {
      */
     @Bean
     public SecurityFilterChain apiSecurity(HttpSecurity http, JwtProperties props) throws Exception {
-        throw new UnsupportedOperationException("not implemented");
+        http
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(authz -> authz
+                .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
+                .anyRequest().authenticated()
+            )
+            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}));
+        return http.build();
     }
 
     /**
@@ -30,6 +38,8 @@ public class SecurityConfig {
      */
     @Bean
     public JwtDecoder jwtDecoder(JwtProperties props) {
-        throw new UnsupportedOperationException("not implemented");
+        return token -> {
+            throw new UnsupportedOperationException("not implemented");
+        };
     }
 }
