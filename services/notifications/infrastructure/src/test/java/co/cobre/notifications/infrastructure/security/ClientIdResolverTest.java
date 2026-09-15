@@ -33,6 +33,7 @@ class ClientIdResolverTest {
         ClientIdResolver resolver = new ClientIdResolver(props);
 
         Map<String, Object> claims = new HashMap<>();
+        claims.put("other", "value");
         Jwt jwt = new Jwt("token", Instant.now(), Instant.now().plusSeconds(3600), Map.of("alg", "RS256"), claims);
 
         assertThrows(IllegalArgumentException.class, () -> resolver.resolve(jwt));

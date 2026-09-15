@@ -5,8 +5,22 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtClaimNames;
+import org.springframework.security.oauth2.jwt.JwtClaimValidator;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
+
+import java.security.KeyFactory;
+import java.security.interfaces.RSAPublicKey;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * Spring Security configuration for JWT-based resource server.
@@ -38,8 +52,38 @@ public class SecurityConfig {
      */
     @Bean
     public JwtDecoder jwtDecoder(JwtProperties props) {
-        return token -> {
-            throw new UnsupportedOperationException("not implemented");
-        };
+        try {
+            var publicKeyContent = new String(props.publicKey().getContentAsByteArray())
+                .replaceAll("-----BEGIN PUBLIC KEY-----", "")
+                .replaceAll("-----END PUBLIC KEY-----", "")
+                .replaceAll("\\s", "");
+
+            byte[] decodedKey = Base64.getDecoder().decode(publicKeyContent);
+            X509EncodedKeySpec spec = new X509EncodedKeySpec(decodedKey);
+            KeyFactory factory = KeyFactory.getInstance("RSA");
+            RSAPublicKey publicKey = (RSAPublicKey) factory.generatePublic(spec);
+
+            OAuth2TokenValidator<Jwt> audienceValidator = new JwtClaimValidator<>(
+                JwtClaimNames.AUD,
+                aud -> {
+                    if (aud instanceof Collection) {
+                        return ((Collection<?>) aud).stream()
+                            .map(Object::toString)
+                            .anyMatch(a -> a.equals(props.audience()));
+                    }
+                    return aud != null && aud.toString().equals(props.audience());
+                }
+            );
+
+            NimbusJwtDecoder decoder = NimbusJwtDecoder.withPublicKey(publicKey).build();
+            decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefault(),
+                audienceValidator
+            ));
+
+            return decoder;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create JWT decoder", e);
+        }
     }
 }
