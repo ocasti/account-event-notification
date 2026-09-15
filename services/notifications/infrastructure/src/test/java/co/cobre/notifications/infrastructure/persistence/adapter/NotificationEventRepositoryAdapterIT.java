@@ -325,7 +325,7 @@ class NotificationEventRepositoryAdapterIT extends PersistenceTestSupport {
     void testSearchFilterByDateRange() {
         var clientId = new ClientId("CLIENT_DATE_RANGE");
         var start = Instant.parse("2024-01-10T00:00:00Z");
-        var middle = Instant.now();
+        var middle = start.plusSeconds(86400);
         var end = Instant.parse("2024-01-20T00:00:00Z");
 
         adapter.save(eventAt("evt-before", clientId, start.minusSeconds(100)));

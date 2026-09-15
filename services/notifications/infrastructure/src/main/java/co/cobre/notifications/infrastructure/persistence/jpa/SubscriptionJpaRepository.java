@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface SubscriptionJpaRepository extends JpaRepository<SubscriptionEntity, String> {
     List<SubscriptionEntity> findByClientIdAndActiveTrue(String clientId);
+
+    List<SubscriptionEntity> findByClientIdAndActiveTrueOrderByCreatedAtAsc(String clientId);
 }

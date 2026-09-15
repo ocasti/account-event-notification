@@ -70,7 +70,7 @@ public class NotificationEventRepositoryAdapter implements NotificationEventRepo
 
         Optional<String> nextCursor = Optional.empty();
         if (results.size() > query.limit()) {
-            var lastItem = results.get(query.limit());
+            var lastItem = results.get(query.limit() - 1);
             nextCursor = Optional.of(CursorCodec.encode(lastItem.getCreatedAt(), lastItem.getEventId()));
             results = results.subList(0, query.limit());
         }

@@ -41,9 +41,9 @@ class SubscriptionRepositoryAdapterIT extends PersistenceTestSupport {
 
     @Test
     void testFindActiveWithWildcardSubscription() {
-        createAndSave("sub_wildcard", "CLIENT001", new String[]{"*"}, true);
+        createAndSave("sub_wildcard", "CLIENT_T1", new String[]{"*"}, true);
 
-        var result = adapter.findActive(new ClientId("CLIENT001"), new EventKey("any_event_key"));
+        var result = adapter.findActive(new ClientId("CLIENT_T1"), new EventKey("any_event_key"));
 
         assertTrue(result.isPresent());
         assertEquals("sub_wildcard", result.get().id());
@@ -60,10 +60,10 @@ class SubscriptionRepositoryAdapterIT extends PersistenceTestSupport {
 
     @Test
     void testFindActiveIgnoresInactiveSubscriptions() {
-        createAndSave("sub_inactive", "CLIENT001", new String[]{"credit_deposit"}, false);
-        createAndSave("sub_active", "CLIENT001", new String[]{"payment_received"}, true);
+        createAndSave("sub_inactive", "CLIENT_T1", new String[]{"credit_deposit"}, false);
+        createAndSave("sub_active", "CLIENT_T1", new String[]{"payment_received"}, true);
 
-        var result = adapter.findActive(new ClientId("CLIENT001"), new EventKey("credit_deposit"));
+        var result = adapter.findActive(new ClientId("CLIENT_T1"), new EventKey("credit_deposit"));
 
         assertFalse(result.isPresent());
     }

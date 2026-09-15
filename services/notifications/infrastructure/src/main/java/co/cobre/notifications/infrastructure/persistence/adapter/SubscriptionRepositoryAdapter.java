@@ -26,7 +26,7 @@ public class SubscriptionRepositoryAdapter implements SubscriptionRepository {
 
     @Override
     public Optional<Subscription> findActive(ClientId clientId, EventKey eventKey) {
-        return jpaRepository.findByClientIdAndActiveTrue(clientId.value())
+        return jpaRepository.findByClientIdAndActiveTrueOrderByCreatedAtAsc(clientId.value())
             .stream()
             .map(mapper::toDomain)
             .filter(sub -> sub.matches(eventKey))
