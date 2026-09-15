@@ -1,0 +1,245 @@
+# Local stack for account-event-notification.
+# Profiles (see Makefile):
+#   infra          postgres, elasticmq, wiremock
+#   app            notifications-api, notifications-worker, event-simulator
+#   observability  prometheus, grafana
+# All variables come from .env (copy .env.example). One network, no persistent volume for Postgres.
+
+name: account-event-notification
+
+x-notifications-image: &notifications-image
+  build:
+    context: .
+    dockerfile: docker/notifications.Dockerfile
+  image: cobre/notifications:local
+
+x-notifications-env: &notifications-env
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-notifications}
+  SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-notifications}
+  SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-notifications}
+  SQS_ENDPOINT: ${SQS_ENDPOINT:-http://elasticmq:9324}
+  SQS_QUEUE_NAME: ${SQS_QUEUE_NAME:-account-events}
+  SQS_REGION: ${SQS_REGION:-us-east-1}
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}
+  WEBHOOK_URL: ${WEBHOOK_URL:-http://wiremock:8080/webhook}
+  WEBHOOK_ALLOWLIST: ${WEBHOOK_ALLOWLIST:-wiremock}
+  JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH:-/keys/jwt-public.pem}
+  JWT_AUDIENCE: ${JWT_AUDIENCE:-account-event-notification}
+  JWT_CLIENT_CLAIM: ${JWT_CLIENT_CLAIM:-sub}
+  JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75 -XX:+UseSerialGC -Djava.security.egd=file:/dev/./urandom
+
+# Readiness of api/worker is probed with wget. The final image (eclipse-temurin:21-jre)
+# installs wget in docker/notifications.Dockerfile; keep that in sync if the base image changes.
+x-spring-healthcheck: &spring-healthcheck
+  test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health/readiness || exit 1"]
+  interval: 5s
+  timeout: 3s
+  retries: 12
+  start_period: 60s
+
+services:
+
+  # ----------------------------------------------------------------- infra
+  postgres:
+    image: postgres:16-alpine
+    profiles: [infra]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-notifications}
+      POSTGRES_USER: ${POSTGRES_USER:-notifications}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-notifications}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks: [notifications]
+
+  elasticmq:
+    # Pinned on purpose: 1.7.x dropped the statistics/UI server on 9325 (in both the native
+    # and the JVM images), which the healthcheck and the Makefile checks rely on.
+    image: softwaremill/elasticmq-native:1.6.12
+    profiles: [infra]
+    volumes:
+      - ./docker/elasticmq/custom.conf:/opt/elasticmq.conf:ro
+    ports:
+      - "${ELASTICMQ_UI_PORT:-9325}:9325"
+    healthcheck:
+      # 9325 serves the UI and /statistics/queues; the image is Alpine with busybox wget (no curl).
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9325/statistics/queues >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks: [notifications]
+
+  wiremock:
+    image: wiremock/wiremock:3.13.1
+    profiles: [infra]
+    command: ["--port", "8080", "--disable-banner", "--no-request-journal"]
+    volumes:
+      - ./docker/wiremock/mappings:/home/wiremock/mappings:ro
+    ports:
+      - "${WIREMOCK_PORT:-8089}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/__admin/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 320M
+    networks: [notifications]
+
+  # ------------------------------------------------------------------- app
+  notifications-api:
+    <<: *notifications-image
+    profiles: [app]
+    environment:
+      <<: *notifications-env
+      SPRING_PROFILES_ACTIVE: api,local
+    volumes:
+      - ./docker/keys:/keys:ro
+    ports:
+      - "${API_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticmq:
+        condition: service_healthy
+    healthcheck: *spring-healthcheck
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks: [notifications]
+
+  notifications-worker:
+    <<: *notifications-image
+    profiles: [app]
+    environment:
+      <<: *notifications-env
+      SPRING_PROFILES_ACTIVE: worker,local
+    volumes:
+      - ./docker/keys:/keys:ro
+    # No published ports: scale freely with --scale notifications-worker=4.
+    # Prometheus discovers every replica through DNS (see docker/prometheus/prometheus.yml).
+    depends_on:
+      notifications-api:
+        condition: service_healthy
+      wiremock:
+        condition: service_healthy
+    healthcheck: *spring-healthcheck
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    networks: [notifications]
+
+  event-simulator:
+    build:
+      context: .
+      dockerfile: docker/simulator.Dockerfile
+    image: cobre/event-simulator:local
+    profiles: [app]
+    environment:
+      SERVER_PORT: 8080
+      SIMULATOR_EMIT_INTERVAL_MS: ${SIMULATOR_EMIT_INTERVAL_MS:-2000}
+      SIMULATOR_EMIT_REFERENCE_ON_START: ${SIMULATOR_EMIT_REFERENCE_ON_START:-true}
+      SIMULATOR_EVENTS_FILE: /app/data/notification_events.json
+      SQS_ENDPOINT: ${SQS_ENDPOINT:-http://elasticmq:9324}
+      SQS_QUEUE_NAME: ${SQS_QUEUE_NAME:-account-events}
+      SQS_REGION: ${SQS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75 -XX:+UseSerialGC
+    ports:
+      - "${SIMULATOR_PORT:-8090}:8080"
+    depends_on:
+      notifications-worker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 45s
+    deploy:
+      resources:
+        limits:
+          memory: 320M
+    networks: [notifications]
+
+  # --------------------------------------------------------- observability
+  prometheus:
+    image: prom/prometheus:latest
+    profiles: [observability]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=6h
+      - --web.enable-lifecycle
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks: [notifications]
+
+  grafana:
+    image: grafana/grafana:latest
+    profiles: [observability]
+    environment:
+      # Demo only: anonymous access as Admin, no login form.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_AUTH_BASIC_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/notifications.json
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks: [notifications]
+
+networks:
+  notifications:
+    name: account-event-notification

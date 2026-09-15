@@ -1,0 +1,19 @@
+{
+  "name": "webhook-slow - 200 after 10 s (exceeds the 5 s read timeout of the worker)",
+  "priority": 10,
+  "request": {
+    "method": "POST",
+    "urlPath": "/webhook-slow"
+  },
+  "response": {
+    "status": 200,
+    "fixedDelayMilliseconds": 10000,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "received": true,
+      "slow": true
+    }
+  }
+}
