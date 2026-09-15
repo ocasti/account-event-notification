@@ -1,5 +1,6 @@
 package co.cobre.notifications.infrastructure.rest;
 
+import co.cobre.notifications.domain.DeliveryStatus;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.web.bind.annotation.BindParam;
@@ -24,5 +25,15 @@ public record ListRequest(
         if (limit == null) {
             limit = 20;
         }
+    }
+
+    public Optional<DeliveryStatus> status() {
+        return deliveryStatus.map(s -> {
+            try {
+                return DeliveryStatus.valueOf(s.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid delivery status: " + s);
+            }
+        });
     }
 }
