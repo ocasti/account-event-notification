@@ -105,7 +105,7 @@ class NotificationEventControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.items").isArray())
             .andExpect(jsonPath("$.items[0].event_id").value("EVT001"))
-            .andExpect(jsonPath("$.items[0].event_type").value("key"))
+            .andExpect(jsonPath("$.items[0].event_type").value("user.created"))
             .andExpect(jsonPath("$.items[0].client_id").value("CLIENT002"))
             .andExpect(jsonPath("$.items[0].content").value("test content"))
             .andExpect(jsonPath("$.items[0].delivery_status").value("failed"))
@@ -113,9 +113,9 @@ class NotificationEventControllerTest {
 
         verify(listNotificationEvents).list(argThat(query ->
             query.clientId().value().equals("CLIENT002") &&
-            query.status().get() == DeliveryStatus.FAILED &&
+            query.status().isPresent() && query.status().get() == DeliveryStatus.FAILED &&
             query.limit() == 20 &&
-            query.cursor().get().equals("abc")
+            query.cursor().isPresent() && query.cursor().get().equals("abc")
         ));
     }
 
@@ -138,7 +138,7 @@ class NotificationEventControllerTest {
             .header("Authorization", "Bearer " + jwtToken)
             .param("limit", "0"))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.code").value("invalid_parameter"));
+            .andExpect(jsonPath("$.code").value("validation_error"));
     }
 
     @Test
@@ -149,7 +149,7 @@ class NotificationEventControllerTest {
             .header("Authorization", "Bearer " + jwtToken)
             .param("limit", "101"))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.code").value("invalid_parameter"));
+            .andExpect(jsonPath("$.code").value("validation_error"));
     }
 
     @Test

@@ -70,14 +70,14 @@ public class NotificationEventController {
     ) {
         ClientId clientId = clientIdResolver.resolve(jwt);
 
-        Optional<DeliveryStatus> status = request.deliveryStatus()
-            .map(s -> {
-                try {
-                    return DeliveryStatus.valueOf(s.toUpperCase());
-                } catch (IllegalArgumentException e) {
-                    throw new IllegalArgumentException("Invalid delivery status: " + s);
-                }
-            });
+        Optional<DeliveryStatus> status = Optional.empty();
+        if (request.delivery_status().isPresent()) {
+            try {
+                status = Optional.of(DeliveryStatus.valueOf(request.delivery_status().get().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid delivery status: " + request.delivery_status().get());
+            }
+        }
 
         var query = new ListNotificationEventsQuery(
             clientId,
