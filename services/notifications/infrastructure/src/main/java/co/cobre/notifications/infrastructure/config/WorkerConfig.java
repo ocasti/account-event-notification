@@ -4,15 +4,13 @@ import co.cobre.notifications.application.usecase.DeliveryWorkerSettings;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
-import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
- * Configuration for the delivery worker profile.
+ * Configuration for delivery worker settings (profile-independent).
+ * Provides the DeliveryWorkerSettings bean used by ProcessDueDeliveries.
+ * Scheduling is configured in SchedulingConfig with @Profile("worker").
  */
 @Configuration
-@Profile("worker")
-@EnableScheduling
 @EnableConfigurationProperties(WorkerProperties.class)
 public class WorkerConfig {
 

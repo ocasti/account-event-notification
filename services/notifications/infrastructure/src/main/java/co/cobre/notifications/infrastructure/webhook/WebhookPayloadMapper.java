@@ -1,9 +1,8 @@
 package co.cobre.notifications.infrastructure.webhook;
 
 import co.cobre.notifications.domain.model.NotificationEvent;
-import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Mapper for converting domain objects to webhook payloads.
@@ -13,9 +12,7 @@ public class WebhookPayloadMapper {
     private final JsonMapper jsonMapper;
 
     public WebhookPayloadMapper(JsonMapper jsonMapper) {
-        this.jsonMapper = JsonMapper.builder()
-            .addModule(new JavaTimeModule())
-            .build();
+        this.jsonMapper = jsonMapper;
     }
 
     public String toJson(NotificationEvent event) {

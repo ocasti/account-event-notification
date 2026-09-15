@@ -4,10 +4,9 @@ import co.cobre.notifications.domain.model.ClientId;
 import co.cobre.notifications.domain.model.EventId;
 import co.cobre.notifications.domain.model.EventKey;
 import co.cobre.notifications.domain.model.NotificationEvent;
-import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -20,8 +19,8 @@ class WebhookPayloadMapperTest {
 
     @BeforeEach
     void setUp() {
-        var jsonMapperWithoutModule = JsonMapper.builder().addModule(new JavaTimeModule()).build();
-        mapper = new WebhookPayloadMapper(jsonMapperWithoutModule);
+        var jsonMapper = JsonMapper.builder().build();
+        mapper = new WebhookPayloadMapper(jsonMapper);
     }
 
     @Test
