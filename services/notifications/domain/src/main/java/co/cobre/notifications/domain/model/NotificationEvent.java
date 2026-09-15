@@ -8,9 +8,9 @@ import java.util.Optional;
  * Mutable aggregate root representing a notification event.
  */
 public final class NotificationEvent {
-    private final String eventId;
-    private final String clientId;
-    private final String eventKey;
+    private final EventId eventId;
+    private final ClientId clientId;
+    private final EventKey eventKey;
     private final String content;
     private final Instant createdAt;
     private final Instant receivedAt;
@@ -23,9 +23,9 @@ public final class NotificationEvent {
      * Creates a new notification event with all fields.
      */
     public NotificationEvent(
-        String eventId,
-        String clientId,
-        String eventKey,
+        EventId eventId,
+        ClientId clientId,
+        EventKey eventKey,
         String content,
         Instant createdAt,
         Instant receivedAt,
@@ -50,9 +50,9 @@ public final class NotificationEvent {
      * Factory method to register a new notification event.
      */
     public static NotificationEvent register(
-        String eventId,
-        String clientId,
-        String eventKey,
+        EventId eventId,
+        ClientId clientId,
+        EventKey eventKey,
         String content,
         Instant createdAt,
         Instant receivedAt,
@@ -65,9 +65,9 @@ public final class NotificationEvent {
      * Factory method to create a skipped notification event.
      */
     public static NotificationEvent skipped(
-        String eventId,
-        String clientId,
-        String eventKey,
+        EventId eventId,
+        ClientId clientId,
+        EventKey eventKey,
         String content,
         Instant createdAt,
         Instant receivedAt
@@ -106,21 +106,21 @@ public final class NotificationEvent {
     /**
      * Returns the event ID.
      */
-    public String eventId() {
+    public EventId eventId() {
         throw new UnsupportedOperationException("not implemented");
     }
 
     /**
      * Returns the client ID.
      */
-    public String clientId() {
+    public ClientId clientId() {
         throw new UnsupportedOperationException("not implemented");
     }
 
     /**
      * Returns the event key.
      */
-    public String eventKey() {
+    public EventKey eventKey() {
         throw new UnsupportedOperationException("not implemented");
     }
 

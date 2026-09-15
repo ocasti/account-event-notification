@@ -1,6 +1,5 @@
 package co.cobre.notifications.domain.model;
 
-import java.net.URI;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.Set;
@@ -10,20 +9,19 @@ import java.util.Set;
  */
 public record Subscription(
     String id,
-    String clientId,
-    Set<String> eventKeys,
-    URI url,
+    ClientId clientId,
+    Set<EventKey> eventKeys,
+    WebhookUrl url,
     Optional<String> description,
     Optional<String> signatureKey,
     boolean active,
     Instant createdAt
 ) {
-    public static final String ALL_EVENTS = "*";
 
     /**
      * Checks if this subscription matches the given event key.
      */
-    public boolean matches(String eventKey) {
+    public boolean matches(EventKey eventKey) {
         throw new UnsupportedOperationException("not implemented");
     }
 }

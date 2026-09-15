@@ -10,7 +10,7 @@ import java.util.UUID;
  */
 public record DeliveryAttempt(
     UUID id,
-    String eventId,
+    EventId eventId,
     int cycle,
     int attemptNumber,
     Instant nextAttemptAt,
@@ -26,7 +26,7 @@ public record DeliveryAttempt(
     /**
      * Creates the first delivery attempt for an event.
      */
-    public static DeliveryAttempt first(String eventId, int cycle, Instant at, AttemptOrigin origin) {
+    public static DeliveryAttempt first(EventId eventId, int cycle, Instant at, AttemptOrigin origin) {
         throw new UnsupportedOperationException("not implemented");
     }
 
