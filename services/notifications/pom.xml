@@ -12,17 +12,16 @@
   </parent>
 
   <groupId>co.cobre</groupId>
-  <artifactId>account-event-notification</artifactId>
+  <artifactId>notifications</artifactId>
   <version>0.1.0-SNAPSHOT</version>
   <packaging>pom</packaging>
-  <name>account-event-notification</name>
-  <description>Account event notification service: hexagonal core, Spring Boot infrastructure and an independent event simulator</description>
+  <name>notifications</name>
+  <description>Account event notification service: hexagonal core and Spring Boot infrastructure. The event simulator lives in its own Maven project under services/event-simulator.</description>
 
   <modules>
     <module>domain</module>
     <module>application</module>
     <module>infrastructure</module>
-    <module>event-simulator</module>
   </modules>
 
   <properties>
@@ -86,7 +85,7 @@
   <build>
     <pluginManagement>
       <plugins>
-        <!-- Disabled by default: only the executable modules (infrastructure, event-simulator) re-enable it. -->
+        <!-- Disabled by default: only the executable module (infrastructure) re-enables it. -->
         <plugin>
           <groupId>org.springframework.boot</groupId>
           <artifactId>spring-boot-maven-plugin</artifactId>

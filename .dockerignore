@@ -3,9 +3,11 @@
 .claude
 .claude/
 target/
-*/target/
+services/notifications/target/
+services/notifications/*/target/
+services/event-simulator/target/
+deploy/
 docs/
-docker/keys/
 .env
 *.md
 !README.md

@@ -31,18 +31,24 @@ jobs:
 
       # Unit tests, ArchUnit rules and Testcontainers-based integration tests.
       # Testcontainers uses the Docker daemon that ubuntu-latest runners ship by default.
-      - name: Maven verify
+      - name: Maven verify (notifications)
+        working-directory: services/notifications
+        run: ./mvnw -B -ntp verify
+
+      - name: Maven verify (event-simulator)
+        working-directory: services/event-simulator
         run: ./mvnw -B -ntp verify
 
       - name: Validate Docker Compose configuration
         run: |
           cp -n .env.example .env
-          docker compose --profile infra --profile app --profile observability config -q
+          docker compose -f deploy/local/compose.yaml --env-file .env --profile infra --profile app --profile observability config -q
 
   docker:
     name: Build images
     # Disabled until the first compilable module exists: the Dockerfiles run ./mvnw package
     # inside the build stage, so there is nothing to build yet. Enable by removing this `if`.
+    # Both Dockerfiles live in docker/ and are built with the repository root as context.
     if: false
     needs: build
     runs-on: ubuntu-latest

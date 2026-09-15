@@ -5,30 +5,29 @@
 # NOTE: this Dockerfile was authored before any Java source exists in the repository,
 # so it has not been built yet. The Maven commands below were validated locally against
 # the POM-only build (`./mvnw -q -DskipTests verify`), and the layer extraction layout was
-# checked with the resulting jar. Build from the repository root:
+# checked with the resulting jar. The Maven project lives in services/event-simulator (a
+# standalone project, not a module of the notifications reactor); the build context stays
+# the repository root so .dockerignore applies. Build from the repository root:
 #   docker build -f docker/simulator.Dockerfile -t cobre/event-simulator .
 
 # ---------- Stage 1: build ----------
 FROM eclipse-temurin:21-jdk-alpine AS build
-WORKDIR /workspace
+WORKDIR /workspace/services/event-simulator
 
-# 1) POMs + wrapper first, so the dependency download is cached across source edits.
-#    The root POM lists every module, so all module POMs must be present for the reactor to load.
-COPY mvnw pom.xml ./
-COPY .mvn .mvn
-COPY domain/pom.xml domain/pom.xml
-COPY application/pom.xml application/pom.xml
-COPY infrastructure/pom.xml infrastructure/pom.xml
-COPY event-simulator/pom.xml event-simulator/pom.xml
+# 1) POM + wrapper first, so the dependency download is cached across source edits.
+#    Single-module project: no other POMs are needed.
+COPY services/event-simulator/mvnw services/event-simulator/pom.xml ./
+COPY services/event-simulator/.mvn .mvn
 RUN chmod +x mvnw \
- && ./mvnw -q -B -pl event-simulator -am dependency:go-offline
+ && ./mvnw -q -B dependency:go-offline
 
 # 2) Only the simulator sources: it has no upstream module.
-COPY event-simulator/src event-simulator/src
-RUN ./mvnw -q -B -pl event-simulator -am package -DskipTests
+COPY services/event-simulator/src src
+RUN ./mvnw -q -B package -DskipTests
 
 # 3) Split the fat jar into layers so dependency layers are reused across code changes.
-RUN cp event-simulator/target/event-simulator.jar app.jar \
+RUN cp target/event-simulator.jar /workspace/app.jar \
+ && cd /workspace \
  && java -Djarmode=tools -jar app.jar extract --layers --destination extracted
 
 # ---------- Stage 2: runtime ----------

@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-COMPOSE := docker compose
+COMPOSE := docker compose -f deploy/local/compose.yaml --env-file .env
 
 .PHONY: help preflight keys infra up up-all down logs ps build test token emit replay clean
 
@@ -10,10 +10,10 @@ preflight: ## Check Docker, free ports and .env before starting
 	@scripts/preflight.sh
 
 keys: ## Generate the RS256 key pair used to sign and verify demo JWTs
-	@mkdir -p docker/keys
-	@test -f docker/keys/jwt-private.pem || openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out docker/keys/jwt-private.pem 2>/dev/null
-	@openssl rsa -in docker/keys/jwt-private.pem -pubout -out docker/keys/jwt-public.pem 2>/dev/null
-	@echo "keys in docker/keys/"
+	@mkdir -p deploy/local/keys
+	@test -f deploy/local/keys/jwt-private.pem || openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out deploy/local/keys/jwt-private.pem 2>/dev/null
+	@openssl rsa -in deploy/local/keys/jwt-private.pem -pubout -out deploy/local/keys/jwt-public.pem 2>/dev/null
+	@echo "keys in deploy/local/keys/"
 
 infra: ## Start only infrastructure (postgres, elasticmq, wiremock)
 	$(COMPOSE) --profile infra up -d --wait
@@ -33,11 +33,13 @@ logs: ## Follow logs of api, worker and simulator
 ps: ## Show container status
 	$(COMPOSE) ps
 
-build: ## Build the application without running tests
-	./mvnw -q -DskipTests package
+build: ## Build both services without running tests
+	cd services/notifications && ./mvnw -q -DskipTests package
+	cd services/event-simulator && ./mvnw -q -DskipTests package
 
-test: ## Run the full test suite
-	./mvnw verify
+test: ## Run the full test suite of both services
+	cd services/notifications && ./mvnw verify
+	cd services/event-simulator && ./mvnw verify
 
 token: ## Issue a demo JWT: make token CLIENT=CLIENT001
 	@scripts/token.sh $(CLIENT)
@@ -51,5 +53,6 @@ replay: ## Replay a failed notification: make replay ID=EVT003 CLIENT=CLIENT002
 	@curl -sS -X POST "http://localhost:$${API_PORT:-8080}/notification_events/$(ID)/replay" \
 	  -H "Authorization: Bearer $$(scripts/token.sh $(CLIENT))" -i
 
-clean: ## Remove build output
-	./mvnw -q clean
+clean: ## Remove build output of both services
+	cd services/notifications && ./mvnw -q clean
+	cd services/event-simulator && ./mvnw -q clean

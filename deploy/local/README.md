@@ -1,12 +1,15 @@
-# docker/
+# deploy/local/
 
-Everything the local stack needs besides the application code. `compose.yaml` at the
-repository root wires it together; the `Makefile` wraps the usual commands.
+Everything the local stack needs besides the application code. `compose.yaml` in this
+directory wires it together; the `Makefile` at the repository root wraps the usual commands
+(`docker compose -f deploy/local/compose.yaml --env-file .env ...`). The Dockerfiles live in
+`docker/` at the repository root and are built with the repository root as context.
 
 | Path | What it is |
 |---|---|
-| `notifications.Dockerfile` | Multi-stage build of the `infrastructure` module. One image for `notifications-api` and `notifications-worker`; the role comes from `SPRING_PROFILES_ACTIVE`. |
-| `simulator.Dockerfile` | Multi-stage build of the `event-simulator` module. Bundles `docs/notification_events.json` as the reference data set. |
+| `compose.yaml` | Local stack: profiles `infra`, `app`, `observability`. Build contexts point at `../..` with `docker/notifications.Dockerfile` and `docker/simulator.Dockerfile`; every other path is relative to this directory; variables are interpolated from the root `.env` through `--env-file .env`. |
+| `../../docker/notifications.Dockerfile` | Multi-stage build of `services/notifications` (the `infrastructure` module). One image for `notifications-api` and `notifications-worker`; the role comes from `SPRING_PROFILES_ACTIVE`. |
+| `../../docker/simulator.Dockerfile` | Multi-stage build of `services/event-simulator`. Bundles `docs/notification_events.json` as the reference data set. |
 | `elasticmq/custom.conf` | Queues declared on start: `account-events` (visibility 30 s, long polling 20 s) and its DLQ `account-events-dlq` (`maxReceiveCount = 5`). The image is pinned to `elasticmq-native:1.6.12`: 1.7.x removed the statistics/UI server on 9325. |
 | `wiremock/mappings/` | Webhook test double. `POST /webhook` returns 200, except when the body contains `"EVT003"`, `"EVT005"` or `"EVT009"` (503). `POST /webhook-slow` returns 200 after 10 s to exercise the read timeout. |
 | `prometheus/prometheus.yml` | Scrapes `/actuator/prometheus` every 5 s from `notifications-api` and from every `notifications-worker` replica (DNS service discovery). |
@@ -26,13 +29,15 @@ postgres and elasticmq -> notifications-api (runs Flyway) -> notifications-worke
 
 ## Running
 
+All commands run from the repository root:
+
 ```bash
 cp .env.example .env            # once; only WEBHOOK_URL needs changing for a real receiver
-make keys                       # RS256 key pair in docker/keys/
+make keys                       # RS256 key pair in deploy/local/keys/
 make infra                      # postgres + elasticmq + wiremock
 make up                         # infra + api + worker + simulator (builds the images)
 make up-all                     # everything, including prometheus + grafana
-docker compose --profile app up -d --scale notifications-worker=4   # competing consumers
+docker compose -f deploy/local/compose.yaml --env-file .env --profile infra --profile app up -d --scale notifications-worker=4   # competing consumers
 make down
 ```
 

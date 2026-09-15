@@ -39,7 +39,7 @@ for spec in "API_PORT:${API_PORT:-8080}" "SIMULATOR_PORT:${SIMULATOR_PORT:-8090}
 done
 ok "ports free"
 
-if [ ! -f docker/keys/jwt-public.pem ]; then
+if [ ! -f deploy/local/keys/jwt-public.pem ]; then
   warn "JWT keys missing; run 'make keys'"
 else
   ok "JWT keys present"

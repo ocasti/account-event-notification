@@ -3,13 +3,15 @@
 #   infra          postgres, elasticmq, wiremock
 #   app            notifications-api, notifications-worker, event-simulator
 #   observability  prometheus, grafana
-# All variables come from .env (copy .env.example). One network, no persistent volume for Postgres.
+# All variables come from .env at the repository root (copy .env.example). One network, no
+# persistent volume for Postgres. Build contexts point at the repository root so .dockerignore
+# applies; everything else in this file is relative to deploy/local.
 
 name: account-event-notification
 
 x-notifications-image: &notifications-image
   build:
-    context: .
+    context: ../..
     dockerfile: docker/notifications.Dockerfile
   image: cobre/notifications:local
 
@@ -68,7 +70,7 @@ services:
     image: softwaremill/elasticmq-native:1.6.12
     profiles: [infra]
     volumes:
-      - ./docker/elasticmq/custom.conf:/opt/elasticmq.conf:ro
+      - ./elasticmq/custom.conf:/opt/elasticmq.conf:ro
     ports:
       - "${ELASTICMQ_UI_PORT:-9325}:9325"
     healthcheck:
@@ -89,7 +91,7 @@ services:
     profiles: [infra]
     command: ["--port", "8080", "--disable-banner", "--no-request-journal"]
     volumes:
-      - ./docker/wiremock/mappings:/home/wiremock/mappings:ro
+      - ./wiremock/mappings:/home/wiremock/mappings:ro
     ports:
       - "${WIREMOCK_PORT:-8089}:8080"
     healthcheck:
@@ -112,7 +114,7 @@ services:
       <<: *notifications-env
       SPRING_PROFILES_ACTIVE: api,local
     volumes:
-      - ./docker/keys:/keys:ro
+      - ./keys:/keys:ro
     ports:
       - "${API_PORT:-8080}:8080"
     depends_on:
@@ -134,9 +136,9 @@ services:
       <<: *notifications-env
       SPRING_PROFILES_ACTIVE: worker,local
     volumes:
-      - ./docker/keys:/keys:ro
+      - ./keys:/keys:ro
     # No published ports: scale freely with --scale notifications-worker=4.
-    # Prometheus discovers every replica through DNS (see docker/prometheus/prometheus.yml).
+    # Prometheus discovers every replica through DNS (see deploy/local/prometheus/prometheus.yml).
     depends_on:
       notifications-api:
         condition: service_healthy
@@ -151,7 +153,7 @@ services:
 
   event-simulator:
     build:
-      context: .
+      context: ../..
       dockerfile: docker/simulator.Dockerfile
     image: cobre/event-simulator:local
     profiles: [app]
@@ -193,7 +195,7 @@ services:
       - --storage.tsdb.retention.time=6h
       - --web.enable-lifecycle
     volumes:
-      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     healthcheck:
@@ -222,7 +224,7 @@ services:
       GF_NEWS_NEWS_FEED_ENABLED: "false"
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/notifications.json
     volumes:
-      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
     ports:
       - "${GRAFANA_PORT:-3001}:3000"
     depends_on:

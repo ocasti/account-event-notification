@@ -789,26 +789,31 @@ flowchart TB
 
   <h3>Estructura del repositorio</h3>
   <figure class="diagram"><pre style="margin:0;font-family:'IBM Plex Mono',monospace;font-size:13px;line-height:1.5">cobre-notifications/
-├── domain/                    Java puro
-├── application/               casos de uso y puertos, Java puro
-├── infrastructure/            Spring Boot: REST, JPA, SQS, RestClient, scheduler, security, metrics
-├── event-simulator/           doble de pruebas, sin dependencia del hexágono
+├── services/
+│   ├── notifications/         proyecto Maven propio (pom.xml, mvnw): reactor de tres módulos
+│   │   ├── domain/            Java puro
+│   │   ├── application/       casos de uso y puertos, Java puro
+│   │   └── infrastructure/    Spring Boot: REST, JPA, SQS, RestClient, scheduler, security, metrics
+│   └── event-simulator/       proyecto Maven independiente; doble de pruebas, sin dependencia del hexágono
+├── deploy/
+│   └── local/
+│       ├── compose.yaml               perfiles: infra, app, observability
+│       ├── elasticmq/custom.conf      cola + DLQ declaradas
+│       ├── wiremock/mappings/         escenarios 200 / 503 / timeout
+│       ├── prometheus/prometheus.yml
+│       ├── grafana/provisioning/      datasource + dashboard JSON
+│       └── keys/                      par RS256 generado por make keys (.pem ignorados)
 ├── docker/
-│   ├── notifications.Dockerfile
-│   ├── simulator.Dockerfile
-│   ├── elasticmq/custom.conf          cola + DLQ declaradas
-│   ├── wiremock/mappings/             escenarios 200 / 503 / timeout
-│   ├── prometheus/prometheus.yml
-│   └── grafana/provisioning/          datasource + dashboard JSON
+│   ├── notifications.Dockerfile       contexto de build: raíz del repositorio
+│   └── simulator.Dockerfile
 ├── docs/
 │   ├── notification_events.json      datos de referencia
 │   ├── 01-system-design.md            este documento
 │   ├── 02-security.md                 análisis OWASP
 │   └── 03-ai-usage.md                 anexo de uso de IA
-├── compose.yaml               perfiles: core (implícito), dev, observability
 ├── .env.example
 ├── Makefile                   build · up · up-all · emit · replay · token · logs · down · preflight
-└── .github/workflows/ci.yml   mvnw verify + docker compose build</pre></figure>
+└── .github/workflows/ci.yml   mvnw verify por servicio + docker compose config</pre></figure>
 
   <h3>Plan de implementación por fases</h3>
   <div class="tablewrap">
