@@ -1,0 +1,27 @@
+package co.cobre.notifications.infrastructure.security;
+
+import co.cobre.notifications.domain.model.ClientId;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.stereotype.Component;
+
+/**
+ * Resolves the client ID from a JWT token.
+ */
+@Component
+public class ClientIdResolver {
+    private final JwtProperties props;
+
+    /**
+     * Creates a new client ID resolver.
+     */
+    public ClientIdResolver(JwtProperties props) {
+        this.props = props;
+    }
+
+    /**
+     * Resolves the client ID from a JWT token.
+     */
+    public ClientId resolve(Jwt jwt) {
+        throw new UnsupportedOperationException("not implemented");
+    }
+}
