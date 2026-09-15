@@ -71,10 +71,8 @@ jobs:
 
   docker:
     name: Build images
-    # Disabled until the first compilable module exists: the Dockerfiles run ./mvnw package
-    # inside the build stage, so there is nothing to build yet. Enable by removing this `if`.
     # Both Dockerfiles live in docker/ and are built with the repository root as context.
-    if: false
+    # Images are built, not pushed: the deliverable runs locally with Docker Compose.
     needs: build
     runs-on: ubuntu-latest
     steps:
