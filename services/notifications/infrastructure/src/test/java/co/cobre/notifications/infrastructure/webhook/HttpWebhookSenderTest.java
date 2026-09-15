@@ -15,8 +15,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
-import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
@@ -289,7 +288,7 @@ class HttpWebhookSenderTest {
         );
 
         var signer = new WebhookSigner(FIXED_CLOCK);
-        var mapper = new WebhookPayloadMapper(JsonMapper.builder().addModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule()).build());
+        var mapper = new WebhookPayloadMapper(JsonMapper.builder().build());
         var sender = new HttpWebhookSender(restClient, signer, mapper, validator);
 
         var subscription = createSubscription("https://private.example.com/hook", "secret-key");
@@ -323,7 +322,7 @@ class HttpWebhookSenderTest {
             }
         });
         var signer = new WebhookSigner(FIXED_CLOCK);
-        var mapper = new WebhookPayloadMapper(JsonMapper.builder().addModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule()).build());
+        var mapper = new WebhookPayloadMapper(JsonMapper.builder().build());
         return new HttpWebhookSender(restClient, signer, mapper, validator);
     }
 

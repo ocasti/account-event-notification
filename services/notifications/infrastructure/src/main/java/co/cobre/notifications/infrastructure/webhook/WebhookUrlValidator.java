@@ -1,6 +1,7 @@
 package co.cobre.notifications.infrastructure.webhook;
 
 import co.cobre.notifications.domain.model.WebhookUrl;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.net.InetAddress;
@@ -18,6 +19,7 @@ public class WebhookUrlValidator {
     private final WebhookProperties props;
     private final Function<String, List<InetAddress>> resolver;
 
+    @Autowired
     public WebhookUrlValidator(WebhookProperties props) {
         this(props, host -> {
             try {
@@ -28,7 +30,7 @@ public class WebhookUrlValidator {
         });
     }
 
-    public WebhookUrlValidator(WebhookProperties props, Function<String, List<InetAddress>> resolver) {
+    WebhookUrlValidator(WebhookProperties props, Function<String, List<InetAddress>> resolver) {
         this.props = props;
         this.resolver = resolver;
     }

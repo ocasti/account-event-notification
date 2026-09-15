@@ -80,3 +80,12 @@ Each entry records the goal, the prompt in summary, what was produced, and what 
 - **Corrections driven by the orchestrator:** entity status names had been renamed away from the domain; the claim query used the worker clock instead of the database clock; a custom `@ComponentScan` had disabled Spring Boot test slices; test security config had shadowed the production chain; the HTTPS rule had been placed in the domain value object; two persistence tests were wrong (a 2026 timestamp inside a 2024 range, and data colliding with the seeded subscriptions); the keyset cursor pointed at the wrong element and truncated to milliseconds.
 - **Environment facts learned:** Docker runs under OrbStack, so Testcontainers needs `DOCKER_HOST=unix:///Users/omarcastiblanco/.orbstack/run/docker.sock`; Spring Boot 4 moved `@DataJpaTest` to `org.springframework.boot.data.jpa.test.autoconfigure`.
 - **Rejected:** mocking beans from other packages to make a full-context test start; `@ConditionalOnMissingBean` in production config to accommodate a test; a snake_case record component to bind a query parameter.
+
+## Session 10 — 2026-09-15 — Application boot tests and build gate
+
+- **Goal:** prove the application starts with its production configuration in both profiles against real Postgres and ElasticMQ, and make the integration tests part of the standard build.
+- **Prompts (summary):** to a Haiku sub-agent, "write boot tests per profile; if production fails to start, do not patch production, report the cause"; follow-ups with the exact root cause after each run by the orchestrating session.
+- **Output:** `boot/ApiProfileBootIT` (7 cases) and `boot/WorkerProfileBootIT` (5 cases); production fixes: webhook and JWT defaults in `application.yaml`, `@Autowired` on the validator's public constructor, worker settings available in every profile with scheduling only under `worker`, payload mapper on Jackson 3; Surefire now includes `*IT` classes.
+- **Verified:** `mvnw verify` on main: 242 tests, 0 failures, integration tests included.
+- **Lessons:** area tests in green did not guarantee the application started; the boot tests found four wiring defects. Spring considers every declared constructor, so a class with two needs an explicit `@Autowired`. Spring Boot 4 provides Jackson 3 (`tools.jackson`) beans.
+- **Rejected:** replacing production beans with test substitutes to make the context start; attributing a failure to dynamic properties without evidence in the report.
