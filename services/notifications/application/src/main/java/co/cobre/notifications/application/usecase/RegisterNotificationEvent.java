@@ -7,6 +7,7 @@ import co.cobre.notifications.application.port.out.NotificationEventRepository;
 import co.cobre.notifications.application.port.out.SubscriptionRepository;
 import co.cobre.notifications.domain.model.AttemptOrigin;
 import co.cobre.notifications.domain.model.DeliveryAttempt;
+import co.cobre.notifications.domain.model.EventData;
 import co.cobre.notifications.domain.model.NotificationEvent;
 
 import java.time.Clock;
@@ -43,31 +44,24 @@ public final class RegisterNotificationEvent {
             return RegistrationResult.DUPLICATE;
         }
 
+        var data = new EventData(
+            command.eventId(),
+            command.clientId(),
+            command.eventKey(),
+            command.content(),
+            command.occurredAt()
+        );
+
         var subscription = subscriptions.findActive(command.clientId(), command.eventKey());
 
         if (subscription.isEmpty()) {
-            var skippedEvent = NotificationEvent.skipped(
-                command.eventId(),
-                command.clientId(),
-                command.eventKey(),
-                command.content(),
-                command.occurredAt(),
-                clock.instant()
-            );
+            var skippedEvent = NotificationEvent.skipped(data, clock.instant());
             events.save(skippedEvent);
             return RegistrationResult.SKIPPED;
         }
 
         var now = clock.instant();
-        var registeredEvent = NotificationEvent.register(
-            command.eventId(),
-            command.clientId(),
-            command.eventKey(),
-            command.content(),
-            command.occurredAt(),
-            now,
-            subscription.get()
-        );
+        var registeredEvent = NotificationEvent.register(data, now, subscription.get());
         events.save(registeredEvent);
 
         var attempt = DeliveryAttempt.first(command.eventId(), 0, now, AttemptOrigin.SYSTEM);

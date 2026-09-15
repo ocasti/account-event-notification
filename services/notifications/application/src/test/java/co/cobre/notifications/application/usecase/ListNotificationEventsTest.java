@@ -5,6 +5,7 @@ import co.cobre.notifications.application.query.ListNotificationEventsQuery;
 import co.cobre.notifications.application.query.NotificationEventPage;
 import co.cobre.notifications.domain.model.ClientId;
 import co.cobre.notifications.domain.model.DeliveryStatus;
+import co.cobre.notifications.domain.model.EventData;
 import co.cobre.notifications.domain.model.NotificationEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,12 +42,15 @@ class ListNotificationEventsTest {
             Optional.empty()
         );
 
-        NotificationEvent event1 = NotificationEvent.skipped(
+        var data = new EventData(
             new co.cobre.notifications.domain.model.EventId("evt-1"),
             clientId,
             new co.cobre.notifications.domain.model.EventKey("order.created"),
             "Order created",
-            Instant.parse("2025-01-01T11:00:00Z"),
+            Instant.parse("2025-01-01T11:00:00Z")
+        );
+        NotificationEvent event1 = NotificationEvent.skipped(
+            data,
             Instant.parse("2025-01-01T11:00:01Z")
         );
 

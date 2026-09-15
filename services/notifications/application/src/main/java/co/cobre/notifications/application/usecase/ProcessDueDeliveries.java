@@ -1,18 +1,20 @@
 package co.cobre.notifications.application.usecase;
 
+import co.cobre.notifications.application.port.out.DeliveryClaim;
 import co.cobre.notifications.application.port.out.DeliveryAttemptRepository;
 import co.cobre.notifications.application.port.out.NotificationEventRepository;
 import co.cobre.notifications.application.port.out.SubscriptionRepository;
 import co.cobre.notifications.application.port.out.WebhookSender;
 import co.cobre.notifications.domain.model.DeliveryAttempt;
 import co.cobre.notifications.domain.model.DeliveryOutcome;
+import co.cobre.notifications.domain.model.DeliveryResult;
 import co.cobre.notifications.domain.model.DeliveryStatus;
 import co.cobre.notifications.domain.model.NotificationEvent;
 import co.cobre.notifications.domain.model.Subscription;
 import co.cobre.notifications.domain.policy.RetryPolicy;
 
 import java.time.Clock;
-import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.random.RandomGenerator;
 
@@ -27,10 +29,7 @@ public final class ProcessDueDeliveries {
     private final RetryPolicy retryPolicy;
     private final RandomGenerator random;
     private final Clock clock;
-    private final String workerId;
-    private final int batchSize;
-    private final int maxPerClient;
-    private final Duration lease;
+    private final DeliveryWorkerSettings settings;
 
     /**
      * Creates a new process due deliveries use case.
@@ -43,10 +42,7 @@ public final class ProcessDueDeliveries {
         RetryPolicy retryPolicy,
         RandomGenerator random,
         Clock clock,
-        String workerId,
-        int batchSize,
-        int maxPerClient,
-        Duration lease
+        DeliveryWorkerSettings settings
     ) {
         this.events = events;
         this.attempts = attempts;
@@ -55,17 +51,15 @@ public final class ProcessDueDeliveries {
         this.retryPolicy = retryPolicy;
         this.random = random;
         this.clock = clock;
-        this.workerId = workerId;
-        this.batchSize = batchSize;
-        this.maxPerClient = maxPerClient;
-        this.lease = lease;
+        this.settings = settings;
     }
 
     /**
      * Processes a batch of due delivery attempts.
      */
     public int processBatch() {
-        var claimed = attempts.claimDue(clock.instant(), batchSize, maxPerClient, workerId, lease);
+        var claim = new DeliveryClaim(clock.instant(), settings.batchSize(), settings.maxPerClient(), settings.workerId(), settings.lease());
+        var claimed = attempts.claimDue(claim);
         for (var attempt : claimed) {
             process(attempt);
         }
@@ -87,11 +81,12 @@ public final class ProcessDueDeliveries {
         var subscription = resolveSubscription(notificationEvent);
         var outcome = subscription
             .map(sub -> sender.send(sub, notificationEvent, attempt))
-            .orElseGet(() -> new DeliveryOutcome.PermanentFailure(0, "subscription unavailable", Duration.ZERO));
+            .orElseGet(() -> new DeliveryOutcome.PermanentFailure(0, "subscription unavailable", java.time.Duration.ZERO));
 
-        var executed = executed(attempt, now, outcome);
+        var result = DeliveryResult.of(outcome);
+        var executed = attempt.executed(now, settings.workerId(), result);
 
-        boolean recorded = attempts.recordResultIf(executed, workerId);
+        boolean recorded = attempts.recordResultIf(executed, settings.workerId());
         if (!recorded) {
             return;
         }
@@ -105,41 +100,6 @@ public final class ProcessDueDeliveries {
         return event.subscriptionId()
             .flatMap(subscriptions::findById)
             .filter(Subscription::active);
-    }
-
-    private DeliveryAttempt executed(DeliveryAttempt attempt, java.time.Instant now, DeliveryOutcome outcome) {
-        var status = switch (outcome) {
-            case DeliveryOutcome.Success s -> Optional.of(s.responseStatus());
-            case DeliveryOutcome.TransientFailure tf -> tf.responseStatus();
-            case DeliveryOutcome.PermanentFailure pf -> Optional.of(pf.responseStatus());
-        };
-
-        var reason = switch (outcome) {
-            case DeliveryOutcome.Success s -> Optional.<String>empty();
-            case DeliveryOutcome.TransientFailure tf -> Optional.of(tf.reason());
-            case DeliveryOutcome.PermanentFailure pf -> Optional.of(pf.reason());
-        };
-
-        var latency = switch (outcome) {
-            case DeliveryOutcome.Success s -> Optional.of(s.latency());
-            case DeliveryOutcome.TransientFailure tf -> Optional.of(tf.latency());
-            case DeliveryOutcome.PermanentFailure pf -> Optional.of(pf.latency());
-        };
-
-        return new DeliveryAttempt(
-            attempt.id(),
-            attempt.eventId(),
-            attempt.cycle(),
-            attempt.attemptNumber(),
-            attempt.nextAttemptAt(),
-            attempt.claimedAt(),
-            Optional.of(workerId),
-            Optional.of(now),
-            status,
-            reason,
-            latency,
-            attempt.origin()
-        );
     }
 
     private void handleOutcome(NotificationEvent event, DeliveryAttempt attempt, DeliveryOutcome outcome, java.time.Instant now) {

@@ -1,5 +1,6 @@
 package co.cobre.notifications.application.usecase;
 
+import co.cobre.notifications.application.port.out.DeliveryClaim;
 import co.cobre.notifications.application.port.out.DeliveryAttemptRepository;
 import co.cobre.notifications.application.port.out.NotificationEventRepository;
 import co.cobre.notifications.application.port.out.SubscriptionRepository;
@@ -57,15 +58,13 @@ class ProcessDueDeliveriesTest {
     }
 
     private ProcessDueDeliveries createUseCase(Clock clock, RandomGenerator random) {
+        var settings = new DeliveryWorkerSettings("worker-1", 20, 5, Duration.ofSeconds(16));
         return new ProcessDueDeliveries(
             events, attempts, subscriptions, sender,
             RetryPolicy.standard(),
             random,
             clock,
-            "worker-1",
-            20,
-            5,
-            Duration.ofSeconds(16)
+            settings
         );
     }
 
@@ -94,13 +93,14 @@ class ProcessDueDeliveriesTest {
             AttemptOrigin.SYSTEM
         );
 
-        when(attempts.claimDue(now, 20, 5, "worker-1", Duration.ofSeconds(16)))
+        var claim = new DeliveryClaim(now, 20, 5, "worker-1", Duration.ofSeconds(16));
+        when(attempts.claimDue(claim))
             .thenReturn(List.of(attempt));
 
         int count = useCase.processBatch();
 
         assertThat(count).isEqualTo(1);
-        verify(attempts).claimDue(now, 20, 5, "worker-1", Duration.ofSeconds(16));
+        verify(attempts).claimDue(claim);
     }
 
     @Test

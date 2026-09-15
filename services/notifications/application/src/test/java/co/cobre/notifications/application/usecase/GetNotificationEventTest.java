@@ -6,6 +6,7 @@ import co.cobre.notifications.application.query.NotificationEventDetail;
 import co.cobre.notifications.domain.exception.NotificationEventNotFoundException;
 import co.cobre.notifications.domain.model.ClientId;
 import co.cobre.notifications.domain.model.DeliveryAttempt;
+import co.cobre.notifications.domain.model.EventData;
 import co.cobre.notifications.domain.model.EventId;
 import co.cobre.notifications.domain.model.EventKey;
 import co.cobre.notifications.domain.model.NotificationEvent;
@@ -38,23 +39,27 @@ class GetNotificationEventTest {
         ClientId clientId = new ClientId("client-1");
         EventId eventId = new EventId("evt-123");
 
-        NotificationEvent event = NotificationEvent.register(
+        var data = new EventData(
             eventId,
             clientId,
             new EventKey("order.created"),
             "Order created",
-            Instant.parse("2025-01-01T11:00:00Z"),
+            Instant.parse("2025-01-01T11:00:00Z")
+        );
+        var subscription = new co.cobre.notifications.domain.model.Subscription(
+            "sub-123",
+            clientId,
+            java.util.Set.of(new EventKey("order.created")),
+            co.cobre.notifications.domain.model.WebhookUrl.of("https://example.com/webhook"),
+            Optional.empty(),
+            Optional.empty(),
+            true,
+            Instant.parse("2025-01-01T10:00:00Z")
+        );
+        NotificationEvent event = NotificationEvent.register(
+            data,
             Instant.parse("2025-01-01T11:00:01Z"),
-            new co.cobre.notifications.domain.model.Subscription(
-                "sub-123",
-                clientId,
-                java.util.Set.of(new EventKey("order.created")),
-                co.cobre.notifications.domain.model.WebhookUrl.of("https://example.com/webhook"),
-                Optional.empty(),
-                Optional.empty(),
-                true,
-                Instant.parse("2025-01-01T10:00:00Z")
-            )
+            subscription
         );
 
         DeliveryAttempt attempt1 = DeliveryAttempt.first(

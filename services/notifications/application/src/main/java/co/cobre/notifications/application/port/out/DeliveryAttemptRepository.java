@@ -20,7 +20,7 @@ public interface DeliveryAttemptRepository {
     /**
      * Claims due delivery attempts for processing.
      */
-    List<DeliveryAttempt> claimDue(Instant now, int limit, int maxPerClient, String workerId, Duration lease);
+    List<DeliveryAttempt> claimDue(DeliveryClaim claim);
 
     /**
      * Records the result of an executed delivery attempt if still claimed by the worker.
