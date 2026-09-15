@@ -28,7 +28,7 @@ public class WebhookUrlValidator {
         });
     }
 
-    public WebhookUrlValidator(WebhookProperties props, Function<String, List<InetAddress>> resolver) {
+    WebhookUrlValidator(WebhookProperties props, Function<String, List<InetAddress>> resolver) {
         this.props = props;
         this.resolver = resolver;
     }
