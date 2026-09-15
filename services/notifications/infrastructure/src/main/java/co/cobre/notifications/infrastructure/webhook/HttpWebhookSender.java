@@ -79,7 +79,7 @@ public class HttpWebhookSender implements WebhookSender {
             } else {
                 return new DeliveryOutcome.TransientFailure(Optional.of(status), "unexpected: " + status, latency);
             }
-        } catch (ResourceAccessException e) {
+        } catch (ResourceAccessException | java.io.IOException e) {
             var latency = Duration.ofNanos(System.nanoTime() - startTime);
             return new DeliveryOutcome.TransientFailure(Optional.empty(), e.getMessage(), latency);
         }

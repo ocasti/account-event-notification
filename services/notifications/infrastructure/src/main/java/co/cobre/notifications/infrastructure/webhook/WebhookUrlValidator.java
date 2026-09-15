@@ -45,10 +45,11 @@ public class WebhookUrlValidator {
             throw new IllegalArgumentException("Webhook URL must have a valid host");
         }
 
-        if (!props.requireHttps() && "http".equalsIgnoreCase(scheme)) {
-            if (props.allowlist().contains(host)) {
-                return resolveHost(host);
-            }
+        if (props.requireHttps() && "http".equalsIgnoreCase(scheme)) {
+            throw new IllegalArgumentException("HTTPS is required for webhook URLs");
+        }
+
+        if ("http".equalsIgnoreCase(scheme) && !props.allowlist().contains(host)) {
             throw new IllegalArgumentException("HTTP scheme requires host to be in allowlist");
         }
 

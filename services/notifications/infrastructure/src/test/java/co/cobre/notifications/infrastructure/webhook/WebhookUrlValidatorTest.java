@@ -196,6 +196,42 @@ class WebhookUrlValidatorTest {
             .isInstanceOf(Exception.class);
     }
 
+    @Test
+    void shouldAllowHttpWhenNotRequiredAndHostInAllowlist() throws Exception {
+        var props = new WebhookProperties(
+            Duration.ofSeconds(5),
+            Duration.ofSeconds(10),
+            false,
+            List.of("wiremock"),
+            Duration.ofSeconds(30)
+        );
+        var resolver = createMockResolver("10.0.0.5");
+        var validator = new WebhookUrlValidator(props, resolver);
+
+        var url = new WebhookUrl(new java.net.URI("http://wiremock:8080/webhook"));
+        var ip = validator.validate(url);
+
+        assertThat(ip.getHostAddress()).isEqualTo("10.0.0.5");
+    }
+
+    @Test
+    void shouldRejectHttpWhenRequireHttpsIsTrue() throws Exception {
+        var props = new WebhookProperties(
+            Duration.ofSeconds(5),
+            Duration.ofSeconds(10),
+            true,
+            List.of("example.com"),
+            Duration.ofSeconds(30)
+        );
+        var resolver = createMockResolver("93.184.216.34");
+        var validator = new WebhookUrlValidator(props, resolver);
+
+        var url = new WebhookUrl(new java.net.URI("http://example.com/hook"));
+
+        assertThatThrownBy(() -> validator.validate(url))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
     private java.util.function.Function<String, List<InetAddress>> createMockResolver(String ipAddress) throws Exception {
         return host -> {
             try {
