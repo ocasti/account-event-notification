@@ -32,10 +32,11 @@ class WebhookUrlTest {
     }
 
     @Test
-    void shouldRejectHttpUrl() {
-        assertThatThrownBy(() -> new WebhookUrl(URI.create("http://example.com/webhook")))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("must be a valid HTTPS URL");
+    void shouldAcceptHttpUrl() {
+        var url = new WebhookUrl(URI.create("http://example.com/webhook"));
+
+        assertThat(url.value().getScheme()).isEqualToIgnoringCase("http");
+        assertThat(url.value().getHost()).isEqualTo("example.com");
     }
 
     @Test
@@ -48,14 +49,14 @@ class WebhookUrlTest {
     void shouldRejectUrlWithoutHost() {
         assertThatThrownBy(() -> new WebhookUrl(URI.create("https:///webhook")))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("must be a valid HTTPS URL");
+            .hasMessageContaining("HTTP or HTTPS");
     }
 
     @Test
     void shouldRejectUrlWithFragment() {
         assertThatThrownBy(() -> new WebhookUrl(URI.create("https://example.com/webhook#section")))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("must be a valid HTTPS URL");
+            .hasMessageContaining("HTTP or HTTPS");
     }
 
     @Test
@@ -87,8 +88,15 @@ class WebhookUrlTest {
     }
 
     @Test
-    void shouldThrowWhenCreatingFromHttpUrlUsingFactory() {
-        assertThatThrownBy(() -> WebhookUrl.of("http://example.com/webhook"))
+    void shouldAcceptHttpUrlUsingFactory() {
+        var url = WebhookUrl.of("http://example.com/webhook");
+
+        assertThat(url.value().getScheme()).isEqualToIgnoringCase("http");
+    }
+
+    @Test
+    void shouldRejectFtpUrl() {
+        assertThatThrownBy(() -> new WebhookUrl(URI.create("ftp://example.com/webhook")))
             .isInstanceOf(IllegalArgumentException.class);
     }
 }

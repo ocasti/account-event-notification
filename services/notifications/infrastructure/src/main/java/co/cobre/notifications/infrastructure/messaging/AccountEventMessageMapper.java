@@ -1,6 +1,9 @@
 package co.cobre.notifications.infrastructure.messaging;
 
 import co.cobre.notifications.application.command.RegisterEventCommand;
+import co.cobre.notifications.domain.model.ClientId;
+import co.cobre.notifications.domain.model.EventId;
+import co.cobre.notifications.domain.model.EventKey;
 import org.springframework.stereotype.Component;
 
 /**
@@ -13,6 +16,12 @@ public class AccountEventMessageMapper {
      * Maps account event message to register event command.
      */
     public RegisterEventCommand toCommand(AccountEventMessage message) {
-        throw new UnsupportedOperationException("not implemented");
+        return new RegisterEventCommand(
+            new EventId(message.eventId()),
+            new ClientId(message.clientId()),
+            new EventKey(message.eventType()),
+            message.content(),
+            message.occurredAt()
+        );
     }
 }

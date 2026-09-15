@@ -4,7 +4,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 
 /**
- * Value object representing a webhook URL with HTTPS validation.
+ * Value object representing a webhook URL (HTTP or HTTPS).
+ * HTTPS is enforced by policy in WebhookUrlValidator, not in this domain object.
  */
 public record WebhookUrl(URI value) {
 
@@ -12,9 +13,9 @@ public record WebhookUrl(URI value) {
         if (value == null) {
             throw new IllegalArgumentException("Webhook URL cannot be null");
         }
-        if (!isValidHttpsUrl(value)) {
+        if (!isValidWebhookUrl(value)) {
             throw new IllegalArgumentException(
-                "Webhook URL must be a valid HTTPS URL with a non-empty host and no fragment"
+                "Webhook URL must be HTTP or HTTPS with a non-empty host and no fragment"
             );
         }
     }
@@ -31,9 +32,9 @@ public record WebhookUrl(URI value) {
         }
     }
 
-    private static boolean isValidHttpsUrl(URI uri) {
+    private static boolean isValidWebhookUrl(URI uri) {
         String scheme = uri.getScheme();
-        if (scheme == null || !scheme.equalsIgnoreCase("https")) {
+        if (scheme == null || (!scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https"))) {
             return false;
         }
         String host = uri.getHost();
