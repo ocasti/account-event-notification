@@ -36,3 +36,12 @@ Each entry records the goal, the prompt in summary, what was produced, and what 
 - **Accepted from agents:** pinning ElasticMQ to 1.6.12 because 1.7 removed the statistics endpoint used by the healthcheck; Grafana on port 3001; `.dockerignore`.
 - **Resolved by the orchestrator:** both the Maven and the Docker agent produced Dockerfiles; the Maven agent's version was kept because it was validated against the real POMs.
 - **Rejected:** none.
+
+## Session 5 — 2026-09-15 — Domain layer with TDD (step 3, part 1)
+
+- **Goal:** build the domain module layer by layer: raw skeleton first, then value objects, then tests in red, then the minimal implementation to green.
+- **Prompts (summary):** to a Haiku sub-agent, "create the raw class skeleton with these exact signatures, every method throwing UnsupportedOperationException, no logic"; then "add value objects EventId, ClientId, EventKey, WebhookUrl with constructor validation; write these test cases; run them red; implement until green", with the full case list (state transitions, replay cycle, retry delays 0/30 s/2 min/8 min/15 min, jitter bounds, subscription matching).
+- **Output:** 14 classes in `domain/model`, `domain/policy`, `domain/exception`; 9 test classes, 89 tests.
+- **Verified:** red phase failed with 56 errors from unimplemented methods and no compilation errors; green phase 89/89; no dependency outside the JDK in main; tests use only JUnit 5 and AssertJ.
+- **Accepted:** implementation as delivered after reading the state machine, the aggregate transitions, the retry policy and the value objects.
+- **Rejected:** none.
