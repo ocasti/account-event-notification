@@ -194,7 +194,7 @@ class NotificationEventRepositoryAdapterIT extends PersistenceTestSupport {
     @Test
     void testSearchWithPaginationAndCursor() {
         var clientId = new ClientId("CLIENT_PAGINATED");
-        var baseTime = Instant.parse("2024-01-15T00:00:00Z");
+        var baseTime = Instant.now();
 
         for (int i = 0; i < 25; i++) {
             var event = new NotificationEvent(
@@ -325,7 +325,7 @@ class NotificationEventRepositoryAdapterIT extends PersistenceTestSupport {
     void testSearchFilterByDateRange() {
         var clientId = new ClientId("CLIENT_DATE_RANGE");
         var start = Instant.parse("2024-01-10T00:00:00Z");
-        var middle = Instant.parse("2024-01-15T00:00:00Z");
+        var middle = Instant.now();
         var end = Instant.parse("2024-01-20T00:00:00Z");
 
         adapter.save(eventAt("evt-before", clientId, start.minusSeconds(100)));

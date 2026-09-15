@@ -11,8 +11,10 @@ import co.cobre.notifications.infrastructure.persistence.entity.NotificationEven
 import co.cobre.notifications.infrastructure.persistence.entity.DeliveryStatusEntity;
 import co.cobre.notifications.infrastructure.persistence.jpa.DeliveryAttemptJpaRepository;
 import co.cobre.notifications.infrastructure.persistence.jpa.NotificationEventJpaRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +43,16 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
 
     @Autowired
     private NotificationEventJpaRepository eventJpaRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @AfterEach
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    void cleanupTestData() {
+        jdbcTemplate.execute("DELETE FROM delivery_attempts");
+        jdbcTemplate.execute("DELETE FROM notification_events");
+    }
 
     @Test
     @Transactional
@@ -93,13 +105,35 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
 
     @Test
     @Transactional
+    void testClaimDueFiltersExecutedAttempts() {
+        var eventId = new EventId("evt-executed-001");
+        createEvent(eventId);
+
+        var now = Instant.now();
+        var pastDue = now.minusSeconds(10);
+
+        var executeAttempt = new DeliveryAttempt(
+            java.util.UUID.randomUUID(), eventId, 0, 1, pastDue, Optional.empty(), Optional.empty(),
+            Optional.of(now), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM
+        );
+
+        adapter.save(executeAttempt);
+
+        var claim = new DeliveryClaim(now, 10, 10, "worker-1", Duration.ofSeconds(16));
+        var claimed = adapter.claimDue(claim);
+
+        assertEquals(0, claimed.size(), "Executed attempts should not be claimed");
+    }
+
+    @Test
+    @Transactional
     void testClaimDueReturnsUnclaimed() {
         var eventId1 = new EventId("evt-claim-001");
         var eventId2 = new EventId("evt-claim-002");
         createEvent(eventId1);
         createEvent(eventId2);
 
-        var now = Instant.parse("2024-01-15T12:00:00Z");
+        var now = Instant.now();
         var pastDue = now.minusSeconds(10);
         var future = now.plusSeconds(100);
 
@@ -136,7 +170,7 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
         var eventId = new EventId("evt-lease-001");
         createEvent(eventId);
 
-        var now = Instant.parse("2024-01-15T12:00:00Z");
+        var now = Instant.now();
         var pastDue = now.minusSeconds(30);
         var lease = Duration.ofSeconds(16);
 
@@ -169,7 +203,7 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
         createEvent(eventId1);
         createEvent(eventId2);
 
-        var now = Instant.parse("2024-01-15T12:00:00Z");
+        var now = Instant.now();
         var pastDue = now.minusSeconds(100);
 
         for (int i = 0; i < 8; i++) {
@@ -194,7 +228,7 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
         var eventId = new EventId("evt-result-001");
         createEvent(eventId);
 
-        var now = Instant.parse("2024-01-15T12:00:00Z");
+        var now = Instant.now();
         var attempt = new DeliveryAttempt(
             java.util.UUID.randomUUID(), eventId, 0, 1, now,
             Optional.of(now.minusSeconds(5)), Optional.of("worker-1"),
@@ -222,7 +256,7 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
         var eventId = new EventId("evt-wrong-worker-001");
         createEvent(eventId);
 
-        var now = Instant.parse("2024-01-15T12:00:00Z");
+        var now = Instant.now();
         var attempt = new DeliveryAttempt(
             java.util.UUID.randomUUID(), eventId, 0, 1, now,
             Optional.of(now.minusSeconds(5)), Optional.of("worker-1"),
@@ -248,7 +282,7 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
         var eventId = new EventId("evt-executed-001");
         createEvent(eventId);
 
-        var now = Instant.parse("2024-01-15T12:00:00Z");
+        var now = Instant.now();
         var attempt = new DeliveryAttempt(
             java.util.UUID.randomUUID(), eventId, 0, 1, now,
             Optional.of(now.minusSeconds(5)), Optional.of("worker-1"),
@@ -268,7 +302,7 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void testClaimDueConcurrency() throws InterruptedException {
-        var baseTime = Instant.parse("2024-01-15T12:00:00Z");
+        var baseTime = Instant.now();
         var pastDue = baseTime.minusSeconds(30);
 
         for (int i = 0; i < 20; i++) {
