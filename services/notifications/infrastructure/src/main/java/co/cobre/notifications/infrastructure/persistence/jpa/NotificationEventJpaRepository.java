@@ -21,49 +21,35 @@ public interface NotificationEventJpaRepository extends JpaRepository<Notificati
 
     Optional<NotificationEventEntity> findByEventIdAndClientId(String eventId, String clientId);
 
-    default Page<NotificationEventEntity> searchEvents(
-        String clientId,
-        Optional<DeliveryStatusEntity> status,
-        Optional<Instant> from,
-        Optional<Instant> to,
-        Optional<Instant> cursorCreatedAt,
-        Optional<String> cursorEventId,
-        int limit
-    ) {
+    default Page<NotificationEventEntity> search(SearchCriteria criteria) {
         Specification<NotificationEventEntity> spec = (root, query, cb) -> {
             List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
 
-            // Always filter by clientId
-            predicates.add(cb.equal(root.get("clientId"), clientId));
+            predicates.add(cb.equal(root.get("clientId"), criteria.clientId()));
 
-            // Optional status filter
-            if (status.isPresent()) {
-                predicates.add(cb.equal(root.get("status"), status.get()));
+            if (criteria.status().isPresent()) {
+                predicates.add(cb.equal(root.get("status"), criteria.status().get()));
             }
 
-            // Optional from date filter
-            if (from.isPresent()) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), from.get()));
+            if (criteria.from().isPresent()) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), criteria.from().get()));
             }
 
-            // Optional to date filter
-            if (to.isPresent()) {
-                predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), to.get()));
+            if (criteria.to().isPresent()) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), criteria.to().get()));
             }
 
-            // Keyset pagination filter
-            if (cursorCreatedAt.isPresent() && cursorEventId.isPresent()) {
+            if (criteria.cursorCreatedAt().isPresent() && criteria.cursorEventId().isPresent()) {
                 jakarta.persistence.criteria.Predicate keysetPredicate = cb.or(
-                    cb.lessThan(root.get("createdAt"), cursorCreatedAt.get()),
+                    cb.lessThan(root.get("createdAt"), criteria.cursorCreatedAt().get()),
                     cb.and(
-                        cb.equal(root.get("createdAt"), cursorCreatedAt.get()),
-                        cb.lessThan(root.get("eventId"), cursorEventId.get())
+                        cb.equal(root.get("createdAt"), criteria.cursorCreatedAt().get()),
+                        cb.lessThan(root.get("eventId"), criteria.cursorEventId().get())
                     )
                 );
                 predicates.add(keysetPredicate);
             }
 
-            // Order by createdAt DESC, eventId DESC
             query.orderBy(
                 cb.desc(root.get("createdAt")),
                 cb.desc(root.get("eventId"))
@@ -72,7 +58,7 @@ public interface NotificationEventJpaRepository extends JpaRepository<Notificati
             return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
         };
 
-        Pageable pageable = PageRequest.of(0, limit + 1);
+        Pageable pageable = PageRequest.of(0, criteria.limit() + 1);
         return findAll(spec, pageable);
     }
 

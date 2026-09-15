@@ -9,6 +9,7 @@ import co.cobre.notifications.domain.model.EventId;
 import co.cobre.notifications.domain.model.NotificationEvent;
 import co.cobre.notifications.infrastructure.persistence.entity.DeliveryStatusEntity;
 import co.cobre.notifications.infrastructure.persistence.jpa.NotificationEventJpaRepository;
+import co.cobre.notifications.infrastructure.persistence.jpa.SearchCriteria;
 import co.cobre.notifications.infrastructure.persistence.mapper.NotificationEventEntityMapper;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,7 +59,7 @@ public class NotificationEventRepositoryAdapter implements NotificationEventRepo
         var cursorInfo = query.cursor()
             .map(CursorCodec::decode);
 
-        var results = jpaRepository.searchEvents(
+        var searchCriteria = new SearchCriteria(
             query.clientId().value(),
             query.status().map(this::mapStatusToEntity),
             query.from(),
@@ -66,7 +67,9 @@ public class NotificationEventRepositoryAdapter implements NotificationEventRepo
             cursorInfo.map(CursorCodec.Cursor::createdAt),
             cursorInfo.map(CursorCodec.Cursor::eventId),
             query.limit()
-        ).getContent();
+        );
+
+        var results = jpaRepository.search(searchCriteria).getContent();
 
         Optional<String> nextCursor = Optional.empty();
         if (results.size() > query.limit()) {
