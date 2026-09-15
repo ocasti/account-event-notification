@@ -47,7 +47,7 @@ public class NotificationEventEntity {
     @Column(name = "delivered_at")
     private Instant deliveredAt;
 
-    protected NotificationEventEntity() {
+    public NotificationEventEntity() {
     }
 
     public String getEventId() {

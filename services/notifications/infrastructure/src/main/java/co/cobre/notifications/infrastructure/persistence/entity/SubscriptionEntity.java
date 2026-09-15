@@ -41,7 +41,7 @@ public class SubscriptionEntity {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    protected SubscriptionEntity() {
+    public SubscriptionEntity() {
     }
 
     public String getId() {
