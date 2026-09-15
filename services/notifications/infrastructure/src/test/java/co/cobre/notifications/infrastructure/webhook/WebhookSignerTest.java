@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class WebhookSignerTest {
 
-    static final Instant FIXED_TIME = Instant.parse("2025-09-15T10:30:45.123000000Z");
+    static final Instant FIXED_TIME = Instant.parse("2025-09-15T10:30:45.123Z");
     static final Clock FIXED_CLOCK = Clock.fixed(FIXED_TIME, ZoneId.of("UTC"));
 
     @Test
@@ -24,7 +24,7 @@ class WebhookSignerTest {
 
         var signature = signer.sign(signatureKey, body);
 
-        assertThat(signature.timestamp()).isEqualTo("2025-09-15T10:30:45.123000000Z");
+        assertThat(signature.timestamp()).isEqualTo("2025-09-15T10:30:45.123Z");
 
         var expectedValue = computeHmacSha256(signatureKey, signature.timestamp() + "." + body);
         assertThat(signature.value()).isEqualTo(expectedValue);

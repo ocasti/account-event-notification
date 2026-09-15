@@ -2,7 +2,11 @@ package co.cobre.notifications.infrastructure.webhook;
 
 import org.springframework.stereotype.Component;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.util.HexFormat;
 
 /**
  * Signs webhook payloads using HMAC-SHA256.
@@ -17,11 +21,22 @@ public class WebhookSigner {
 
     public record Signature(String timestamp, String value) {}
 
-    /**
-     * Signs a webhook payload using HMAC-SHA256.
-     * Produces hex-encoded signature of timestamp + "." + body in UTF-8.
-     */
     public Signature sign(String signatureKey, String body) {
-        throw new UnsupportedOperationException("not implemented");
+        var timestamp = clock.instant().toString();
+        var signatureData = timestamp + "." + body;
+        var signature = computeHmacSha256(signatureKey, signatureData);
+        return new Signature(timestamp, signature);
+    }
+
+    private String computeHmacSha256(String key, String data) {
+        try {
+            var mac = Mac.getInstance("HmacSHA256");
+            var keyBytes = key.getBytes(StandardCharsets.UTF_8);
+            mac.init(new SecretKeySpec(keyBytes, 0, keyBytes.length, "HmacSHA256"));
+            var hash = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash).toLowerCase();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to compute HMAC-SHA256", e);
+        }
     }
 }
