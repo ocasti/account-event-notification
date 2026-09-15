@@ -22,14 +22,9 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-import java.time.Instant;
 import java.util.Optional;
-
-import static org.springframework.http.HttpStatus.ACCEPTED;
 
 /**
  * REST controller for notification events.
@@ -111,7 +106,6 @@ public class NotificationEventController {
      * Replays a notification event.
      */
     @PostMapping("/{notification_event_id}/replay")
-    @ResponseStatus(ACCEPTED)
     public ResponseEntity<ReplayResponse> replay(
         @AuthenticationPrincipal Jwt jwt,
         @PathVariable("notification_event_id") String id
@@ -127,13 +121,6 @@ public class NotificationEventController {
             "pending"
         );
 
-        var uri = ServletUriComponentsBuilder.fromCurrentRequestUri()
-            .replacePath("/notification_events/{id}")
-            .buildAndExpand(id)
-            .toUri();
-
-        return ResponseEntity.accepted()
-            .location(uri)
-            .body(response);
+        return ResponseEntity.accepted().body(response);
     }
 }

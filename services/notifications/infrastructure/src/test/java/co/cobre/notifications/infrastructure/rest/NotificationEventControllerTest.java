@@ -253,9 +253,7 @@ class NotificationEventControllerTest {
             .andExpect(status().isAccepted())
             .andExpect(jsonPath("$.event_id").value("EVT003"))
             .andExpect(jsonPath("$.cycle").value(2))
-            .andExpect(jsonPath("$.delivery_status").value("pending"))
-            .andExpect(header().exists("Location"))
-            .andExpect(header().string("Location", containsString("/notification_events/EVT003")));
+            .andExpect(jsonPath("$.delivery_status").value("pending"));
     }
 
     @Test
