@@ -10,12 +10,9 @@ import co.cobre.notifications.domain.model.NotificationEvent;
 import co.cobre.notifications.infrastructure.persistence.entity.DeliveryStatusEntity;
 import co.cobre.notifications.infrastructure.persistence.jpa.NotificationEventJpaRepository;
 import co.cobre.notifications.infrastructure.persistence.mapper.NotificationEventEntityMapper;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -61,10 +58,6 @@ public class NotificationEventRepositoryAdapter implements NotificationEventRepo
         var cursorInfo = query.cursor()
             .map(CursorCodec::decode);
 
-        var sort = Sort.by(Sort.Direction.DESC, "createdAt")
-            .and(Sort.by(Sort.Direction.DESC, "eventId"));
-        var pageable = PageRequest.of(0, query.limit() + 1, sort);
-
         var results = jpaRepository.searchEvents(
             query.clientId().value(),
             query.status().map(this::mapStatusToEntity),
@@ -72,12 +65,12 @@ public class NotificationEventRepositoryAdapter implements NotificationEventRepo
             query.to(),
             cursorInfo.map(CursorCodec.Cursor::createdAt),
             cursorInfo.map(CursorCodec.Cursor::eventId),
-            pageable
+            query.limit()
         ).getContent();
 
         Optional<String> nextCursor = Optional.empty();
         if (results.size() > query.limit()) {
-            var lastItem = results.get(query.limit() - 1);
+            var lastItem = results.get(query.limit());
             nextCursor = Optional.of(CursorCodec.encode(lastItem.getCreatedAt(), lastItem.getEventId()));
             results = results.subList(0, query.limit());
         }

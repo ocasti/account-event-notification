@@ -13,6 +13,8 @@ import co.cobre.notifications.infrastructure.persistence.jpa.DeliveryAttemptJpaR
 import co.cobre.notifications.infrastructure.persistence.jpa.NotificationEventJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -41,6 +43,7 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     private NotificationEventJpaRepository eventJpaRepository;
 
     @Test
+    @Transactional
     void testSaveAndFindByEvent() {
         var eventId = new EventId("evt-attempt-001");
         createEvent(eventId);
@@ -55,6 +58,7 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     }
 
     @Test
+    @Transactional
     void testFindByEventOrderedByCycleAndAttemptNumber() {
         var eventId = new EventId("evt-order-001");
         createEvent(eventId);
@@ -88,6 +92,7 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     }
 
     @Test
+    @Transactional
     void testClaimDueReturnsUnclaimed() {
         var eventId1 = new EventId("evt-claim-001");
         var eventId2 = new EventId("evt-claim-002");
@@ -118,13 +123,15 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
         var claim = new DeliveryClaim(now, 10, 10, "worker-1", Duration.ofSeconds(16));
         var claimed = adapter.claimDue(claim);
 
-        assertEquals(1, claimed.size());
+        assertEquals(1, claimed.size(), "Expected 1 claimed attempt, but got " + claimed.size() +
+            ". Claimed IDs: " + claimed.stream().map(DeliveryAttempt::id).toList());
         assertEquals(duAttempt.id(), claimed.get(0).id());
         assertTrue(claimed.get(0).claimedAt().isPresent());
         assertEquals("worker-1", claimed.get(0).claimedBy().get());
     }
 
     @Test
+    @Transactional
     void testClaimDueRespectLeaseTimeout() {
         var eventId = new EventId("evt-lease-001");
         createEvent(eventId);
@@ -155,6 +162,7 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     }
 
     @Test
+    @Transactional
     void testClaimDueRespectMaxPerClient() {
         var eventId1 = new EventId("evt-max-001");
         var eventId2 = new EventId("evt-max-002");
@@ -181,6 +189,7 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     }
 
     @Test
+    @Transactional
     void testRecordResultIfSuccess() {
         var eventId = new EventId("evt-result-001");
         createEvent(eventId);
@@ -208,6 +217,7 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     }
 
     @Test
+    @Transactional
     void testRecordResultIfFailsIfWrongWorker() {
         var eventId = new EventId("evt-wrong-worker-001");
         createEvent(eventId);
@@ -233,6 +243,7 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     }
 
     @Test
+    @Transactional
     void testRecordResultIfFailsIfAlreadyExecuted() {
         var eventId = new EventId("evt-executed-001");
         createEvent(eventId);
@@ -255,6 +266,7 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     }
 
     @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void testClaimDueConcurrency() throws InterruptedException {
         var baseTime = Instant.parse("2024-01-15T12:00:00Z");
         var pastDue = baseTime.minusSeconds(30);
