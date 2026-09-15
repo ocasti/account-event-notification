@@ -70,3 +70,13 @@ Each entry records the goal, the prompt in summary, what was produced, and what 
 - **Output:** 44 classes under `infrastructure`, 4 profile YAML files, 2 Flyway migrations, 1 architecture test; `@UseCase` in `application`.
 - **Verified:** module compiles; ArchUnit passes on the merged tree (domain and application free of Spring, JPA and Jackson; entities only under persistence; rest does not touch persistence).
 - **Changed by the orchestrator:** added Apache HttpClient 5 to the POM after the agent reported it was not transitive; corrected the Flyway placeholder syntax in the subscriptions migration.
+
+## Session 9 — 2026-09-15 — Infrastructure layer with TDD (step 3, part 4)
+
+- **Goal:** implement the Spring Boot adapters area by area with tests in red first: persistence, REST and security, webhook sender, messaging with scheduler and metrics, then the due-attempts gauge feeder.
+- **Prompts (summary):** four Haiku sub-agents in parallel on disjoint packages, each with the exact test case list, the implementation semantics and the verification command; follow-up messages with the first `Caused by` from Surefire whenever an agent reported partial results.
+- **Output:** repository adapters with keyset search, claim-with-lease and conditional result writes; JWT resource server validating a generated key file in tests; HMAC signer, SSRF validator with pinned DNS and the HTTP sender; SQS listener, scheduler and Micrometer metrics; `SearchCriteria` and `ListRequest` parameter objects. 113 infrastructure tests.
+- **Verified:** every branch was re-run by the orchestrating session before merging; `mvnw verify` on main: 229 tests, 0 failures.
+- **Corrections driven by the orchestrator:** entity status names had been renamed away from the domain; the claim query used the worker clock instead of the database clock; a custom `@ComponentScan` had disabled Spring Boot test slices; test security config had shadowed the production chain; the HTTPS rule had been placed in the domain value object; two persistence tests were wrong (a 2026 timestamp inside a 2024 range, and data colliding with the seeded subscriptions); the keyset cursor pointed at the wrong element and truncated to milliseconds.
+- **Environment facts learned:** Docker runs under OrbStack, so Testcontainers needs `DOCKER_HOST=unix:///Users/omarcastiblanco/.orbstack/run/docker.sock`; Spring Boot 4 moved `@DataJpaTest` to `org.springframework.boot.data.jpa.test.autoconfigure`.
+- **Rejected:** mocking beans from other packages to make a full-context test start; `@ConditionalOnMissingBean` in production config to accommodate a test; a snake_case record component to bind a query parameter.

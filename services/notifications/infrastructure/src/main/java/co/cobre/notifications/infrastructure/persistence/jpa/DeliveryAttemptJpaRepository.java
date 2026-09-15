@@ -53,4 +53,7 @@ public interface DeliveryAttemptJpaRepository extends JpaRepository<DeliveryAtte
     );
 
     List<DeliveryAttemptEntity> findByEventId(String eventId, Sort sort);
+
+    @Query(value = "SELECT count(*) FROM delivery_attempts WHERE executed_at IS NULL AND next_attempt_at <= now() AND claimed_at IS NULL", nativeQuery = true)
+    long countDue();
 }

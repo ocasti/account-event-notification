@@ -10,6 +10,7 @@ import co.cobre.notifications.infrastructure.rest.dto.NotificationEventPageRespo
 import co.cobre.notifications.infrastructure.rest.dto.NotificationEventResponse;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,24 +24,65 @@ public class NotificationEventResponseMapper {
      * Maps a notification event to a response DTO.
      */
     public NotificationEventResponse toResponse(NotificationEvent event, int attemptsCount) {
-        throw new UnsupportedOperationException("not implemented");
+        return new NotificationEventResponse(
+            event.eventId().value(),
+            event.eventKey().value(),
+            event.clientId().value(),
+            event.content(),
+            event.createdAt(),
+            event.status().toString().toLowerCase(),
+            event.deliveredAt(),
+            attemptsCount
+        );
     }
 
     /**
      * Maps a notification event detail to a response DTO.
      */
     public NotificationEventDetailResponse toDetail(NotificationEventDetail detail) {
-        throw new UnsupportedOperationException("not implemented");
+        var event = detail.event();
+        var attempts = detail.attempts();
+
+        Optional<Instant> nextAttemptAt = attempts.stream()
+            .filter(a -> !a.isExecuted())
+            .findFirst()
+            .map(DeliveryAttempt::nextAttemptAt);
+
+        return new NotificationEventDetailResponse(
+            event.eventId().value(),
+            event.eventKey().value(),
+            event.clientId().value(),
+            event.content(),
+            event.createdAt(),
+            event.status().toString().toLowerCase(),
+            event.deliveredAt(),
+            attempts.size(),
+            attempts.stream().map(this::mapAttempt).toList(),
+            nextAttemptAt
+        );
     }
 
     /**
      * Maps a notification event page to a response DTO.
      */
     public NotificationEventPageResponse toPage(NotificationEventPage page) {
-        throw new UnsupportedOperationException("not implemented");
+        return new NotificationEventPageResponse(
+            page.items().stream()
+                .map(event -> toResponse(event, 0))
+                .toList(),
+            page.nextCursor()
+        );
     }
 
     private DeliveryAttemptResponse mapAttempt(DeliveryAttempt attempt) {
-        throw new UnsupportedOperationException("not implemented");
+        return new DeliveryAttemptResponse(
+            attempt.cycle(),
+            attempt.attemptNumber(),
+            attempt.executedAt(),
+            attempt.responseStatus(),
+            attempt.failureReason(),
+            attempt.latency().map(d -> d.toMillis()),
+            attempt.origin().toString().toLowerCase()
+        );
     }
 }

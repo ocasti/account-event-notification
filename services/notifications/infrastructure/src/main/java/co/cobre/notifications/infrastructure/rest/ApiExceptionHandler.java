@@ -21,7 +21,8 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(NotificationEventNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(NotificationEventNotFoundException ex) {
-        throw new UnsupportedOperationException("not implemented");
+        return ResponseEntity.status(404)
+            .body(new ErrorResponse("not_found", "Event not found"));
     }
 
     /**
@@ -29,7 +30,8 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(ReplayNotAllowedException.class)
     public ResponseEntity<ErrorResponse> handleReplayNotAllowed(ReplayNotAllowedException ex) {
-        throw new UnsupportedOperationException("not implemented");
+        return ResponseEntity.status(409)
+            .body(new ErrorResponse("replay_not_allowed", "Replay not allowed for this event"));
     }
 
     /**
@@ -37,7 +39,8 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(IllegalStateTransitionException.class)
     public ResponseEntity<ErrorResponse> handleIllegalStateTransition(IllegalStateTransitionException ex) {
-        throw new UnsupportedOperationException("not implemented");
+        return ResponseEntity.status(409)
+            .body(new ErrorResponse("illegal_transition", "Illegal state transition"));
     }
 
     /**
@@ -45,7 +48,8 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
-        throw new UnsupportedOperationException("not implemented");
+        return ResponseEntity.status(400)
+            .body(new ErrorResponse("invalid_parameter", "Invalid parameter"));
     }
 
     /**
@@ -53,7 +57,8 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleMethodArgumentNotValid(MethodArgumentNotValidException ex) {
-        throw new UnsupportedOperationException("not implemented");
+        return ResponseEntity.status(400)
+            .body(new ErrorResponse("validation_error", "Validation error"));
     }
 
     /**
@@ -61,6 +66,7 @@ public class ApiExceptionHandler {
      */
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
-        throw new UnsupportedOperationException("not implemented");
+        return ResponseEntity.status(400)
+            .body(new ErrorResponse("validation_error", "Validation error"));
     }
 }
