@@ -54,3 +54,11 @@ Each entry records the goal, the prompt in summary, what was produced, and what 
 - **Verified:** red phase 17 failures from unimplemented methods; green 17/17 with the 89 domain tests still passing; refactor diff touches only the implementation file and stays green.
 - **Accepted:** implementation after reading register, replay and delivery processing.
 - **Changed:** the first delivery-processing implementation used nulls, duplicated a twelve-argument constructor and chained instanceof checks; it was refactored under green tests before merging.
+
+## Session 7 — 2026-09-15 — Parameter objects refactor
+
+- **Goal:** remove long parameter lists from the core after a review comment: methods and logic constructors should take at most three arguments; anything larger becomes a parameter object.
+- **Prompts (summary):** to a Haiku sub-agent, "introduce EventData, DeliveryResult, DeliveryClaim and DeliveryWorkerSettings; change these signatures; keep the 106 tests green adjusting only call sites; add tests for the new records".
+- **Output:** four new records; `NotificationEvent.register/skipped`, `DeliveryAttemptRepository.claimDue` and the `ProcessDueDeliveries` constructor reduced; `DeliveryAttempt.executed(...)` replaces a twelve-argument reconstruction.
+- **Verified:** 115 tests green; an automated scan shows the remaining signatures above three parameters are data records or dependency-injection constructors.
+- **Accepted:** as delivered.
