@@ -22,7 +22,7 @@ El worker hace POST HTTPS a la URL que cada cliente definió en su suscripción 
 
 **Cómo afectaría.** Un token sin expiración o con firma no verificada permite suplantar a cualquier cliente; un token aceptado en la query string queda en logs y proxies.
 
-**Mitigación adoptada.** La API valida JWT RS256 solo con la clave pública del emisor: firma, expiración de 20 minutos y audiencia. Token únicamente en el header `Authorization`; inválido o ausente responde 401 sin detalle. La clave privada nunca está en la API ni en el repositorio (`docker/keys/` está ignorado por git); en AWS la clave pública vive en SSM (RFC §7, §10, §16). La emisión de tokens queda fuera del alcance porque ya existe en la plataforma (RFC §15).
+**Mitigación adoptada.** La API valida JWT RS256 solo con la clave pública del emisor: firma, expiración de 20 minutos y audiencia. Token únicamente en el header `Authorization`; inválido o ausente responde 401 sin detalle. La clave privada nunca está en la API ni en el repositorio (`deploy/local/keys/` está ignorado por git); en AWS la clave pública vive en SSM (RFC §7, §10, §16). La emisión de tokens queda fuera del alcance porque ya existe en la plataforma (RFC §15).
 
 **Evolución.** Claim de cliente y audiencia son configurables porque los claims del token real no están documentados; la validación contra el JWKS del emisor se verifica al integrar (RFC §16, §18).
 
@@ -64,7 +64,7 @@ El worker hace POST HTTPS a la URL que cada cliente definió en su suscripción 
 
 - **TLS obligatorio hacia webhooks.** La URL de suscripción exige HTTPS; en local solo la allowlist admite HTTP (RFC §9, §16). Cubre A02:2021 Cryptographic Failures.
 - **Firma HMAC del webhook.** `event-signature = HMAC-SHA256(clave, event-timestamp + "." + cuerpo)`, con ventana de 5 minutos, para que el receptor verifique origen e integridad. La clave nunca se devuelve completa por la API; cifrado en reposo y rotación son evoluciones (RFC §16).
-- **Secretos fuera del repositorio.** `.env` y `docker/keys/*.pem` ignorados por git; en AWS, clave pública y claves de firma en SSM (RFC §10, §12).
+- **Secretos fuera del repositorio.** `.env` y `deploy/local/keys/*.pem` ignorados por git; en AWS, clave pública y claves de firma en SSM (RFC §10, §12).
 - **Contenedores sin root.** Imagen multi-stage sobre Temurin 21 con usuario no root (RFC §12).
 - **Dependencias gestionadas por el BOM de Spring Boot** (RFC §16).
 - **Logs sin datos sensibles.** La línea JSON por intento lleva solo `event_id`, `client_id`, `attempt_number`, `response_status` y `correlation_id`; ni el contenido del evento ni la clave de firma (RFC §10, §16).

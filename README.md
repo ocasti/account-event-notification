@@ -29,11 +29,18 @@ Point the seeded subscriptions at a real receiver by editing `WEBHOOK_URL` in `.
 ## Layout
 
 ```
-domain/            pure Java: entities, state machine, retry policy
-application/       use cases and ports
-infrastructure/    Spring Boot adapters: REST, JPA, SQS, HTTPS, scheduler, security, metrics
-event-simulator/   stands in for the event-producing platform (local only)
-docker/            Dockerfiles and container configuration
-docs/              RFC, security analysis, AI usage log, reference data
-scripts/           preflight and token helpers
+services/
+  notifications/           Maven project (reactor of three modules) that produces cobre/notifications
+    domain/                pure Java: entities, state machine, retry policy
+    application/           use cases and ports
+    infrastructure/        Spring Boot adapters: REST, JPA, SQS, HTTPS, scheduler, security, metrics
+  event-simulator/         standalone Maven project; stands in for the event-producing platform (local only)
+deploy/
+  local/                   compose.yaml plus ElasticMQ, WireMock, Prometheus, Grafana config and the JWT keys
+docker/                    notifications.Dockerfile and simulator.Dockerfile (build context: repository root)
+docs/                      RFC, security analysis, AI usage log, reference data
+scripts/                   preflight and token helpers
 ```
+
+Each service builds on its own: `cd services/notifications && ./mvnw verify` (or `services/event-simulator`).
+The `Makefile` runs both and drives Compose with `-f deploy/local/compose.yaml --env-file .env`.

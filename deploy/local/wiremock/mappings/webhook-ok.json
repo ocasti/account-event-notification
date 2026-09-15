@@ -1,0 +1,17 @@
+{
+  "name": "webhook - default 200",
+  "priority": 10,
+  "request": {
+    "method": "POST",
+    "urlPath": "/webhook"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "received": true
+    }
+  }
+}

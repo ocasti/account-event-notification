@@ -31,7 +31,7 @@ set -a; source .env; set +a
 
 for spec in "API_PORT:${API_PORT:-8080}" "SIMULATOR_PORT:${SIMULATOR_PORT:-8090}" "WIREMOCK_PORT:${WIREMOCK_PORT:-8089}" \
             "POSTGRES_PORT:${POSTGRES_PORT:-5432}" "ELASTICMQ_UI_PORT:${ELASTICMQ_UI_PORT:-9325}" \
-            "PROMETHEUS_PORT:${PROMETHEUS_PORT:-9090}" "GRAFANA_PORT:${GRAFANA_PORT:-3000}"; do
+            "PROMETHEUS_PORT:${PROMETHEUS_PORT:-9090}" "GRAFANA_PORT:${GRAFANA_PORT:-3001}"; do
   name=${spec%%:*}; port=${spec##*:}
   if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
     fail "port $port ($name) is in use; change it in .env"
@@ -39,7 +39,7 @@ for spec in "API_PORT:${API_PORT:-8080}" "SIMULATOR_PORT:${SIMULATOR_PORT:-8090}
 done
 ok "ports free"
 
-if [ ! -f docker/keys/jwt-public.pem ]; then
+if [ ! -f deploy/local/keys/jwt-public.pem ]; then
   warn "JWT keys missing; run 'make keys'"
 else
   ok "JWT keys present"

@@ -1,0 +1,13 @@
+.git
+.github
+.claude
+.claude/
+target/
+services/notifications/target/
+services/notifications/*/target/
+services/event-simulator/target/
+deploy/
+docs/
+.env
+*.md
+!README.md
