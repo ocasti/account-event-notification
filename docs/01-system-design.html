@@ -377,7 +377,7 @@ flowchart LR
   <h3>Reglas que ArchUnit hace cumplir</h3>
   <ul class="tight">
     <li><code>domain</code> no importa nada de <code>application</code> ni de <code>infrastructure</code>, ni paquetes <code>org.springframework</code>, <code>jakarta.persistence</code> o <code>com.fasterxml</code>.</li>
-    <li><code>application</code> solo importa <code>domain</code>. Los puertos son interfaces del paquete <code>application.port.in</code> y <code>application.port.out</code>.</li>
+    <li><code>application</code> solo importa <code>domain</code>. Las únicas interfaces del núcleo son los puertos de salida, en el paquete <code>application.port</code>; los casos de uso son clases concretas en <code>application.usecase</code>, sin interfaz de entrada, y los adaptadores los invocan directamente.</li>
     <li>Los controllers solo llaman puertos de entrada; nunca repositorios ni entidades JPA.</li>
     <li>Las entidades JPA viven en <code>infrastructure.persistence</code> y se traducen al dominio con mappers explícitos. El dominio no lleva anotaciones.</li>
   </ul>
