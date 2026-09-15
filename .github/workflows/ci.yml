@@ -50,6 +50,7 @@ jobs:
           path: 'services/**/target/surefire-reports/TEST-*.xml'
           reporter: java-junit
           fail-on-error: true
+          use-actions-summary: true   # also render the table in the run's Summary page
 
       # Keep the raw reports and the coverage site for inspection when something fails.
       - name: Upload test and coverage reports
