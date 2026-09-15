@@ -22,6 +22,9 @@ public record Subscription(
      * Checks if this subscription matches the given event key.
      */
     public boolean matches(EventKey eventKey) {
-        throw new UnsupportedOperationException("not implemented");
+        if (!active) {
+            return false;
+        }
+        return eventKeys.contains(eventKey) || eventKeys.contains(EventKey.wildcard());
     }
 }

@@ -27,20 +27,46 @@ public record DeliveryAttempt(
      * Creates the first delivery attempt for an event.
      */
     public static DeliveryAttempt first(EventId eventId, int cycle, Instant at, AttemptOrigin origin) {
-        throw new UnsupportedOperationException("not implemented");
+        return new DeliveryAttempt(
+            UUID.randomUUID(),
+            eventId,
+            cycle,
+            1,
+            at,
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            origin
+        );
     }
 
     /**
      * Creates the next delivery attempt based on this one.
      */
     public DeliveryAttempt next(Instant at) {
-        throw new UnsupportedOperationException("not implemented");
+        return new DeliveryAttempt(
+            UUID.randomUUID(),
+            eventId,
+            cycle,
+            attemptNumber + 1,
+            at,
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            AttemptOrigin.SYSTEM
+        );
     }
 
     /**
      * Checks if this attempt has been executed.
      */
     public boolean isExecuted() {
-        throw new UnsupportedOperationException("not implemented");
+        return executedAt.isPresent();
     }
 }

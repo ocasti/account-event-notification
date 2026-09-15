@@ -1,5 +1,8 @@
 package co.cobre.notifications.domain.model;
 
+import co.cobre.notifications.domain.exception.IllegalStateTransitionException;
+import co.cobre.notifications.domain.exception.ReplayNotAllowedException;
+
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
@@ -58,7 +61,18 @@ public final class NotificationEvent {
         Instant receivedAt,
         Subscription subscription
     ) {
-        throw new UnsupportedOperationException("not implemented");
+        return new NotificationEvent(
+            eventId,
+            clientId,
+            eventKey,
+            content,
+            createdAt,
+            receivedAt,
+            DeliveryStatus.PENDING,
+            Optional.of(subscription.id()),
+            0,
+            Optional.empty()
+        );
     }
 
     /**
@@ -72,105 +86,131 @@ public final class NotificationEvent {
         Instant createdAt,
         Instant receivedAt
     ) {
-        throw new UnsupportedOperationException("not implemented");
+        return new NotificationEvent(
+            eventId,
+            clientId,
+            eventKey,
+            content,
+            createdAt,
+            receivedAt,
+            DeliveryStatus.SKIPPED,
+            Optional.empty(),
+            0,
+            Optional.empty()
+        );
     }
 
     /**
      * Marks the event as completed at the given time.
      */
     public void complete(Instant at) {
-        throw new UnsupportedOperationException("not implemented");
+        if (!status.canTransitionTo(DeliveryStatus.COMPLETED)) {
+            throw new IllegalStateTransitionException(status, DeliveryStatus.COMPLETED);
+        }
+        status = DeliveryStatus.COMPLETED;
+        deliveredAt = Optional.of(at);
     }
 
     /**
      * Schedules a retry of the event.
      */
     public void scheduleRetry() {
-        throw new UnsupportedOperationException("not implemented");
+        if (!status.canTransitionTo(DeliveryStatus.RETRYING)) {
+            throw new IllegalStateTransitionException(status, DeliveryStatus.RETRYING);
+        }
+        status = DeliveryStatus.RETRYING;
     }
 
     /**
      * Marks the event as failed.
      */
     public void fail() {
-        throw new UnsupportedOperationException("not implemented");
+        if (!status.canTransitionTo(DeliveryStatus.FAILED)) {
+            throw new IllegalStateTransitionException(status, DeliveryStatus.FAILED);
+        }
+        status = DeliveryStatus.FAILED;
     }
 
     /**
      * Marks the event for replay.
      */
     public void replay() {
-        throw new UnsupportedOperationException("not implemented");
+        if (status != DeliveryStatus.FAILED) {
+            throw new ReplayNotAllowedException(eventId, status);
+        }
+        status = DeliveryStatus.PENDING;
+        cycle++;
+        deliveredAt = Optional.empty();
     }
 
     /**
      * Returns the event ID.
      */
     public EventId eventId() {
-        throw new UnsupportedOperationException("not implemented");
+        return eventId;
     }
 
     /**
      * Returns the client ID.
      */
     public ClientId clientId() {
-        throw new UnsupportedOperationException("not implemented");
+        return clientId;
     }
 
     /**
      * Returns the event key.
      */
     public EventKey eventKey() {
-        throw new UnsupportedOperationException("not implemented");
+        return eventKey;
     }
 
     /**
      * Returns the content.
      */
     public String content() {
-        throw new UnsupportedOperationException("not implemented");
+        return content;
     }
 
     /**
      * Returns the creation timestamp.
      */
     public Instant createdAt() {
-        throw new UnsupportedOperationException("not implemented");
+        return createdAt;
     }
 
     /**
      * Returns the reception timestamp.
      */
     public Instant receivedAt() {
-        throw new UnsupportedOperationException("not implemented");
+        return receivedAt;
     }
 
     /**
      * Returns the delivery status.
      */
     public DeliveryStatus status() {
-        throw new UnsupportedOperationException("not implemented");
+        return status;
     }
 
     /**
      * Returns the subscription ID if available.
      */
     public Optional<String> subscriptionId() {
-        throw new UnsupportedOperationException("not implemented");
+        return subscriptionId;
     }
 
     /**
      * Returns the delivery cycle.
      */
     public int cycle() {
-        throw new UnsupportedOperationException("not implemented");
+        return cycle;
     }
 
     /**
      * Returns the delivery timestamp if available.
      */
     public Optional<Instant> deliveredAt() {
-        throw new UnsupportedOperationException("not implemented");
+        return deliveredAt;
     }
 
     @Override
