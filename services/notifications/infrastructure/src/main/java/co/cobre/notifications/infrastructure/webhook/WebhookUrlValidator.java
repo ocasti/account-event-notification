@@ -4,8 +4,10 @@ import co.cobre.notifications.domain.WebhookUrl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.util.List;
 import java.util.function.Function;
 
@@ -24,8 +26,8 @@ public class WebhookUrlValidator {
         this(props, host -> {
             try {
                 return List.of(InetAddress.getAllByName(host));
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+            } catch (UnknownHostException e) {
+                throw new IllegalArgumentException("Webhook host does not resolve: " + host, e);
             }
         });
     }
@@ -95,21 +97,15 @@ public class WebhookUrlValidator {
             throw new IllegalArgumentException("Webhook URL resolves to a restricted address");
         }
 
-        var hostAddress = address.getHostAddress();
-        if (isUniqueLocalAddress(hostAddress)) {
+        if (isUniqueLocalAddress(address)) {
             throw new IllegalArgumentException("Webhook URL resolves to a unique local address");
         }
     }
 
-    private boolean isUniqueLocalAddress(String hostAddress) {
-        if (hostAddress.startsWith("fd") || hostAddress.startsWith("fc")) {
-            try {
-                var bytes = InetAddress.getByName(hostAddress).getAddress();
-                if (bytes.length == 16) {
-                    return (bytes[0] & 0xFE) == 0xFC;
-                }
-            } catch (Exception e) {
-            }
+    private boolean isUniqueLocalAddress(InetAddress address) {
+        if (address instanceof Inet6Address v6) {
+            var bytes = v6.getAddress();
+            return (bytes[0] & 0xFE) == 0xFC;
         }
         return false;
     }

@@ -47,12 +47,7 @@ public record ListRequest(
     }
 
     public Optional<DeliveryStatus> status() {
-        return deliveryStatus.map(s -> {
-            try {
-                return DeliveryStatus.valueOf(s.toUpperCase());
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Invalid delivery status: " + s);
-            }
-        });
+        return deliveryStatus.map(s -> DeliveryStatus.fromApiValue(s)
+            .orElseThrow(() -> new IllegalArgumentException("Invalid delivery status: " + s)));
     }
 }

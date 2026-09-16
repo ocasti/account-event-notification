@@ -15,6 +15,8 @@ import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.X509EncodedKeySpec;
@@ -73,8 +75,8 @@ public class SecurityConfig {
             ));
 
             return decoder;
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to create JWT decoder", e);
+        } catch (IOException | GeneralSecurityException e) {
+            throw new IllegalStateException("Cannot load the JWT public key", e);
         }
     }
 }

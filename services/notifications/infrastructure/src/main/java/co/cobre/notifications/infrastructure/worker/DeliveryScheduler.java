@@ -8,6 +8,8 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.concurrent.CompletionException;
+
 @Component
 @Profile("worker")
 public class DeliveryScheduler {
@@ -30,12 +32,14 @@ public class DeliveryScheduler {
      * Polls for due deliveries and processes them.
      */
     @Scheduled(fixedDelayString = "${notifications.worker.poll-interval:1s}")
+    @SuppressWarnings("PMD.AvoidCatchingGenericException") // keeps the scheduler alive across any single batch failure
     public void tick() {
         try {
             int processed = processDueDeliveries.processBatch();
             metrics.batchProcessed(processed);
         } catch (Exception e) {
-            logger.error("Scheduler error processing batch", e);
+            var cause = (e instanceof CompletionException && e.getCause() != null) ? e.getCause() : e;
+            logger.error("Scheduler error processing batch: {}", cause.getMessage(), e);
             metrics.schedulerError();
         }
     }

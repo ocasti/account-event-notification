@@ -29,12 +29,15 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.random.RandomGenerator;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -578,5 +581,66 @@ class ProcessDueDeliveriesTest {
 
         assertThat(count).isEqualTo(5);
         verify(sender, times(5)).send(any(Subscription.class), any(NotificationEvent.class), any(DeliveryAttempt.class));
+    }
+
+    @Test
+    void shouldProcessRemainingAttemptsAndPropagateWhenOneFails() {
+        Instant now = Instant.parse("2025-01-01T12:00:00Z");
+        Clock clock = Clock.fixed(now, ZoneId.of("UTC"));
+        RandomGenerator random = fixedRandom(0.5);
+        Executor executor = Executors.newFixedThreadPool(3);
+
+        ProcessDueDeliveries useCase = createUseCase(clock, random, executor);
+
+        EventId eventId1 = new EventId("evt-ok-1");
+        EventId eventId2 = new EventId("evt-boom");
+        EventId eventId3 = new EventId("evt-ok-2");
+        ClientId clientId = new ClientId("client-1");
+        String subscriptionId = "sub-1";
+
+        var attemptsList = List.of(
+            new DeliveryAttempt(java.util.UUID.randomUUID(), eventId1, 0, 1, now.minusSeconds(60),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM),
+            new DeliveryAttempt(java.util.UUID.randomUUID(), eventId2, 0, 1, now.minusSeconds(60),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM),
+            new DeliveryAttempt(java.util.UUID.randomUUID(), eventId3, 0, 1, now.minusSeconds(60),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM)
+        );
+
+        var claim = new DeliveryClaim(now, 20, 5, "worker-1", Duration.ofSeconds(16));
+        when(attempts.claimDue(claim)).thenReturn(attemptsList);
+
+        for (var attempt : attemptsList) {
+            var event = new NotificationEvent(
+                attempt.eventId(), clientId, new EventKey("order.created"), "Order created",
+                Instant.parse("2025-01-01T11:00:00Z"), Instant.parse("2025-01-01T11:00:01Z"),
+                DeliveryStatus.PENDING, Optional.of(subscriptionId), 0, Optional.empty()
+            );
+            var subscription = new Subscription(
+                subscriptionId, clientId, Set.of(new EventKey("order.created")),
+                WebhookUrl.of("https://example.com/webhook"), Optional.empty(), Optional.empty(),
+                true, Instant.parse("2025-01-01T10:00:00Z")
+            );
+            lenient().when(events.findById(attempt.eventId())).thenReturn(Optional.of(event));
+            lenient().when(subscriptions.findById(subscriptionId)).thenReturn(Optional.of(subscription));
+            if (attempt.eventId().equals(eventId2)) {
+                lenient().when(sender.send(subscription, event, attempt))
+                    .thenThrow(new RuntimeException("webhook sender exploded"));
+            } else {
+                lenient().when(sender.send(subscription, event, attempt))
+                    .thenReturn(new DeliveryOutcome.Success(200, Duration.ofMillis(50)));
+                lenient().when(this.attempts.recordResultIf(any(DeliveryAttempt.class), eq("worker-1"))).thenReturn(true);
+                lenient().when(this.events.transition(eq(attempt.eventId()), eq(DeliveryStatus.PENDING), any(NotificationEvent.class))).thenReturn(true);
+            }
+        }
+
+        assertThatThrownBy(useCase::processBatch)
+            .isInstanceOf(CompletionException.class)
+            .hasCauseInstanceOf(RuntimeException.class)
+            .cause().hasMessage("webhook sender exploded");
+
+        verify(sender, times(3)).send(any(Subscription.class), any(NotificationEvent.class), any(DeliveryAttempt.class));
+        verify(attempts).recordResultIf(argThat(a -> a.eventId().equals(eventId1)), eq("worker-1"));
+        verify(attempts).recordResultIf(argThat(a -> a.eventId().equals(eventId3)), eq("worker-1"));
     }
 }

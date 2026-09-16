@@ -58,12 +58,7 @@ public final class ProcessDueDeliveries {
         var claim = new DeliveryClaim(clock.instant(), settings.batchSize(), settings.maxPerClient(), settings.workerId(), settings.lease());
         var claimed = attempts.claimDue(claim);
         var futures = claimed.stream()
-            .map(attempt -> CompletableFuture.runAsync(() -> {
-                try {
-                    process(attempt);
-                } catch (Exception ignored) {
-                }
-            }, executor))
+            .map(attempt -> CompletableFuture.runAsync(() -> process(attempt), executor))
             .toArray(CompletableFuture[]::new);
         CompletableFuture.allOf(futures).join();
         return claimed.size();

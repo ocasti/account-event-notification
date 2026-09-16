@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.Optional;
 
@@ -41,7 +42,7 @@ public class HttpWebhookSender implements WebhookSender {
     public DeliveryOutcome send(Subscription subscription, NotificationEvent event, DeliveryAttempt attempt) {
         try {
             urlValidator.validate(subscription.url());
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             return new DeliveryOutcome.PermanentFailure(0, "invalid webhook url", Duration.ZERO);
         }
 
@@ -49,37 +50,44 @@ public class HttpWebhookSender implements WebhookSender {
         var json = payloadMapper.toJson(event);
 
         try {
-            var requestBuilder = webhookRestClient.post()
-                .uri(subscription.url().value())
-                .contentType(MediaType.APPLICATION_JSON)
-                .header("x-cobre-event-id", event.eventId().value())
-                .header("x-cobre-attempt", String.valueOf(attempt.attemptNumber()));
-
-            if (subscription.signatureKey().isPresent()) {
-                var sig = signer.sign(subscription.signatureKey().get(), json);
-                requestBuilder.header("event-timestamp", sig.timestamp());
-                requestBuilder.header("event-signature", sig.value());
-            }
-
-            var response = requestBuilder
+            var response = buildRequest(subscription, event, attempt, json)
                 .body(json)
                 .exchange((req, res) -> res);
 
             var latency = Duration.ofNanos(System.nanoTime() - startTime);
-            var status = response.getStatusCode().value();
-
-            if (status >= 200 && status < 300) {
-                return new DeliveryOutcome.Success(status, latency);
-            } else if ((status >= 500 && status < 600) || status == 408 || status == 429) {
-                return new DeliveryOutcome.TransientFailure(Optional.of(status), "HTTP " + status, latency);
-            } else if (status >= 400 && status < 500) {
-                return new DeliveryOutcome.PermanentFailure(status, "client rejected: " + status, latency);
-            } else {
-                return new DeliveryOutcome.TransientFailure(Optional.of(status), "unexpected: " + status, latency);
-            }
-        } catch (ResourceAccessException | java.io.IOException e) {
+            return classify(response.getStatusCode().value(), latency);
+        } catch (ResourceAccessException | IOException e) {
             var latency = Duration.ofNanos(System.nanoTime() - startTime);
             return new DeliveryOutcome.TransientFailure(Optional.empty(), e.getMessage(), latency);
+        }
+    }
+
+    private RestClient.RequestBodySpec buildRequest(
+        Subscription subscription, NotificationEvent event, DeliveryAttempt attempt, String json
+    ) {
+        var requestBuilder = webhookRestClient.post()
+            .uri(subscription.url().value())
+            .contentType(MediaType.APPLICATION_JSON)
+            .header("x-cobre-event-id", event.eventId().value())
+            .header("x-cobre-attempt", String.valueOf(attempt.attemptNumber()));
+
+        if (subscription.signatureKey().isPresent()) {
+            var sig = signer.sign(subscription.signatureKey().get(), json);
+            requestBuilder.header("event-timestamp", sig.timestamp());
+            requestBuilder.header("event-signature", sig.value());
+        }
+        return requestBuilder;
+    }
+
+    private DeliveryOutcome classify(int status, Duration latency) {
+        if (status >= 200 && status < 300) {
+            return new DeliveryOutcome.Success(status, latency);
+        } else if ((status >= 500 && status < 600) || status == 408 || status == 429) {
+            return new DeliveryOutcome.TransientFailure(Optional.of(status), "HTTP " + status, latency);
+        } else if (status >= 400 && status < 500) {
+            return new DeliveryOutcome.PermanentFailure(status, "client rejected: " + status, latency);
+        } else {
+            return new DeliveryOutcome.TransientFailure(Optional.of(status), "unexpected: " + status, latency);
         }
     }
 }
