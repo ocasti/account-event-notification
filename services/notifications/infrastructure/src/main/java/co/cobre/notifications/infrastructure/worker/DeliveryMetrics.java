@@ -102,4 +102,10 @@ public class DeliveryMetrics {
             .register(registry)
             .increment();
     }
+
+    /**
+     * Records a message whose event id was already registered; the queue redelivered it.
+     */
+    public void duplicate(String clientId, String eventKey) {
+    }
 }

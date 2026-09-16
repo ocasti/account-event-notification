@@ -134,4 +134,19 @@ class DeliveryMetricsTest {
         assertNotNull(counter);
         assertEquals(2.0, counter.count());
     }
+
+    @Test
+    void duplicateIncrementsCounterWithTags() {
+        metrics.duplicate("CLIENT111", "account.updated");
+        metrics.duplicate("CLIENT111", "account.updated");
+        metrics.duplicate("CLIENT222", "order.placed");
+
+        Counter counter = registry.find("notifications.duplicates")
+            .tag("client_id", "CLIENT111")
+            .tag("event_key", "account.updated")
+            .counter();
+
+        assertNotNull(counter);
+        assertEquals(2.0, counter.count());
+    }
 }
