@@ -317,6 +317,26 @@ by client** no debería moverse mucho salvo que se agregue latencia artificial; 
 (last hour)** debe mostrar solo los eventos `LOAD-<run>-F-*` de la corrida (más lo que ya hubiera
 fallado antes).
 
+**Resultados de referencia** (2026-09-16, MacBook con Docker en OrbStack, 10 CPU / 8 GB para la
+VM, `make load EVENTS=2000 FAIL_RATIO=0.10`, WireMock respondiendo 200 en ~10 ms):
+
+| Métrica | 1 worker | 3 workers |
+|---|---|---|
+| Publicados en la cola | 2000 en 0,18 s | 2000 en 0,29 s |
+| Registrados por la API / perdidos | 2000 / 0 | 2000 / 0 |
+| Completados / fallidos (esperados 1800 / 200) | 1800 / 200 | 1800 / 200 |
+| Intentos según la API = POST en WireMock | 2800 = 2800 | 2800 = 2800 |
+| Duplicados | 0 | 0 |
+| Duración hasta estado terminal | 110 s | 56 s |
+| Throughput de entregas | 18 /s | 35 /s |
+| p95 latencia del webhook | 10 ms | 19 ms |
+| Backlog máximo (`notifications_attempts_due`) | 1758 | 1316 |
+
+La duración la marca el backoff de los 200 fallidos (cinco intentos con esperas de 2 a 10 s en el
+perfil local); los 1800 exitosos se drenan en los primeros segundos. Con tres réplicas el trabajo se
+reparte sin que ninguna clave (evento, intento) se entregue dos veces, y el p95 sube porque WireMock
+recibe el triple de concurrencia.
+
 ## Demostración con un receptor externo
 
 Ensayo de entrega contra un receptor HTTPS público real (no WireMock), para probar el camino
