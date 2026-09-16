@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Issues a demo JWT (RS256) for a client id, signed with deploy/local/keys/jwt-private.pem.
 # Usage: scripts/token.sh CLIENT001   -> prints the token
-# Mirrors the shape of Cobre's real token: Bearer, 20-minute lifetime. The claim carrying the
+# Mirrors the shape of Cobre's real token: Bearer, 20-minute lifetime (TOKEN_TTL_SECONDS overrides it). The claim carrying the
 # client id and the audience are configurable in the API (JWT_CLIENT_CLAIM, JWT_AUDIENCE).
 set -euo pipefail
 
@@ -13,7 +13,9 @@ client="${1:-}"
 if [ -f .env ]; then set -a; source .env; set +a; fi
 aud="${JWT_AUDIENCE:-account-event-notification}"
 now=$(date +%s)
-exp=$((now + 1200))
+# Lifetime in seconds; 20 minutes like the real token. Override for long-running tools (make load).
+ttl="${TOKEN_TTL_SECONDS:-1200}"
+exp=$((now + ttl))
 
 b64url() { openssl base64 -e -A | tr '+/' '-_' | tr -d '='; }
 

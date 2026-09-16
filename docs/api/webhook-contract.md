@@ -28,7 +28,7 @@ Content-Type: application/json
 x-cobre-event-id: EVT001
 x-cobre-attempt: 1
 event-timestamp: 2024-03-15T09:30:22.418601Z
-event-signature: aec47d71ede011e6d51ca2aee9422406e25018ffadd8c9159c17902d7bf82192
+event-signature: 8df8561d73ff9780ba10d0d7d3d8c565cff9c14ed56edfc8e529832ee009ed42
 ```
 
 - `x-cobre-event-id` — the event's `event_id`, same value as `id` in the body. Stable across every
@@ -50,7 +50,7 @@ JSON, `Content-Type: application/json`. Shape (`WebhookPayload`, field order as 
 record, Jackson 3 default field ordering):
 
 ```json
-{"id":"EVT001","event_key":"credit_card_payment","client_id":"CLIENT001","created_at":null,"content":"Credit card payment received for $150.00"}
+{"id":"EVT001","event_key":"credit_card_payment","client_id":"CLIENT001","created_at":"2024-03-15T09:30:22Z","content":"Credit card payment received for $150.00"}
 ```
 
 Pretty-printed for readability (the wire body is compact, no extra whitespace):
@@ -60,7 +60,7 @@ Pretty-printed for readability (the wire body is compact, no extra whitespace):
   "id": "EVT001",
   "event_key": "credit_card_payment",
   "client_id": "CLIENT001",
-  "created_at": null,
+  "created_at": "2024-03-15T09:30:22Z",
   "content": "Credit card payment received for $150.00"
 }
 ```
