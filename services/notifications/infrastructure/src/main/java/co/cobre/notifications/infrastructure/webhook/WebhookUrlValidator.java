@@ -60,6 +60,20 @@ public class WebhookUrlValidator {
         return addresses;
     }
 
+    /**
+     * Validates a hostname and returns the resolved InetAddress.
+     * Used by DNS resolver to ensure pinning after validation.
+     */
+    public InetAddress validateHost(String host) {
+        if (host == null || host.isEmpty()) {
+            throw new IllegalArgumentException("Host must not be null or empty");
+        }
+
+        var address = resolveHost(host);
+        validateAddress(host, address);
+        return address;
+    }
+
     private InetAddress resolveHost(String host) {
         var addresses = resolver.apply(host);
         if (addresses == null || addresses.isEmpty()) {

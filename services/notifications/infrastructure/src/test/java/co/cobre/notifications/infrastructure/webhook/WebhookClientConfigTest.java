@@ -82,7 +82,7 @@ class WebhookClientConfigTest {
                 Duration.ofMillis(500),
                 Duration.ofMillis(500),
                 true,
-                List.of(),
+                List.of("127.0.0.1"),
                 Duration.ofSeconds(30)
             );
             var config = new WebhookClientConfig();
@@ -98,6 +98,47 @@ class WebhookClientConfigTest {
             }
 
             assertThat(counter.get()).isEqualTo(1);
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void shouldUsePinnedDnsResolverForValidatedHosts() throws IOException {
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            exchange.sendResponseHeaders(200, 2);
+            exchange.getResponseBody().write("OK".getBytes());
+            exchange.close();
+        });
+        server.start();
+
+        try {
+            var port = server.getAddress().getPort();
+            var props = new WebhookProperties(
+                Duration.ofMillis(500),
+                Duration.ofMillis(500),
+                true,
+                List.of("pinned.test"),
+                Duration.ofSeconds(30)
+            );
+            java.util.function.Function<String, List<java.net.InetAddress>> mockResolver = host -> {
+                try {
+                    return List.of(java.net.InetAddress.getByName("127.0.0.1"));
+                } catch (java.net.UnknownHostException e) {
+                    throw new RuntimeException(e);
+                }
+            };
+            var validator = new WebhookUrlValidator(props, mockResolver);
+            var config = new WebhookClientConfig();
+            var restClient = config.webhookRestClient(props, validator);
+
+            var response = restClient.get()
+                .uri("http://pinned.test:" + port + "/webhook")
+                .retrieve()
+                .body(String.class);
+
+            assertThat(response).isEqualTo("OK");
         } finally {
             server.stop(0);
         }
