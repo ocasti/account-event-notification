@@ -4,9 +4,9 @@
 Publishes N account events straight onto the SQS queue (ElasticMQ), a fraction of which are
 made to fail every webhook delivery attempt via a temporary WireMock stub, then waits for the
 backlog to drain and reports whether any event was lost, whether completed/failed counts match
-what was published, whether the API's attempt count matches what WireMock actually received,
-and the relevant Prometheus deltas (registered, duplicates, deliveries by status) plus webhook
-p95 latency and attempts-due backlog for the run window.
+what was published, whether the receiving side saw the attempts the API says it made, and the
+relevant Prometheus deltas (registered, duplicates, deliveries by status) plus webhook p95
+latency and attempts-due backlog for the run window.
 
 The wait phase does NOT poll every event id every round. Instead, each round it makes 6 cheap
 listing requests (`GET /notification_events?delivery_status=pending&limit=1` and
@@ -19,12 +19,34 @@ the wait timeout is reached) does the script make one single pass of `GET
 /notification_events/{id}` per id, at rest, to classify everyone's final status; any id still
 non-terminal after that pass gets up to 3 more passes, 5s apart, before being reported stuck.
 
+Receiver check has two variants, chosen automatically. WireMock's request journal only holds
+`--wiremock-journal-limit` entries (default 5000, matching `compose.yaml`); a larger journal
+stalls WireMock because it scans the whole journal on every request. When the run's expected
+POST count fits the journal, the check compares the API's summed `attempts_count` against
+WireMock's own `POST /webhook` count for this run (variant A). When it does not, the check
+instead reads the `attempts` list from the final classification pass and verifies that no
+attempt has a null `response_status` (an I/O error: timeout or connection failure — the
+attempt never reached the receiver) and that every `-F-` id's attempts all got 503 from the
+stub (variant B). Both attempt counts (numeric vs. null `response_status`) are always printed
+regardless of which variant gates PASS.
+
+While the drain wait runs, a second, independent load driver keeps hitting the self-service
+REST API (`--api-rps`, `--api-clients` threads) with a realistic mix of listing (cursor
+pagination and filtered), detail, replay and negative-auth requests, cycling through the three
+clients' tokens. This exists because the wait phase's own probe barely touches the API (6
+cheap requests every 5s) — without it, `notifications-api`'s own HTTP surface (the "API HTTP"
+row in Grafana, per-route latency percentiles) gets no real traffic during a run. It stops the
+moment the drain wait ends and never counts toward the drain probe itself. Replays add new
+delivery cycles to the ids they hit, so `expected_posts` (and therefore the variant A/B choice)
+and the "5 intentos" check both account for however many replays actually landed.
+
 Runs entirely on the Python 3 standard library (urllib, json, threading via
-concurrent.futures, argparse, uuid, datetime) so it can execute unmodified inside a bare
-`python:3.12-alpine` container attached to the `account-event-notification` Docker network,
-where it can reach `elasticmq:9324` (SQS query protocol), `http://notifications-api:8080`,
-`http://wiremock:8080` and `http://prometheus:9090`. See `make load` in the repository
-Makefile for how it is invoked against the running stack.
+concurrent.futures and threading.Thread, argparse, uuid, random, datetime) so it can execute
+unmodified inside a bare `python:3.12-alpine` container attached to the
+`account-event-notification` Docker network, where it can reach `elasticmq:9324` (SQS query
+protocol), `http://notifications-api:8080`, `http://wiremock:8080` and
+`http://prometheus:9090`. See `make load` in the repository Makefile for how it is invoked
+against the running stack.
 
 Exit code: 0 on RESULT: PASS, 1 on RESULT: FAIL or on a fatal setup error.
 """
@@ -33,14 +55,16 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 SQS_URL = os.environ.get("SQS_URL", "http://elasticmq:9324/000000000000/account-events")
 API_URL = os.environ.get("API_URL", "http://notifications-api:8080").rstrip("/")
@@ -110,6 +134,47 @@ def http_post_form(url, fields, timeout=20):
     )
     with _urlopen(req, timeout) as resp:
         return resp.status, resp.read().decode()
+
+
+def timed_get_json(url, token=None, timeout=8):
+    """GET with client-measured latency. Returns (status_or_None, elapsed_seconds, body_or_None).
+    Never raises: network errors and non-2xx responses are reported via the return value so the
+    REST load generator can keep going and record whatever happened."""
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    req = urllib.request.Request(url, method="GET", headers=headers)
+    t0 = time.time()
+    try:
+        with _urlopen(req, timeout) as resp:
+            body = resp.read()
+            elapsed = time.time() - t0
+            try:
+                return resp.status, elapsed, json.loads(body.decode())
+            except Exception:
+                return resp.status, elapsed, None
+    except urllib.error.HTTPError as e:
+        elapsed = time.time() - t0
+        try:
+            return e.code, elapsed, json.loads(e.read().decode())
+        except Exception:
+            return e.code, elapsed, None
+    except Exception:
+        return None, time.time() - t0, None
+
+
+def timed_post(url, token=None, timeout=8):
+    """POST with no body, client-measured latency. Returns (status_or_None, elapsed_seconds)."""
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    req = urllib.request.Request(url, method="POST", headers=headers)
+    t0 = time.time()
+    try:
+        with _urlopen(req, timeout) as resp:
+            resp.read()
+            return resp.status, time.time() - t0
+    except urllib.error.HTTPError as e:
+        e.read()
+        return e.code, time.time() - t0
+    except Exception:
+        return None, time.time() - t0
 
 
 # --------------------------------------------------------------------------- WireMock
@@ -295,13 +360,20 @@ def publish_all(events, concurrency):
 # --------------------------------------------------------------------------- API polling
 
 def fetch_event_status(event_id, client_id, token):
+    """Returns (kind, delivery_status_or_None, attempts_count_or_None, attempts_list).
+
+    attempts_list is the raw `attempts` array from the detail response (each item carries
+    `cycle`, `response_status` — null on an I/O error such as a timeout or connection failure
+    — among other fields); used by the WireMock-journal-independent receiver check (variant B)
+    and by the "5 intentos" check once replays are in play.
+    """
     url = f"{API_URL}/notification_events/{urllib.parse.quote(event_id, safe='')}"
     status, body = http_get_json(url, headers={"Authorization": f"Bearer {token}"})
     if status == 200 and body:
-        return "found", body.get("delivery_status"), body.get("attempts_count", 0)
+        return "found", body.get("delivery_status"), body.get("attempts_count", 0), body.get("attempts", [])
     if status == 404:
-        return "not_found", None, None
-    return "error", None, None
+        return "not_found", None, None, []
+    return "error", None, None, []
 
 
 def fetch_listing_page(client, token, delivery_status):
@@ -337,48 +409,64 @@ def all_clients_drained(tokens):
         return drained
 
 
-def wait_for_drain(tokens, timeout_s, deliveries_before):
+def wait_for_drain(tokens, timeout_s, deliveries_before, events, api_rps, api_clients):
     """Polls the pending/retrying listings every POLL_INTERVAL_S until DRAIN_CONFIRM_ROUNDS
     consecutive rounds come back empty for all clients, or until timeout_s elapses. Prints one
     progress line per round (Prometheus attempts-due backlog and the deliveries-by-status delta
-    since the run started) without touching the per-id detail endpoint. Returns
-    (drained: bool, elapsed_seconds: float).
+    since the run started) without touching the per-id detail endpoint.
+
+    For the duration of this wait (and only for this duration), also runs the REST load
+    generator against the self-service API if api_rps > 0 — started right before the polling
+    loop and always stopped (stop_rest_load, via finally) before returning, on every exit path,
+    so it never overlaps with the drain probe or with the final classification pass.
+
+    Returns (drained: bool, elapsed_seconds: float, rest_stats: RestLoadStats).
     """
     print(
         "  (progreso por ronda via listado agregado; las entregas incluyen trafico de fondo "
         "del simulador de eventos, que sigue emitiendo durante la corrida)"
     )
-    start = time.time()
-    consecutive_empty = 0
-    while True:
-        elapsed = time.time() - start
-        if elapsed > timeout_s:
-            return False, elapsed
+    if api_rps > 0:
+        print(f"  (carga REST concurrente: ~{api_rps} req/s en {api_clients} hilos, "
+              f"deteniendose junto con el drenado)")
+    else:
+        print("  (carga REST concurrente deshabilitada: --api-rps 0)")
 
-        empty_round = all_clients_drained(tokens)
-        consecutive_empty = consecutive_empty + 1 if empty_round else 0
+    rest_stats, rest_stop_event, rest_threads = start_rest_load(events, tokens, api_rps, api_clients)
+    try:
+        start = time.time()
+        consecutive_empty = 0
+        while True:
+            elapsed = time.time() - start
+            if elapsed > timeout_s:
+                return False, elapsed, rest_stats
 
-        backlog = prom_scalar_sum("max(notifications_attempts_due)")
-        deliveries_now = prom_deliveries_snapshot()
-        deliveries_delta = {
-            status: deliveries_now.get(status, 0.0) - deliveries_before.get(status, 0.0)
-            for status in sorted(set(deliveries_now) | set(deliveries_before))
-        }
-        delta_str = ", ".join(f"{status} {delta:+.0f}" for status, delta in deliveries_delta.items())
-        print(
-            f"  [{elapsed:5.0f}s] backlog vencido {backlog:.0f} · "
-            f"entregas desde el inicio: {delta_str}",
-            flush=True,
-        )
+            empty_round = all_clients_drained(tokens)
+            consecutive_empty = consecutive_empty + 1 if empty_round else 0
 
-        if consecutive_empty >= DRAIN_CONFIRM_ROUNDS:
-            return True, elapsed
+            backlog = prom_scalar_sum("max(notifications_attempts_due)")
+            deliveries_now = prom_deliveries_snapshot()
+            deliveries_delta = {
+                status: deliveries_now.get(status, 0.0) - deliveries_before.get(status, 0.0)
+                for status in sorted(set(deliveries_now) | set(deliveries_before))
+            }
+            delta_str = ", ".join(f"{status} {delta:+.0f}" for status, delta in deliveries_delta.items())
+            print(
+                f"  [{elapsed:5.0f}s] backlog vencido {backlog:.0f} · "
+                f"entregas desde el inicio: {delta_str}",
+                flush=True,
+            )
 
-        time.sleep(POLL_INTERVAL_S)
+            if consecutive_empty >= DRAIN_CONFIRM_ROUNDS:
+                return True, elapsed, rest_stats
+
+            time.sleep(POLL_INTERVAL_S)
+    finally:
+        stop_rest_load(rest_stop_event, rest_threads)
 
 
 def classify_pass(ids, id_to_client, tokens, concurrency):
-    """One GET per id, in parallel. Returns dict event_id -> (kind, status, attempts)."""
+    """One GET per id, in parallel. Returns dict event_id -> (kind, status, attempts_count, attempts_list)."""
     results = {}
     with ThreadPoolExecutor(max_workers=concurrency) as pool:
         futures = {
@@ -399,7 +487,8 @@ def classify_all(events, tokens, concurrency):
     not retried, since the aggregated wait already gave the system time to settle.
 
     Returns (final_state, lost_ids, stuck_ids):
-      - final_state: event_id -> (delivery_status, attempts_count) for every id ever found
+      - final_state: event_id -> (delivery_status, attempts_count, attempts_list) for every id
+        ever found
       - lost_ids: ids that came back 404 (or errored) on the first pass
       - stuck_ids: ids found but still non-terminal after all passes
     """
@@ -412,9 +501,9 @@ def classify_all(events, tokens, concurrency):
     lost_ids = []
     non_terminal_ids = []
     for eid in ids:
-        kind, status_, attempts = results[eid]
+        kind, status_, attempts_count, attempts_list = results[eid]
         if kind == "found":
-            final_state[eid] = (status_, attempts)
+            final_state[eid] = (status_, attempts_count, attempts_list)
             if status_ not in TERMINAL_STATUSES:
                 non_terminal_ids.append(eid)
         else:
@@ -427,9 +516,9 @@ def classify_all(events, tokens, concurrency):
         results = classify_pass(non_terminal_ids, id_to_client, tokens, concurrency)
         still_pending = []
         for eid in non_terminal_ids:
-            kind, status_, attempts = results[eid]
+            kind, status_, attempts_count, attempts_list = results[eid]
             if kind == "found":
-                final_state[eid] = (status_, attempts)
+                final_state[eid] = (status_, attempts_count, attempts_list)
                 if status_ not in TERMINAL_STATUSES:
                     still_pending.append(eid)
             else:
@@ -437,6 +526,262 @@ def classify_all(events, tokens, concurrency):
         non_terminal_ids = still_pending
 
     return final_state, lost_ids, non_terminal_ids
+
+
+# --------------------------------------------------------------------------- REST load generator
+#
+# Keeps the self-service REST API under load while wait_for_drain polls, so notifications-api's
+# own HTTP surface (Grafana's "API HTTP" row, per-route latency percentiles) has real traffic to
+# show during a run instead of the wait phase's own 6-requests-per-5s probe. Runs on its own
+# threads/tokens, entirely separate from that probe.
+
+REST_BUCKETS = (
+    "listing_cursor",
+    "listing_filtered",
+    "detail",
+    "replay",
+    "negative_no_token",
+    "negative_cross_client",
+)
+
+
+class RestLoadStats:
+    """Thread-safe counters for the REST load generator."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.latencies = {b: [] for b in REST_BUCKETS}
+        self.status_counts = {b: {} for b in REST_BUCKETS}
+        self.unexpected_count = {b: 0 for b in REST_BUCKETS}
+        self.unexpected_samples = {b: [] for b in REST_BUCKETS}
+        self.five_xx_count = 0
+        self.replays_launched = 0
+
+    def record(self, bucket, status, elapsed, expected_statuses):
+        with self._lock:
+            self.latencies[bucket].append(elapsed)
+            self.status_counts[bucket][status] = self.status_counts[bucket].get(status, 0) + 1
+            if status is not None and 500 <= status < 600:
+                self.five_xx_count += 1
+            if status not in expected_statuses:
+                self.unexpected_count[bucket] += 1
+                if len(self.unexpected_samples[bucket]) < 10:
+                    self.unexpected_samples[bucket].append(status)
+
+    def note_replay(self):
+        with self._lock:
+            self.replays_launched += 1
+
+    def total_unexpected(self):
+        return sum(self.unexpected_count.values())
+
+    def total_requests(self):
+        return sum(len(v) for v in self.latencies.values())
+
+
+class FailedIdPool:
+    """Thread-safe pool of (event_id, owning_client) pairs observed as delivery_status ==
+    failed, fed by the listing-filtered and detail buckets and drained by the replay bucket.
+
+    Stores the owning client alongside each id — not just the id — because the listing and
+    detail buckets can surface failed ids that are NOT part of this run's own event set (the
+    background event simulator keeps emitting in parallel, and a failed id from an earlier run
+    may still be sitting there); there is no `id_to_client` entry for those, but the client
+    whose token fetched the listing/detail response is, by the API's own client-scoped
+    authorization, necessarily its owner. Popping removes the entry so the same id is not
+    replayed twice back-to-back before its new cycle has a chance to finish (a second immediate
+    replay of a non-failed event is rejected by the API with 409)."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._entries = []  # list of (event_id, client)
+        self._seen_ids = set()
+
+    def add_many(self, ids, client):
+        if not ids:
+            return
+        with self._lock:
+            for i in ids:
+                if i not in self._seen_ids:
+                    self._seen_ids.add(i)
+                    self._entries.append((i, client))
+
+    def pop_random(self):
+        with self._lock:
+            if not self._entries:
+                return None
+            idx = random.randrange(len(self._entries))
+            eid, client = self._entries.pop(idx)
+            self._seen_ids.discard(eid)
+            return eid, client
+
+
+def _rest_do_listing_cursor(token, stats):
+    """40% bucket: GET ?limit=50, then follow next_cursor up to 3 pages. Each page is its own
+    recorded request."""
+    cursor = None
+    for _ in range(3):
+        params = {"limit": 50}
+        if cursor:
+            params["cursor"] = cursor
+        url = f"{API_URL}/notification_events?" + urllib.parse.urlencode(params)
+        status, elapsed, body = timed_get_json(url, token)
+        stats.record("listing_cursor", status, elapsed, {200})
+        if status != 200 or not body:
+            break
+        cursor = body.get("next_cursor")
+        if not cursor:
+            break
+
+
+def _rest_do_listing_filtered(token, client, stats, failed_pool, own_fail_ids):
+    """20% bucket: GET filtered by delivery_status (failed/completed) and a last-hour from/to
+    window. Failed ids seen here feed the replay bucket's pool, tagged with the client whose
+    token fetched them (the API already scopes the listing to that client) — but only the ones
+    that are this run's own induced `-F-` ids: the listing is not scoped to the run, so a
+    `delivery_status=failed` page can just as easily surface unrelated failed events already
+    sitting in the system (the reference dataset's EVT003/EVT005/EVT009, or leftovers from an
+    earlier run), which the replay bucket must not touch."""
+    delivery_status = random.choice(["failed", "completed"])
+    now = datetime.now(timezone.utc)
+    window_from = now - timedelta(hours=1)
+    fmt = lambda dt: dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    params = {
+        "delivery_status": delivery_status,
+        "limit": 50,
+        "from": fmt(window_from),
+        "to": fmt(now),
+    }
+    url = f"{API_URL}/notification_events?" + urllib.parse.urlencode(params)
+    status, elapsed, body = timed_get_json(url, token)
+    stats.record("listing_filtered", status, elapsed, {200})
+    if status == 200 and body and delivery_status == "failed":
+        ids = [item.get("event_id") for item in body.get("items", []) if item.get("event_id")]
+        failed_pool.add_many([i for i in ids if i in own_fail_ids], client)
+
+
+def _rest_do_detail(token, client, event_id, stats, failed_pool, own_fail_ids):
+    """25% bucket (also the replay-bucket fallback when its pool is empty): GET one id of the
+    run. 404 is tolerated here too — the event may not be registered yet (published to SQS but
+    not yet consumed) this early in the run, which is not a defect. Only feeds the replay pool
+    when the id is one of this run's own induced `-F-` ids (see _rest_do_listing_filtered)."""
+    url = f"{API_URL}/notification_events/{urllib.parse.quote(event_id, safe='')}"
+    status, elapsed, body = timed_get_json(url, token)
+    stats.record("detail", status, elapsed, {200, 404})
+    if status == 200 and body and body.get("delivery_status") == "failed" and event_id in own_fail_ids:
+        failed_pool.add_many([event_id], client)
+
+
+def _rest_do_replay(eid, token, stats):
+    """10% bucket: replay an id already known to be failed. Expects 202."""
+    url = f"{API_URL}/notification_events/{urllib.parse.quote(eid, safe='')}/replay"
+    status, elapsed = timed_post(url, token)
+    stats.record("replay", status, elapsed, {202})
+    if status == 202:
+        stats.note_replay()
+
+
+def _rest_do_negative_no_token(stats):
+    """Half of the 5% negatives bucket: no Authorization header. Expects 401."""
+    url = f"{API_URL}/notification_events?limit=1"
+    status, elapsed, _ = timed_get_json(url, token=None)
+    stats.record("negative_no_token", status, elapsed, {401})
+
+
+def _rest_do_negative_cross_client(event_id, wrong_token, stats):
+    """Half of the 5% negatives bucket: detail of an id that belongs to a different client than
+    the token used. Expects 404 (the API scopes lookups by authenticated client, not 403)."""
+    url = f"{API_URL}/notification_events/{urllib.parse.quote(event_id, safe='')}"
+    status, elapsed, _ = timed_get_json(url, wrong_token)
+    stats.record("negative_cross_client", status, elapsed, {404})
+
+
+def rest_load_worker(stop_event, tokens, all_ids, id_to_client, own_fail_ids, failed_pool, stats, target_interval):
+    """One REST load generator thread. Loops until stop_event is set, picking a request type per
+    the documented mix and pacing itself to ~target_interval seconds between iterations so that
+    all --api-clients threads together average ~--api-rps requests/s."""
+    client_cycle = list(CLIENTS)
+    i = 0
+    while not stop_event.is_set():
+        t0 = time.time()
+        client = client_cycle[i % len(client_cycle)]
+        i += 1
+        token = tokens[client]
+        r = random.random()
+        if r < 0.40:
+            _rest_do_listing_cursor(token, stats)
+        elif r < 0.60:
+            _rest_do_listing_filtered(token, client, stats, failed_pool, own_fail_ids)
+        elif r < 0.85:
+            _rest_do_detail(token, client, random.choice(all_ids), stats, failed_pool, own_fail_ids)
+        elif r < 0.95:
+            popped = failed_pool.pop_random()
+            if popped is None:
+                # nothing known-failed yet (early in the run); keep the rate up with a detail
+                # request instead, tagged under "detail" rather than a fake "replay" sample
+                _rest_do_detail(token, client, random.choice(all_ids), stats, failed_pool, own_fail_ids)
+            else:
+                eid, owner_client = popped
+                _rest_do_replay(eid, tokens[owner_client], stats)
+        else:
+            if random.random() < 0.5:
+                _rest_do_negative_no_token(stats)
+            else:
+                wrong_eid = random.choice(all_ids)
+                owner = id_to_client[wrong_eid]
+                other_clients = [c for c in CLIENTS if c != owner]
+                _rest_do_negative_cross_client(wrong_eid, tokens[random.choice(other_clients)], stats)
+
+        elapsed = time.time() - t0
+        sleep_for = target_interval - elapsed
+        if sleep_for > 0:
+            stop_event.wait(sleep_for)
+
+
+def start_rest_load(events, tokens, api_rps, api_clients):
+    """Starts the REST load generator threads if api_rps > 0. Returns (stats, stop_event,
+    threads) — pass to stop_rest_load() once the drain wait is over. Returns
+    (RestLoadStats(), None, []) when disabled (api_rps <= 0), so callers can treat both cases
+    uniformly."""
+    stats = RestLoadStats()
+    stop_event = threading.Event()
+    if api_rps <= 0:
+        return stats, None, []
+
+    all_ids = [ev["event_id"] for ev in events]
+    id_to_client = {ev["event_id"]: ev["client_id"] for ev in events}
+    own_fail_ids = {ev["event_id"] for ev in events if ev["is_failing"]}
+    failed_pool = FailedIdPool()
+    target_interval = api_clients / api_rps
+
+    threads = []
+    for _ in range(api_clients):
+        t = threading.Thread(
+            target=rest_load_worker,
+            args=(stop_event, tokens, all_ids, id_to_client, own_fail_ids, failed_pool, stats, target_interval),
+            daemon=True,
+        )
+        t.start()
+        threads.append(t)
+    return stats, stop_event, threads
+
+
+def stop_rest_load(stop_event, threads):
+    if stop_event is None:
+        return
+    stop_event.set()
+    for t in threads:
+        t.join(timeout=5)
+
+
+def rest_load_percentiles(latencies):
+    if not latencies:
+        return 0.0, 0.0
+    ordered = sorted(latencies)
+    n = len(ordered)
+    p50 = ordered[int(0.50 * (n - 1))] * 1000
+    p95 = ordered[int(0.95 * (n - 1))] * 1000
+    return p50, p95
 
 
 # --------------------------------------------------------------------------- Main
@@ -476,6 +821,28 @@ def parse_args():
         help="threads for the single final id-by-id classification pass (default 8)",
     )
     p.add_argument("--run", default=uuid.uuid4().hex[:8], help="run tag, used to namespace event ids (default: random hex)")
+    p.add_argument(
+        "--wiremock-journal-limit",
+        type=int,
+        default=5000,
+        help="WireMock --max-request-journal-entries (default 5000, matches compose.yaml); "
+             "above this the receiver check switches from comparing against WireMock's request "
+             "count to reading attempts.response_status from the API instead, since a bigger "
+             "journal makes WireMock stall (it scans it on every request)",
+    )
+    p.add_argument(
+        "--api-rps",
+        type=float,
+        default=20,
+        help="approximate requests/s the REST load generator keeps against the self-service "
+             "API while the drain wait runs (default 20; 0 disables it)",
+    )
+    p.add_argument(
+        "--api-clients",
+        type=int,
+        default=4,
+        help="threads used by the REST load generator (default 4)",
+    )
     return p.parse_args()
 
 
@@ -525,7 +892,9 @@ def main():
                   f"{publish_errors[:5]}")
 
         print(f"Esperando drenado del backlog (timeout {args.timeout}s)...")
-        drained, wait_duration = wait_for_drain(tokens, args.timeout, prom_before["deliveries"])
+        drained, wait_duration, rest_stats = wait_for_drain(
+            tokens, args.timeout, prom_before["deliveries"], events, args.api_rps, args.api_clients
+        )
         if drained:
             print(f"  drenado confirmado en {wait_duration:.0f}s ({DRAIN_CONFIRM_ROUNDS} rondas vacias seguidas)")
         else:
@@ -544,8 +913,8 @@ def main():
 
         # ---- derive outcome sets
         registered_ids = set(final_state.keys())
-        completed_ids = {eid for eid, (s, _) in final_state.items() if s == "completed"}
-        failed_ids = {eid for eid, (s, _) in final_state.items() if s == "failed"}
+        completed_ids = {eid for eid, (s, _, _) in final_state.items() if s == "completed"}
+        failed_ids = {eid for eid, (s, _, _) in final_state.items() if s == "failed"}
         stuck_ids = registered_ids - completed_ids - failed_ids
 
         expected_completed_n = len(expected_ok_ids)
@@ -553,12 +922,41 @@ def main():
 
         unexpected_failures = failed_ids - expected_fail_ids
         expected_but_not_failed = expected_fail_ids - failed_ids
-        failed_with_wrong_attempts = {
-            eid for eid in failed_ids if final_state[eid][1] != 5
-        }
 
-        api_attempts_total = sum(a or 0 for _, a in final_state.values())
+        # Replays (launched by the REST load generator against already-failed -F- ids) add a
+        # new delivery cycle of up to 5 more attempts on top of the original one, so a replayed
+        # id's attempts_count is a multiple of 5 rather than exactly 5. What must always hold is
+        # that the first cycle (cycle 0, the original delivery) took exactly 5 attempts, and
+        # that the running total stays a multiple of 5.
+        failed_with_wrong_attempts = set()
+        for eid in failed_ids:
+            _, attempts_count, attempts_list = final_state[eid]
+            cycle0_count = sum(1 for a in attempts_list if a.get("cycle") == 0)
+            if cycle0_count != 5 or attempts_count == 0 or attempts_count % 5 != 0:
+                failed_with_wrong_attempts.add(eid)
+
+        # Both attempt counts are always computed and printed, regardless of which receiver-check
+        # variant ends up gating PASS below.
+        all_attempts = [a for _, _, attempts_list in final_state.values() for a in attempts_list]
+        attempts_with_status_n = sum(1 for a in all_attempts if a.get("response_status") is not None)
+        attempts_null_status_n = sum(1 for a in all_attempts if a.get("response_status") is None)
+
+        # -F- ids must have gotten a 503 from the stub on every attempt they made (cycle 0 and
+        # any replay cycles); anything else means the attempt didn't actually reach the induced
+        # failure stub.
+        f_ids_not_all_503 = set()
+        for eid in expected_fail_ids & registered_ids:
+            attempts_list = final_state[eid][2]
+            if any(a.get("response_status") != 503 for a in attempts_list):
+                f_ids_not_all_503.add(eid)
+
+        api_attempts_total = sum(a for _, a, _ in final_state.values())
         wiremock_count = wiremock_post_count(run)
+
+        # ---- receiver-check variant: does the run's expected POST volume fit WireMock's journal?
+        expected_posts_base = expected_completed_n + 5 * expected_failed_n
+        expected_posts_final = expected_posts_base + 5 * rest_stats.replays_launched
+        journal_variant = "A" if expected_posts_final <= args.wiremock_journal_limit else "B"
 
         prom_after = {
             "registered": prom_scalar_sum("sum(notifications_registered_total)"),
@@ -606,7 +1004,11 @@ def main():
             print(f"  WARN: {len(expected_but_not_failed)} ids -F- no terminaron failed (ej: {sample})")
         if failed_with_wrong_attempts:
             sample = list(failed_with_wrong_attempts)[:10]
-            print(f"  WARN: {len(failed_with_wrong_attempts)} failed con attempts_count != 5 (ej: {sample})")
+            print(f"  WARN: {len(failed_with_wrong_attempts)} failed sin 5 intentos en el ciclo 0 o con "
+                  f"attempts_count no multiplo de 5 (ej: {sample})")
+        if f_ids_not_all_503:
+            sample = list(f_ids_not_all_503)[:10]
+            print(f"  WARN: {len(f_ids_not_all_503)} ids -F- con algun intento distinto de 503 (ej: {sample})")
         if stuck_ids:
             sample = list(stuck_ids)[:10]
             print(f"  WARN: {len(stuck_ids)} ids registrados pero sin estado terminal tras la clasificacion final (ej: {sample})")
@@ -616,6 +1018,23 @@ def main():
         print(f"POST /webhook en WireMock (filtrado por run={run}): {wiremock_count}")
         if wiremock_count is None:
             print("  WARN: no se pudo leer /__admin/requests/count de WireMock")
+        print(f"Intentos con response_status numerico (a): {attempts_with_status_n}")
+        print(f"Intentos con response_status nulo / error de E/S, timeout o conexion (b): "
+              f"{attempts_null_status_n}")
+        print(f"Replays lanzados por la carga REST: {rest_stats.replays_launched}")
+        print(f"expected_posts (completados + 5*fallidos + 5*replays) = "
+              f"{expected_completed_n} + 5*{expected_failed_n} + 5*{rest_stats.replays_launched} = "
+              f"{expected_posts_final}, limite de journal de WireMock = {args.wiremock_journal_limit}")
+        if journal_variant == "A":
+            print(f"Variante de criterio de recepcion: A (expected_posts {expected_posts_final} <= "
+                  f"limite {args.wiremock_journal_limit}: el journal de WireMock cubre la corrida, "
+                  f"se compara intentos de la API contra el conteo de POST de WireMock)")
+        else:
+            print(f"Variante de criterio de recepcion: B (expected_posts {expected_posts_final} > "
+                  f"limite {args.wiremock_journal_limit}: el journal de WireMock NO cubre la corrida "
+                  f"y su conteo no es confiable, se usa en su lugar attempts[].response_status de la "
+                  f"pasada final de clasificacion: (b) debe ser 0 y los ids -F- deben tener todos "
+                  f"sus intentos en 503)")
         print(f"Prometheus delta registered: {registered_delta:+.0f}")
         print(f"Prometheus delta duplicates: {duplicates_delta:+.0f}")
         print("Prometheus delta deliveries por status:")
@@ -626,21 +1045,51 @@ def main():
         print(f"max(notifications_attempts_due) (ventana de la corrida): "
               f"{max_attempts_due if max_attempts_due is not None else 'sin datos'}")
 
+        print()
+        print("API REST bajo carga:")
+        if args.api_rps <= 0:
+            print("  (deshabilitada, --api-rps 0)")
+        else:
+            print(f"  {'tipo':22s} {'n':>6s} {'p50 ms':>8s} {'p95 ms':>8s} {'inesperados':>12s}")
+            for bucket in REST_BUCKETS:
+                lat = rest_stats.latencies[bucket]
+                n = len(lat)
+                p50, p95 = rest_load_percentiles(lat)
+                unexpected_n = rest_stats.unexpected_count[bucket]
+                print(f"  {bucket:22s} {n:6d} {p50:8.1f} {p95:8.1f} {unexpected_n:12d}")
+                if rest_stats.unexpected_samples[bucket]:
+                    print(f"    codigos inesperados (muestra): {rest_stats.unexpected_samples[bucket]}")
+            print(f"  total peticiones: {rest_stats.total_requests()}, "
+                  f"5xx: {rest_stats.five_xx_count}, inesperados: {rest_stats.total_unexpected()}, "
+                  f"replays lanzados: {rest_stats.replays_launched}")
+
         # ---- PASS/FAIL
+        if journal_variant == "A":
+            receiver_check_name = "intentos API == POST WireMock (journal cubre la corrida)"
+            receiver_check_ok = wiremock_count is not None and api_attempts_total == wiremock_count
+        else:
+            receiver_check_name = (
+                "recepcion confirmada via API (journal de WireMock no cubre la corrida): "
+                "0 intentos con response_status nulo y -F- todos en 503"
+            )
+            receiver_check_ok = attempts_null_status_n == 0 and not f_ids_not_all_503
+
         checks = {
             "0 perdidos": len(lost_ids) == 0,
             "completed == esperados": len(completed_ids) == expected_completed_n,
-            "failed == esperados (ids exactos, 5 intentos)": (
+            "failed == esperados (ids exactos, ciclo 0 con 5 intentos, attempts_count multiplo de 5)": (
                 len(failed_ids) == expected_failed_n
                 and not unexpected_failures
                 and not expected_but_not_failed
                 and not failed_with_wrong_attempts
             ),
-            "intentos API == POST WireMock": (
-                wiremock_count is not None and api_attempts_total == wiremock_count
-            ),
+            receiver_check_name: receiver_check_ok,
             "duplicados delta == 0": duplicates_delta == 0,
         }
+        if args.api_rps > 0:
+            checks["API REST bajo carga: 0 5xx y 0 codigos inesperados"] = (
+                rest_stats.five_xx_count == 0 and rest_stats.total_unexpected() == 0
+            )
         print()
         print("Criterios:")
         overall_pass = True
