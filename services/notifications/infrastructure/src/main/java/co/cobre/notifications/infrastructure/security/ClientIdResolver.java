@@ -11,9 +11,7 @@ import org.springframework.stereotype.Component;
 public class ClientIdResolver {
     private final JwtProperties props;
 
-    /**
-     * Creates a new client ID resolver.
-     */
+    
     public ClientIdResolver(JwtProperties props) {
         this.props = props;
     }

@@ -15,9 +15,7 @@ public class DeliveryMetrics {
     private final MeterRegistry registry;
     private final AtomicInteger attemptsDueValue;
 
-    /**
-     * Creates a new delivery metrics instance.
-     */
+    
     public DeliveryMetrics(MeterRegistry registry) {
         this.registry = registry;
         this.attemptsDueValue = new AtomicInteger(0);

@@ -20,9 +20,7 @@ public class DeliveryScheduler {
     private final ProcessDueDeliveries processDueDeliveries;
     private final DeliveryMetrics metrics;
 
-    /**
-     * Creates a new delivery scheduler.
-     */
+    
     public DeliveryScheduler(
         ProcessDueDeliveries processDueDeliveries,
         DeliveryMetrics metrics

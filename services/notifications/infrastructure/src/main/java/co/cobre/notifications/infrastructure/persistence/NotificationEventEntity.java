@@ -9,9 +9,7 @@ import jakarta.persistence.Table;
 
 import java.time.Instant;
 
-/**
- * Notification event persistence entity.
- */
+
 @Entity
 @Table(name = "notification_events")
 public class NotificationEventEntity {

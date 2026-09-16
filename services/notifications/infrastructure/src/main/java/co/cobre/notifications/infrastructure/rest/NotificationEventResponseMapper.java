@@ -22,9 +22,7 @@ import java.util.Optional;
 @Component
 public class NotificationEventResponseMapper {
 
-    /**
-     * Maps a notification event to a response DTO.
-     */
+    
     public NotificationEventResponse toResponse(NotificationEvent event, int attemptsCount) {
         return new NotificationEventResponse(
             event.eventId().value(),
@@ -38,9 +36,7 @@ public class NotificationEventResponseMapper {
         );
     }
 
-    /**
-     * Maps a notification event detail to a response DTO.
-     */
+    
     public NotificationEventDetailResponse toDetail(NotificationEventDetail detail) {
         var event = detail.event();
         var attempts = detail.attempts();
@@ -64,9 +60,7 @@ public class NotificationEventResponseMapper {
         );
     }
 
-    /**
-     * Maps a notification event summary page to a response DTO.
-     */
+    
     public NotificationEventPageResponse toPage(NotificationEventSummaryPage page) {
         return new NotificationEventPageResponse(
             page.items().stream()

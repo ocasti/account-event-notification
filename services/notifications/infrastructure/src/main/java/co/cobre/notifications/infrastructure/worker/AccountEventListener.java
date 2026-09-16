@@ -22,9 +22,7 @@ public class AccountEventListener {
     private final AccountEventMessageMapper mapper;
     private final DeliveryMetrics metrics;
 
-    /**
-     * Creates a new account event listener.
-     */
+    
     public AccountEventListener(
         RegisterNotificationEvent registerNotificationEvent,
         AccountEventMessageMapper mapper,

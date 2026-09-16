@@ -14,9 +14,7 @@ import org.springframework.context.annotation.Configuration;
 @EnableConfigurationProperties(WorkerProperties.class)
 public class WorkerConfig {
 
-    /**
-     * Creates delivery worker settings from properties.
-     */
+    
     @Bean
     DeliveryWorkerSettings deliveryWorkerSettings(WorkerProperties properties) {
         return new DeliveryWorkerSettings(

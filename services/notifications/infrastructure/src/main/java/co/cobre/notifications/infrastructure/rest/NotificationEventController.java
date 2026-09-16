@@ -95,9 +95,7 @@ public class NotificationEventController {
         return mapper.toPage(page);
     }
 
-    /**
-     * Gets a notification event by ID.
-     */
+    
     @Operation(
         summary = "Get a notification event",
         description = "Gets a single notification event owned by the authenticated client, "
