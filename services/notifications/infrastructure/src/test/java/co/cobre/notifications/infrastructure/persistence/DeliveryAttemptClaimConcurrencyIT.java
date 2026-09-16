@@ -48,7 +48,6 @@ class DeliveryAttemptClaimConcurrencyIT extends PersistenceTestSupport {
 
     @RepeatedTest(3)
     void testConcurrentClaimsNeverOverlap() throws InterruptedException {
-        // Setup: 200 overdue attempts, 10 clients rotating
         int totalAttempts = 200;
         int numClients = 10;
         Instant baseTime = Instant.now();
@@ -59,7 +58,6 @@ class DeliveryAttemptClaimConcurrencyIT extends PersistenceTestSupport {
             String clientId = "client-" + (i % numClients);
             EventId eventId = new EventId("evt-concurrent-" + i);
 
-            // Create event
             NotificationEventEntity event = new NotificationEventEntity();
             event.setEventId(eventId.value());
             event.setClientId(clientId);
@@ -71,7 +69,6 @@ class DeliveryAttemptClaimConcurrencyIT extends PersistenceTestSupport {
             event.setCycle(0);
             eventJpaRepository.save(event);
 
-            // Create delivery attempt
             DeliveryAttempt attempt = DeliveryAttempt.first(
                 eventId, 0, pastDue, AttemptOrigin.SYSTEM
             );
@@ -79,7 +76,6 @@ class DeliveryAttemptClaimConcurrencyIT extends PersistenceTestSupport {
             createdIds.add(attempt.id());
         }
 
-        // Concurrent claiming
         int numWorkers = 8;
         int roundsPerWorker = 5;
         CyclicBarrier barrier = new CyclicBarrier(numWorkers);
@@ -124,12 +120,10 @@ class DeliveryAttemptClaimConcurrencyIT extends PersistenceTestSupport {
             fail("Executor did not finish in time");
         }
 
-        // Check for exceptions
         if (!exceptions.isEmpty()) {
             fail("Exceptions during concurrent claims: " + exceptions);
         }
 
-        // Verify: no two different workers claim the same id
         assertEquals(totalAttempts, idToWorker.size(),
             "Expected all " + totalAttempts + " attempts to be claimed without duplicates between workers, " +
             "but got " + idToWorker.size() + " unique ids. " +
