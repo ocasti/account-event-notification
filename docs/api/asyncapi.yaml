@@ -11,7 +11,7 @@ info:
     to each client's receiver is documented separately in `docs/api/webhook-contract.md`, and the
     synchronous self-service REST API (list, detail, replay) is documented in `docs/api/openapi.json`.
 
-    See `docs/01-system-design.html` (the RFC, in Spanish) for the full design, and
+    See `docs/01-system-design.html` (the RFC) for the full design, and
     `services/notifications/infrastructure/src/main/java/co/cobre/notifications/infrastructure/worker/`
     for the consumer implementation.
 servers:
@@ -133,8 +133,8 @@ operations:
     summary: The client platform (in production) or event-simulator (locally) publishes one account event per message.
     description: |
       In the target design this is the platform's account-event source (see
-      `docs/01-system-design.html`, container diagram: "Bus de eventos de la plataforma
-      (EventBridge, existente)" feeding this queue). Locally, `event-simulator` plays this role:
+      `docs/01-system-design.html`, container diagram: "Platform event bus
+      (EventBridge, existing)" feeding this queue). Locally, `event-simulator` plays this role:
       `SqsEventPublisher.publish` serializes an `AccountEventMessage` (its own record, same
       snake_case JSON shape) with `JsonMapper.writeValueAsString` and sends it as the plain SQS
       message body with `SqsTemplate.send(properties.queueName(), json)` - one message per call, no

@@ -2,7 +2,7 @@
     "openapi": "3.1.0",
     "info": {
         "title": "Account Event Notification API",
-        "description": "API de autoservicio para que un cliente consulte sus eventos de notificaci\u00f3n y relance los fallidos. La autenticaci\u00f3n es Bearer JWT (RS256) y los datos devueltos se acotan siempre al cliente propietario del token.",
+        "description": "Self-service API for a client to query its notification events and replay the failed ones. Authentication is Bearer JWT (RS256), and returned data is always scoped to the token's owning client.",
         "version": "0.1.0-SNAPSHOT"
     },
     "servers": [

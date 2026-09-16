@@ -7,7 +7,7 @@ cover the queue that feeds the worker (`docs/api/asyncapi.yaml`) or the self-ser
 
 Implementation: `services/notifications/infrastructure/src/main/java/co/cobre/notifications/infrastructure/webhook/`
 (`HttpWebhookSender`, `WebhookPayloadMapper`, `WebhookSigner`, `WebhookClientConfig`,
-`WebhookUrlValidator`). Design rationale: `docs/01-system-design.html` (the RFC, in Spanish),
+`WebhookUrlValidator`). Design rationale: `docs/01-system-design.html` (the RFC),
 sections on delivery and on SSRF; security analysis: `docs/02-security.md`.
 
 ## Request

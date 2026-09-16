@@ -38,7 +38,7 @@ cheap requests every 5s) — without it, `notifications-api`'s own HTTP surface 
 row in Grafana, per-route latency percentiles) gets no real traffic during a run. It stops the
 moment the drain wait ends and never counts toward the drain probe itself. Replays add new
 delivery cycles to the ids they hit, so `expected_posts` (and therefore the variant A/B choice)
-and the "5 intentos" check both account for however many replays actually landed.
+and the "5 attempts" check both account for however many replays actually landed.
 
 Runs entirely on the Python 3 standard library (urllib, json, threading via
 concurrent.futures and threading.Thread, argparse, uuid, random, datetime) so it can execute
@@ -365,7 +365,7 @@ def fetch_event_status(event_id, client_id, token):
     attempts_list is the raw `attempts` array from the detail response (each item carries
     `cycle`, `response_status` — null on an I/O error such as a timeout or connection failure
     — among other fields); used by the WireMock-journal-independent receiver check (variant B)
-    and by the "5 intentos" check once replays are in play.
+    and by the "5 attempts" check once replays are in play.
     """
     url = f"{API_URL}/notification_events/{urllib.parse.quote(event_id, safe='')}"
     status, body = http_get_json(url, headers={"Authorization": f"Bearer {token}"})
@@ -425,14 +425,14 @@ def wait_for_drain(tokens, timeout_s, deliveries_before, events, api_rps, api_cl
     """
     run_prefix = events[0]["event_id"].split("-")[0] + "-" + events[0]["event_id"].split("-")[1] + "-"
     print(
-        "  (progreso por ronda via listado agregado; las entregas incluyen trafico de fondo "
-        "del simulador de eventos, que sigue emitiendo durante la corrida)"
+        "  (per-round progress via aggregated listing; deliveries include background "
+        "traffic from the event simulator, which keeps emitting during the run)"
     )
     if api_rps > 0:
-        print(f"  (carga REST concurrente: ~{api_rps} req/s en {api_clients} hilos, "
-              f"deteniendose junto con el drenado)")
+        print(f"  (concurrent REST load: ~{api_rps} req/s across {api_clients} threads, "
+              f"stopping together with the drain)")
     else:
-        print("  (carga REST concurrente deshabilitada: --api-rps 0)")
+        print("  (concurrent REST load disabled: --api-rps 0)")
 
     rest_stats, rest_stop_event, rest_threads = start_rest_load(events, tokens, api_rps, api_clients)
     try:
@@ -454,8 +454,8 @@ def wait_for_drain(tokens, timeout_s, deliveries_before, events, api_rps, api_cl
             }
             delta_str = ", ".join(f"{status} {delta:+.0f}" for status, delta in deliveries_delta.items())
             print(
-                f"  [{elapsed:5.0f}s] backlog vencido {backlog:.0f} · "
-                f"entregas desde el inicio: {delta_str}",
+                f"  [{elapsed:5.0f}s] overdue backlog {backlog:.0f} · "
+                f"deliveries since start: {delta_str}",
                 flush=True,
             )
 
@@ -876,14 +876,14 @@ def main():
     expected_fail_ids = {ev["event_id"] for ev in events if ev["is_failing"]}
     expected_ok_ids = {ev["event_id"] for ev in events if not ev["is_failing"]}
 
-    print("Snapshot inicial de Prometheus...")
+    print("Initial Prometheus snapshot...")
     prom_before = {
         "registered": prom_scalar_sum("sum(notifications_registered_total)"),
         "duplicates": prom_scalar_sum("sum(notifications_duplicates_total)"),
         "deliveries": prom_deliveries_snapshot(),
     }
 
-    print("Reseteando journal de WireMock y registrando stub de fallo...")
+    print("Resetting WireMock journal and registering failure stub...")
     wiremock_reset_journal()
     mapping_id = wiremock_register_failure_stub(run)
 
@@ -891,36 +891,36 @@ def main():
     try:
         run_start_ts = int(time.time())
 
-        print(f"Publicando {args.events} eventos ({args.concurrency} hilos, lotes de {BATCH_SIZE})...")
+        print(f"Publishing {args.events} events ({args.concurrency} threads, batches of {BATCH_SIZE})...")
         publish_t0 = time.time()
         sent_total, publish_errors = publish_all(events, args.concurrency)
         publish_duration = time.time() - publish_t0
         throughput_publish = sent_total / publish_duration if publish_duration > 0 else 0.0
-        print(f"  publicados {sent_total}/{args.events} en {publish_duration:.2f}s "
+        print(f"  published {sent_total}/{args.events} in {publish_duration:.2f}s "
               f"({throughput_publish:.1f} msg/s)")
         if publish_errors:
-            print(f"  WARN: {len(publish_errors)} errores durante la publicacion (primeros 5): "
+            print(f"  WARN: {len(publish_errors)} errors during publishing (first 5): "
                   f"{publish_errors[:5]}")
 
-        print(f"Esperando drenado del backlog (timeout {args.timeout}s)...")
+        print(f"Waiting for the backlog to drain (timeout {args.timeout}s)...")
         drained, wait_duration, rest_stats = wait_for_drain(
             tokens, args.timeout, prom_before["deliveries"], events, args.api_rps, args.api_clients
         )
         if drained:
-            print(f"  drenado confirmado en {wait_duration:.0f}s ({DRAIN_CONFIRM_ROUNDS} rondas vacias seguidas)")
+            print(f"  drain confirmed in {wait_duration:.0f}s ({DRAIN_CONFIRM_ROUNDS} consecutive empty rounds)")
         else:
-            print(f"  WARN: no se confirmo drenado antes del timeout ({args.timeout}s); "
-                  f"se hace la clasificacion final igual")
+            print(f"  WARN: drain not confirmed before the timeout ({args.timeout}s); "
+                  f"running the final classification anyway")
 
         run_end_ts = int(time.time())
         total_duration = run_end_ts - run_start_ts
 
-        print(f"Clasificacion final (una pasada por id, sistema en reposo, "
-              f"{args.poll_concurrency} hilos)...")
+        print(f"Final classification (one pass per id, system at rest, "
+              f"{args.poll_concurrency} threads)...")
         final_state, lost_ids, unresolved_ids = classify_all(events, tokens, args.poll_concurrency)
         if unresolved_ids:
-            print(f"  WARN: {len(unresolved_ids)} ids seguian sin estado terminal tras "
-                  f"{FINAL_CLASSIFY_RETRIES} pasadas adicionales")
+            print(f"  WARN: {len(unresolved_ids)} ids still had no terminal status after "
+                  f"{FINAL_CLASSIFY_RETRIES} extra passes")
 
         # ---- derive outcome sets
         registered_ids = set(final_state.keys())
@@ -994,74 +994,74 @@ def main():
         # ---- report
         print()
         print("=" * 78)
-        print("INFORME")
+        print("REPORT")
         print("=" * 78)
-        print(f"Publicados:            {sent_total}/{args.events} en {publish_duration:.2f}s "
+        print(f"Published:             {sent_total}/{args.events} in {publish_duration:.2f}s "
               f"({throughput_publish:.1f} msg/s)")
-        print(f"Registrados (API):     {len(registered_ids)}/{args.events}")
-        print(f"Perdidos (404 al final): {len(lost_ids)}")
+        print(f"Registered (API):      {len(registered_ids)}/{args.events}")
+        print(f"Lost (404 at the end): {len(lost_ids)}")
         if lost_ids:
             if len(lost_ids) <= 20:
-                print(f"  ids perdidos: {lost_ids}")
+                print(f"  lost ids: {lost_ids}")
             else:
-                print(f"  (mas de 20, no se listan; primeros 20: {lost_ids[:20]})")
-        print(f"Completed:             esperados {expected_completed_n}, obtenidos {len(completed_ids)}")
-        print(f"Failed:                esperados {expected_failed_n}, obtenidos {len(failed_ids)}")
+                print(f"  (more than 20, not listed; first 20: {lost_ids[:20]})")
+        print(f"Completed:             expected {expected_completed_n}, got {len(completed_ids)}")
+        print(f"Failed:                expected {expected_failed_n}, got {len(failed_ids)}")
         if unexpected_failures:
             sample = list(unexpected_failures)[:10]
-            print(f"  WARN: {len(unexpected_failures)} ids fallaron sin deber hacerlo (ej: {sample})")
+            print(f"  WARN: {len(unexpected_failures)} ids failed without being expected to (e.g.: {sample})")
         if expected_but_not_failed:
             sample = list(expected_but_not_failed)[:10]
-            print(f"  WARN: {len(expected_but_not_failed)} ids -F- no terminaron failed (ej: {sample})")
+            print(f"  WARN: {len(expected_but_not_failed)} -F- ids did not end up failed (e.g.: {sample})")
         if failed_with_wrong_attempts:
             sample = list(failed_with_wrong_attempts)[:10]
-            print(f"  WARN: {len(failed_with_wrong_attempts)} failed sin 5 intentos en el ciclo 0 o con "
-                  f"attempts_count no multiplo de 5 (ej: {sample})")
+            print(f"  WARN: {len(failed_with_wrong_attempts)} failed without 5 attempts in cycle 0 or with "
+                  f"attempts_count not a multiple of 5 (e.g.: {sample})")
         if f_ids_not_all_503:
             sample = list(f_ids_not_all_503)[:10]
-            print(f"  WARN: {len(f_ids_not_all_503)} ids -F- con algun intento distinto de 503 (ej: {sample})")
+            print(f"  WARN: {len(f_ids_not_all_503)} -F- ids with some attempt other than 503 (e.g.: {sample})")
         if stuck_ids:
             sample = list(stuck_ids)[:10]
-            print(f"  WARN: {len(stuck_ids)} ids registrados pero sin estado terminal tras la clasificacion final (ej: {sample})")
-        print(f"Duracion total:        {total_duration}s, throughput entregas: {throughput_deliveries:.2f}/s "
+            print(f"  WARN: {len(stuck_ids)} ids registered but without terminal status after the final classification (e.g.: {sample})")
+        print(f"Total duration:        {total_duration}s, delivery throughput: {throughput_deliveries:.2f}/s "
               f"(completed+failed={delivered_n})")
-        print(f"Intentos API (suma attempts_count): {api_attempts_total}")
-        print(f"POST /webhook en WireMock (filtrado por run={run}): {wiremock_count}")
+        print(f"API attempts (sum attempts_count): {api_attempts_total}")
+        print(f"POST /webhook on WireMock (filtered by run={run}): {wiremock_count}")
         if wiremock_count is None:
-            print("  WARN: no se pudo leer /__admin/requests/count de WireMock")
-        print(f"Intentos con response_status numerico (a): {attempts_with_status_n}")
-        print(f"Intentos con response_status nulo / error de E/S, timeout o conexion (b): "
+            print("  WARN: could not read /__admin/requests/count from WireMock")
+        print(f"Attempts with numeric response_status (a): {attempts_with_status_n}")
+        print(f"Attempts with null response_status / I/O, timeout or connection error (b): "
               f"{attempts_null_status_n}")
-        print(f"Replays lanzados por la carga REST: {rest_stats.replays_launched}")
-        print(f"expected_posts (completados + 5*fallidos + 5*replays) = "
+        print(f"Replays launched by the REST load: {rest_stats.replays_launched}")
+        print(f"expected_posts (completed + 5*failed + 5*replays) = "
               f"{expected_completed_n} + 5*{expected_failed_n} + 5*{rest_stats.replays_launched} = "
-              f"{expected_posts_final}, limite de journal de WireMock = {args.wiremock_journal_limit}")
+              f"{expected_posts_final}, WireMock journal limit = {args.wiremock_journal_limit}")
         if journal_variant == "A":
-            print(f"Variante de criterio de recepcion: A (expected_posts {expected_posts_final} <= "
-                  f"limite {args.wiremock_journal_limit}: el journal de WireMock cubre la corrida, "
-                  f"se compara intentos de la API contra el conteo de POST de WireMock)")
+            print(f"Receiver-check variant: A (expected_posts {expected_posts_final} <= "
+                  f"limit {args.wiremock_journal_limit}: WireMock's journal covers the run, "
+                  f"API attempts are compared against WireMock's POST count)")
         else:
-            print(f"Variante de criterio de recepcion: B (expected_posts {expected_posts_final} > "
-                  f"limite {args.wiremock_journal_limit}: el journal de WireMock NO cubre la corrida "
-                  f"y su conteo no es confiable, se usa en su lugar attempts[].response_status de la "
-                  f"pasada final de clasificacion: (b) debe ser 0 y los ids -F- deben tener todos "
-                  f"sus intentos en 503)")
+            print(f"Receiver-check variant: B (expected_posts {expected_posts_final} > "
+                  f"limit {args.wiremock_journal_limit}: WireMock's journal does NOT cover the run "
+                  f"and its count is not reliable, attempts[].response_status from the final "
+                  f"classification pass is used instead: (b) must be 0 and -F- ids must have all "
+                  f"their attempts at 503)")
         print(f"Prometheus delta registered: {registered_delta:+.0f}")
         print(f"Prometheus delta duplicates: {duplicates_delta:+.0f}")
-        print("Prometheus delta deliveries por status:")
+        print("Prometheus delta deliveries by status:")
         for status in sorted(deliveries_delta):
             print(f"  {status}: {deliveries_delta[status]:+.0f}")
-        print(f"p95 webhook latency (ventana de la corrida): "
-              f"{'%.3fs' % p95_latency if p95_latency is not None else 'sin datos'}")
-        print(f"max(notifications_attempts_due) (ventana de la corrida): "
-              f"{max_attempts_due if max_attempts_due is not None else 'sin datos'}")
+        print(f"p95 webhook latency (run window): "
+              f"{'%.3fs' % p95_latency if p95_latency is not None else 'no data'}")
+        print(f"max(notifications_attempts_due) (run window): "
+              f"{max_attempts_due if max_attempts_due is not None else 'no data'}")
 
         print()
-        print("API REST bajo carga:")
+        print("REST API under load:")
         if args.api_rps <= 0:
-            print("  (deshabilitada, --api-rps 0)")
+            print("  (disabled, --api-rps 0)")
         else:
-            print(f"  {'tipo':22s} {'n':>6s} {'p50 ms':>8s} {'p95 ms':>8s} {'inesperados':>12s}")
+            print(f"  {'type':22s} {'n':>6s} {'p50 ms':>8s} {'p95 ms':>8s} {'unexpected':>12s}")
             for bucket in REST_BUCKETS:
                 lat = rest_stats.latencies[bucket]
                 n = len(lat)
@@ -1069,40 +1069,40 @@ def main():
                 unexpected_n = rest_stats.unexpected_count[bucket]
                 print(f"  {bucket:22s} {n:6d} {p50:8.1f} {p95:8.1f} {unexpected_n:12d}")
                 if rest_stats.unexpected_samples[bucket]:
-                    print(f"    codigos inesperados (muestra): {rest_stats.unexpected_samples[bucket]}")
-            print(f"  total peticiones: {rest_stats.total_requests()}, "
-                  f"5xx: {rest_stats.five_xx_count}, inesperados: {rest_stats.total_unexpected()}, "
-                  f"replays lanzados: {rest_stats.replays_launched}")
+                    print(f"    unexpected codes (sample): {rest_stats.unexpected_samples[bucket]}")
+            print(f"  total requests: {rest_stats.total_requests()}, "
+                  f"5xx: {rest_stats.five_xx_count}, unexpected: {rest_stats.total_unexpected()}, "
+                  f"replays launched: {rest_stats.replays_launched}")
 
         # ---- PASS/FAIL
         if journal_variant == "A":
-            receiver_check_name = "intentos API == POST WireMock (journal cubre la corrida)"
+            receiver_check_name = "API attempts == WireMock POST count (journal covers the run)"
             receiver_check_ok = wiremock_count is not None and api_attempts_total == wiremock_count
         else:
             receiver_check_name = (
-                "recepcion confirmada via API (journal de WireMock no cubre la corrida): "
-                "0 intentos con response_status nulo y -F- todos en 503"
+                "reception confirmed via the API (WireMock journal does not cover the run): "
+                "0 attempts with null response_status and -F- all at 503"
             )
             receiver_check_ok = attempts_null_status_n == 0 and not f_ids_not_all_503
 
         checks = {
-            "0 perdidos": len(lost_ids) == 0,
-            "completed == esperados": len(completed_ids) == expected_completed_n,
-            "failed == esperados (ids exactos, ciclo 0 con 5 intentos, attempts_count multiplo de 5)": (
+            "0 lost": len(lost_ids) == 0,
+            "completed == expected": len(completed_ids) == expected_completed_n,
+            "failed == expected (exact ids, cycle 0 with 5 attempts, attempts_count multiple of 5)": (
                 len(failed_ids) == expected_failed_n
                 and not unexpected_failures
                 and not expected_but_not_failed
                 and not failed_with_wrong_attempts
             ),
             receiver_check_name: receiver_check_ok,
-            "duplicados delta == 0": duplicates_delta == 0,
+            "duplicates delta == 0": duplicates_delta == 0,
         }
         if args.api_rps > 0:
-            checks["API REST bajo carga: 0 5xx y 0 codigos inesperados"] = (
+            checks["REST API under load: 0 5xx and 0 unexpected codes"] = (
                 rest_stats.five_xx_count == 0 and rest_stats.total_unexpected() == 0
             )
         print()
-        print("Criterios:")
+        print("Criteria:")
         overall_pass = True
         for name, ok in checks.items():
             overall_pass = overall_pass and ok
@@ -1118,7 +1118,7 @@ def main():
 
     finally:
         print()
-        print("Borrando stub de fallo de WireMock...")
+        print("Deleting WireMock failure stub...")
         wiremock_delete_mapping(mapping_id)
 
     sys.exit(exit_code)

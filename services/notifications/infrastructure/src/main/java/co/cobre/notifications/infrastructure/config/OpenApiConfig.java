@@ -45,9 +45,9 @@ public class OpenApiConfig {
                 .title("Account Event Notification API")
                 .version(version)
                 .description(
-                    "API de autoservicio para que un cliente consulte sus eventos de "
-                        + "notificación y relance los fallidos. La autenticación es Bearer JWT "
-                        + "(RS256) y los datos devueltos se acotan siempre al cliente propietario del token."
+                    "Self-service API for a client to query its notification events and replay "
+                        + "the failed ones. Authentication is Bearer JWT (RS256), and returned data "
+                        + "is always scoped to the token's owning client."
                 ))
             .components(new Components()
                 .addSecuritySchemes(SECURITY_SCHEME_NAME, new SecurityScheme()
