@@ -1,0 +1,7 @@
+# Structured JSON logging configuration
+# Activate with: SPRING_PROFILES_ACTIVE=worker,local,json
+# This profile enables ECS-formatted JSON output for structured logging
+logging:
+  structured:
+    format:
+      console: ecs
