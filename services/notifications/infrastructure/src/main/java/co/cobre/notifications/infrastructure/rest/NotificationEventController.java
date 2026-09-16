@@ -3,6 +3,7 @@ package co.cobre.notifications.infrastructure.rest;
 import co.cobre.notifications.application.usecase.ListNotificationEventsQuery;
 import co.cobre.notifications.application.usecase.GetNotificationEvent;
 import co.cobre.notifications.application.usecase.ListNotificationEvents;
+import co.cobre.notifications.application.usecase.NotificationEventSummaryPage;
 import co.cobre.notifications.application.usecase.ReplayNotificationEvent;
 import co.cobre.notifications.domain.ClientId;
 import co.cobre.notifications.domain.DeliveryStatus;

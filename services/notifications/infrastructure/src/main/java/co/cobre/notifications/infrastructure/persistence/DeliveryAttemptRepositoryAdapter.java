@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -115,5 +116,30 @@ public class DeliveryAttemptRepositoryAdapter implements DeliveryAttemptReposito
             executed.latency().map(d -> d.toMillis()).orElse(null)
         );
         return rows == 1;
+    }
+
+    @Override
+    public Map<EventId, Integer> countByEvents(Collection<EventId> eventIds) {
+        if (eventIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<String> eventIdValues = eventIds.stream()
+            .map(id -> id.value())
+            .toList();
+
+        var results = jpaRepository.countByEventIds(eventIdValues);
+        Map<EventId, Integer> counts = new HashMap<>();
+
+        for (Object[] row : results) {
+            String eventId = (String) row[0];
+            Long count = (Long) row[1];
+            counts.put(
+                new EventId(eventId),
+                count.intValue()
+            );
+        }
+
+        return counts;
     }
 }

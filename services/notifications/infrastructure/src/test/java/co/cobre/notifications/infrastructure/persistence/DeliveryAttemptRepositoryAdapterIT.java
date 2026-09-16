@@ -341,6 +341,42 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
         assertEquals(20, allClaimedIds.size());
     }
 
+    @Test
+    @Transactional
+    void testCountByEventsReturnsMapWithOnlyEventsHavingAttempts() {
+        var eventId1 = new EventId("evt-count-001");
+        var eventId2 = new EventId("evt-count-002");
+        var eventId3 = new EventId("evt-count-003");
+        createEvent(eventId1);
+        createEvent(eventId2);
+        createEvent(eventId3);
+
+        var attempt1 = DeliveryAttempt.first(eventId1, 0, Instant.now(), co.cobre.notifications.domain.AttemptOrigin.SYSTEM);
+        var attempt2 = DeliveryAttempt.first(eventId1, 0, Instant.now(), co.cobre.notifications.domain.AttemptOrigin.SYSTEM);
+        var attempt3 = DeliveryAttempt.first(eventId1, 0, Instant.now(), co.cobre.notifications.domain.AttemptOrigin.SYSTEM);
+        var attempt4 = DeliveryAttempt.first(eventId2, 0, Instant.now(), co.cobre.notifications.domain.AttemptOrigin.SYSTEM);
+
+        adapter.save(attempt1);
+        adapter.save(attempt2);
+        adapter.save(attempt3);
+        adapter.save(attempt4);
+
+        var counts = adapter.countByEvents(java.util.List.of(eventId1, eventId2, eventId3));
+
+        assertEquals(2, counts.size());
+        assertEquals(3, counts.get(eventId1));
+        assertEquals(1, counts.get(eventId2));
+        assertFalse(counts.containsKey(eventId3));
+    }
+
+    @Test
+    @Transactional
+    void testCountByEventsWithEmptyListReturnsEmptyMap() {
+        var counts = adapter.countByEvents(java.util.List.of());
+
+        assertEquals(0, counts.size());
+    }
+
     private void createEvent(EventId eventId) {
         var entity = new NotificationEventEntity();
         entity.setEventId(eventId.value());
