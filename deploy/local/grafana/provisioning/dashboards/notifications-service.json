@@ -9,7 +9,7 @@
   "timezone": "browser",
   "editable": true,
   "graphTooltip": 1,
-  "refresh": "30s",
+  "refresh": "1m",
   "schemaVersion": 39,
   "version": 3,
   "time": {
@@ -1031,8 +1031,8 @@
     {
       "id": 57,
       "type": "timeseries",
-      "title": "Tiempo activo (carga de la base)",
-      "description": "rate(pg_stat_database_active_time_seconds_total{datname=\"notifications\"}[5m]): fracción de segundo de reloj que hay al menos una sesión ejecutando una consulta, por segundo. Puede superar 1 si hay más de un backend activo a la vez (es una suma sobre todas las sesiones, no un promedio). Alimenta la alarma PostgresActiveTimeHigh (>0.8 durante 5 min = base saturada).",
+      "title": "Sesiones ocupadas en promedio (carga de la base)",
+      "description": "rate(pg_stat_database_active_time_seconds_total[5m]): segundos de ejecución de SQL por segundo sumados sobre todas las sesiones, es decir, el número medio de sesiones ejecutando consultas. 1 = una sesión ocupada todo el tiempo; por encima del número de cores de la VM la base está saturada (alarma PostgresBusyBackendsAboveCores).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1057,7 +1057,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit",
+          "unit": "none",
           "custom": {
             "drawStyle": "line",
             "lineWidth": 2,
@@ -1067,7 +1067,8 @@
               "mode": "none"
             }
           },
-          "min": 0
+          "min": 0,
+          "decimals": 2
         },
         "overrides": []
       },

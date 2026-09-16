@@ -89,7 +89,14 @@ services:
   wiremock:
     image: wiremock/wiremock:3.13.1
     profiles: [infra]
-    command: ["--port", "8080", "--disable-banner", "--max-request-journal-entries", "5000"]
+    # The request journal is what the load test compares against for runs that fit in it. Keep it
+    # small: WireMock walks the whole journal on every request, and at 120000 entries it stalled
+    # (connect/read timeouts) during a 50k-event run. Larger runs verify through the API instead.
+    # Jetty defaults to 10 request
+    # threads, which is not enough for three workers posting 50 attempts in parallel: connect and read
+    # timeouts appeared at 50k events, so the pool is sized for the local load test.
+    command: ["--port", "8080", "--disable-banner", "--max-request-journal-entries", "${WIREMOCK_JOURNAL_ENTRIES:-5000}",
+              "--container-threads", "${WIREMOCK_CONTAINER_THREADS:-250}"]
     volumes:
       - ./wiremock/mappings:/home/wiremock/mappings:ro
     ports:
@@ -103,7 +110,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 320M
+          memory: 768M
     networks: [notifications]
 
   # ------------------------------------------------------------------- app
@@ -277,7 +284,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M
     networks: [notifications]
 
   grafana:
@@ -309,7 +316,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M
     networks: [notifications]
 
 networks:

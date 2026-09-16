@@ -147,7 +147,7 @@ Todo lo que responde "¿qué tan cargada está la base ahora mismo?", junto en u
 | Bloques leídos: disco vs. caché por segundo | `rate(pg_stat_database_blks_read[5m])` / `rate(pg_stat_database_blks_hit[5m])` | Cuántos bloques de 8 KB se piden por segundo, separados por si vinieron de disco o del buffer cache. |
 | Cache hit ratio | `blks_hit / (blks_hit + blks_read)` | Movido desde la fila `Base de datos` (no duplicado). |
 | Tiempo de E/S (lectura/escritura) | `rate(pg_stat_database_blk_read_time[5m])` / `rate(pg_stat_database_blk_write_time[5m])` | ms de E/S por segundo de reloj. **Sin datos en este stack:** `track_io_timing` está apagado (`pg_settings_track_io_timing = 0`); el panel lo dice en su descripción. |
-| Tiempo activo (carga de la base) | `rate(pg_stat_database_active_time_seconds_total[5m])` | Fracción de segundo de reloj con al menos una sesión ejecutando, por segundo (puede superar 1 con varios backends activos a la vez). Alimenta `PostgresActiveTimeHigh`. |
+| Sesiones ocupadas en promedio (carga de la base) | `rate(pg_stat_database_active_time_seconds_total[5m])` | Número medio de sesiones ejecutando SQL (segundos de ejecución por segundo, sumados sobre sesiones). 1 = una sesión ocupada todo el tiempo; por encima de los cores de la VM, saturación. |
 | Transacción más larga en curso | `pg_stat_activity_max_tx_duration{datname="notifications"}` | Segundos de la transacción abierta más vieja; una transacción larga retiene locks y bloquea el autovacuum. |
 | Temp files/bytes por segundo | `rate(pg_stat_database_temp_bytes[5m])` / `rate(pg_stat_database_temp_files[5m])` | Cuánto ordenamiento/hash se derrama a disco por no caber en `work_mem`. |
 | Checkpoints por segundo | `rate(pg_stat_bgwriter_checkpoints_timed_total[5m])` (por tiempo) vs. `rate(pg_stat_bgwriter_checkpoints_req_total[5m])` (forzados) | Muchos checkpoints "req" sostenidos indica `max_wal_size` chico para la tasa de escritura. |
@@ -313,7 +313,7 @@ contenedores), once en total:
 | `NotificationsDbPoolExhausted` | `hikaricp_connections_pending > 0` durante 2 min | Revisar el panel Base de datos y `pg_stat_activity`; considerar subir `maximum-pool-size` |
 | `PostgresDown` | `pg_up == 0` durante 1 min | Revisar el contenedor `postgres` |
 | `NotificationsOldestPendingTooOld` | `cobre_oldest_pending_age_seconds > 120` durante 5 min | Igual que `NotificationsAttemptsDueBacklog`, pero mirando Postgres en vez del gauge en memoria |
-| `PostgresActiveTimeHigh` | `rate(pg_stat_database_active_time_seconds_total{datname="notifications"}[5m]) > 0.8` durante 5 min | La base está saturada; revisar el panel `Carga de Postgres` (scans por tabla, tuplas por segundo, backends por estado), consultas e índices |
+| `PostgresBusyBackendsAboveCores` | `rate(pg_stat_database_active_time_seconds_total{datname="notifications"}[5m]) > cores de la VM` durante 5 min | La base está saturada; revisar scans por tabla, tuplas por segundo, backends por estado e índices de `delivery_attempts`, o bajar `batch-size` / réplicas del worker |
 | `HostMemoryLow` | `node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.10` durante 5 min | La VM de Docker se queda sin memoria; subir el límite de memoria de la VM (OrbStack/Docker Desktop) o bajar la carga |
 | `HostCpuSaturated` | CPU idle de la VM `< 10 %` durante 5 min | La VM está saturada de CPU; reducir carga o asignarle más CPU a la VM |
 
@@ -323,7 +323,7 @@ pero nunca dispara porque `notifications_leases_expired_total` no se emite (ver 
 instrumentado"). `NotificationsDbPoolExhausted` y `PostgresDown` necesitan `postgres-exporter`
 arriba (perfil `observability`); `NotificationsOldestPendingTooOld` necesita además
 `postgres-exporter/queries.yaml`; `NotificationsApiServerErrors` no necesita los buckets HTTP del
-punto 1 porque usa `_count`, no `histogram_quantile`. `PostgresActiveTimeHigh` tiene datos reales
+punto 1 porque usa `_count`, no `histogram_quantile`. `PostgresBusyBackendsAboveCores` tiene datos reales
 hoy (mismo job `postgres` que el resto de la fila `Carga de Postgres`). `HostMemoryLow` y
 `HostCpuSaturated` necesitan `node-exporter` arriba (perfil `observability`, job `node`); a
 diferencia de la descartada `ContainerMemoryNearLimit` (cAdvisor), estas sí tienen datos reales en
@@ -358,17 +358,29 @@ red `account-event-notification`, así que habla con los hostnames internos del 
    que deben fallar; `--fail-ratio` fija la proporción), repartiendo cliente (`CLIENT001..3`) y
    tipo (`credit_deposit`, `debit_purchase`, `credit_transfer`) round-robin, en lotes de 10
    (`SendMessageBatch`) con `--concurrency` hilos publicando en paralelo.
-3. Consulta `GET /notification_events/{id}` (con el token del cliente correspondiente) hasta que
-   todos los eventos llegan a un estado terminal (`completed`/`failed`) o se agota `--timeout`,
-   paralelizando las consultas e imprimiendo el progreso cada ronda.
-4. Al terminar, borra el stub de fallo (también si la corrida falla o se interrumpe) y compara:
-   eventos publicados vs. registrados vs. perdidos (404 tras el timeout); completed/failed
-   esperados vs. obtenidos (los `-F-` deben terminar `failed` con `attempts_count = 5` y ningún
-   otro evento debe fallar); la suma de `attempts_count` de la API contra el conteo de `POST
-   /webhook` que WireMock recibió para esta corrida (filtrado por el tag `LOAD-<run>-`, para no
-   mezclar el tráfico del simulador de eventos que sigue corriendo en paralelo); los deltas de
-   Prometheus; el p95 de `notifications_webhook_latency_seconds` y el máximo de
-   `notifications_attempts_due` en la ventana de la corrida.
+3. Espera a que el backlog se drene **sin** consultar cada id por ronda: con 50 000 eventos, un
+   `GET /notification_events/{id}` por id no terminal cada 2 s llegaba a generar hasta ~2800
+   peticiones/s contra la API, compitiendo por CPU con el servicio bajo prueba y con
+   Grafana/Prometheus. En su lugar, cada `POLL_INTERVAL_S` (5 s) hace 6 peticiones baratas —
+   `GET /notification_events?delivery_status=pending&limit=1` y `...=retrying&limit=1`, una vez
+   por cliente— y da el sistema por drenado cuando ambos listados vienen vacíos para los tres
+   clientes en dos rondas consecutivas (una sola ronda vacía no basta: el simulador de fondo
+   emite ~1 evento cada 2 s que puede aparecer como `pending` solo unos milisegundos). Cada ronda
+   imprime el backlog de Prometheus (`max(notifications_attempts_due)`) y el delta de entregas
+   por status desde el inicio de la corrida (incluye el tráfico de fondo del simulador).
+4. Con el sistema ya en reposo (drenado, o al agotar `--timeout`), hace **una única pasada** de
+   `GET /notification_events/{id}` sobre todos los ids (`--poll-concurrency` hilos, default 8)
+   para clasificar el estado final de cada uno; si algún id sigue sin estado terminal tras esa
+   pasada, reintenta solo esos ids hasta 3 veces más, 5 s entre cada una, antes de reportarlos
+   como no terminales. Al terminar (con o sin drenado), borra el stub de fallo (también si la
+   corrida falla o se interrumpe) y compara: eventos publicados vs. registrados vs. perdidos (404
+   en la pasada final); completed/failed esperados vs. obtenidos (los `-F-` deben terminar
+   `failed` con `attempts_count = 5` y ningún otro evento debe fallar); la suma de
+   `attempts_count` de la API contra el conteo de `POST /webhook` que WireMock recibió para esta
+   corrida (filtrado por el tag `LOAD-<run>-`, para no mezclar el tráfico del simulador de
+   eventos que sigue corriendo en paralelo); los deltas de Prometheus; el p95 de
+   `notifications_webhook_latency_seconds` y el máximo de `notifications_attempts_due` en la
+   ventana de la corrida.
 
 **Cómo se ejecuta** (con el stack ya arriba, `make up` o `make up-all`):
 
@@ -377,6 +389,10 @@ make load                                          # 2000 eventos, 10% de fallo
 make load EVENTS=200 FAIL_RATIO=0.20 TIMEOUT=120    # parámetros explícitos
 make load CONCURRENCY=16                            # más hilos de publicación
 ```
+
+`--poll-concurrency` (default 8) controla los hilos de la pasada final de clasificación (una por
+id, con el sistema ya drenado); no afecta el sondeo por rondas, que siempre hace 6 peticiones fijas
+sin importar `--events`.
 
 El target genera los tres tokens de demo con `scripts/token.sh` en el host y los pasa al
 contenedor por variable de entorno (`TOKEN_CLIENT001`, `TOKEN_CLIENT002`, `TOKEN_CLIENT003`); si
@@ -416,6 +432,13 @@ queda alto, el worker no da abasto (ver "Límites" arriba, escalar réplicas); *
 by client** no debería moverse mucho salvo que se agregue latencia artificial; **Failures by client
 (last hour)** debe mostrar solo los eventos `LOAD-<run>-F-*` de la corrida (más lo que ya hubiera
 fallado antes).
+
+En una corrida grande (decenas de miles de eventos, varios minutos), evita dejar el dashboard en
+un rango largo tipo "Last 6 hours" con auto-refresh corto: sobre una VM ya cargada eso agrega
+consultas propias de Grafana a la contención de CPU y puede llegar a cancelarlas por timeout.
+Usa un rango acotado al tamaño de la corrida (p. ej. "Last 15 minutes" o "Last 30 minutes") y un
+auto-refresh de 10 s o más; si igual se ve lento, cierra el dashboard mientras la carga corre y
+ábrelo al terminar con el rango fijo del intervalo de la corrida.
 
 **Resultados de referencia** (2026-09-16, MacBook con Docker en OrbStack, 10 CPU / 8 GB para la
 VM, `make load EVENTS=2000 FAIL_RATIO=0.10`, WireMock respondiendo 200 en ~10 ms):
