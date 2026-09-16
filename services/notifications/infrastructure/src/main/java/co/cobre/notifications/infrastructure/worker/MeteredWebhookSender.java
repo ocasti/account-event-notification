@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 
 /**
  * Metered decorator for WebhookSender that records delivery latency metrics.
@@ -32,56 +33,47 @@ public class MeteredWebhookSender implements WebhookSender {
     @Override
     public DeliveryOutcome send(Subscription subscription, NotificationEvent event, DeliveryAttempt attempt) {
         var outcome = delegate.send(subscription, event, attempt);
+        var fields = AttemptLogFields.from(outcome);
 
-        var latency = switch (outcome) {
-            case DeliveryOutcome.Success s -> s.latency();
-            case DeliveryOutcome.TransientFailure tf -> tf.latency();
-            case DeliveryOutcome.PermanentFailure pf -> pf.latency();
-        };
-
-        metrics.webhookLatency(event.clientId().value(), latency);
-        logAttempt(outcome, event, attempt);
+        metrics.webhookLatency(event.clientId().value(), fields.latency());
+        logAttempt(fields, event, attempt);
 
         return outcome;
     }
 
-    private void logAttempt(DeliveryOutcome outcome, NotificationEvent event, DeliveryAttempt attempt) {
-        var latency = switch (outcome) {
-            case DeliveryOutcome.Success s -> s.latency();
-            case DeliveryOutcome.TransientFailure tf -> tf.latency();
-            case DeliveryOutcome.PermanentFailure pf -> pf.latency();
-        };
-
-        var outcomeType = switch (outcome) {
-            case DeliveryOutcome.Success s -> "success";
-            case DeliveryOutcome.TransientFailure tf -> "transient_failure";
-            case DeliveryOutcome.PermanentFailure pf -> "permanent_failure";
-        };
-
-        var responseStatusValue = switch (outcome) {
-            case DeliveryOutcome.Success s -> (Object) s.responseStatus();
-            case DeliveryOutcome.TransientFailure tf -> (Object) tf.responseStatus().orElse(null);
-            case DeliveryOutcome.PermanentFailure pf -> (Object) pf.responseStatus();
-        };
-
-        var responseStatus = responseStatusValue != null ? responseStatusValue : "none";
+    private void logAttempt(AttemptLogFields fields, NotificationEvent event, DeliveryAttempt attempt) {
+        var responseStatus = fields.responseStatus() != null ? fields.responseStatus() : "none";
 
         var logBuilder = log.atInfo()
             .addKeyValue("event_id", event.eventId().value())
             .addKeyValue("client_id", event.clientId().value())
             .addKeyValue("cycle", attempt.cycle())
             .addKeyValue("attempt_number", attempt.attemptNumber())
-            .addKeyValue("outcome", outcomeType)
+            .addKeyValue("outcome", fields.outcomeType())
             .addKeyValue("response_status", responseStatus)
-            .addKeyValue("latency_ms", latency.toMillis());
+            .addKeyValue("latency_ms", fields.latency().toMillis());
 
-        // Add reason for failures only
-        switch (outcome) {
-            case DeliveryOutcome.TransientFailure tf -> logBuilder.addKeyValue("reason", tf.reason());
-            case DeliveryOutcome.PermanentFailure pf -> logBuilder.addKeyValue("reason", pf.reason());
-            default -> {}
+        if (fields.reason() != null) {
+            logBuilder.addKeyValue("reason", fields.reason());
         }
 
         logBuilder.log("webhook delivery attempt");
+    }
+
+    /**
+     * Fields derived from a {@link DeliveryOutcome} needed for metrics and logging.
+     * Built from a single switch so the outcome types are inspected only once per attempt.
+     */
+    private record AttemptLogFields(Duration latency, String outcomeType, Object responseStatus, String reason) {
+        static AttemptLogFields from(DeliveryOutcome outcome) {
+            return switch (outcome) {
+                case DeliveryOutcome.Success s ->
+                    new AttemptLogFields(s.latency(), "success", s.responseStatus(), null);
+                case DeliveryOutcome.TransientFailure tf ->
+                    new AttemptLogFields(tf.latency(), "transient_failure", tf.responseStatus().orElse(null), tf.reason());
+                case DeliveryOutcome.PermanentFailure pf ->
+                    new AttemptLogFields(pf.latency(), "permanent_failure", pf.responseStatus(), pf.reason());
+            };
+        }
     }
 }
