@@ -7,9 +7,6 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 
-/**
- * Mutable aggregate root representing a notification event.
- */
 public final class NotificationEvent {
     private final EventId eventId;
     private final ClientId clientId;
@@ -22,9 +19,6 @@ public final class NotificationEvent {
     private int cycle;
     private Optional<Instant> deliveredAt;
 
-    /**
-     * Creates a new notification event with all fields.
-     */
     public NotificationEvent(
         EventId eventId,
         ClientId clientId,
@@ -49,9 +43,6 @@ public final class NotificationEvent {
         this.deliveredAt = deliveredAt;
     }
 
-    /**
-     * Factory method to register a new notification event.
-     */
     public static NotificationEvent register(
         EventData data,
         Instant receivedAt,
@@ -71,9 +62,6 @@ public final class NotificationEvent {
         );
     }
 
-    /**
-     * Factory method to create a skipped notification event.
-     */
     public static NotificationEvent skipped(
         EventData data,
         Instant receivedAt
@@ -92,9 +80,6 @@ public final class NotificationEvent {
         );
     }
 
-    /**
-     * Marks the event as completed at the given time.
-     */
     public void complete(Instant at) {
         if (!status.canTransitionTo(DeliveryStatus.COMPLETED)) {
             throw new IllegalStateTransitionException(status, DeliveryStatus.COMPLETED);
@@ -103,9 +88,6 @@ public final class NotificationEvent {
         deliveredAt = Optional.of(at);
     }
 
-    /**
-     * Schedules a retry of the event.
-     */
     public void scheduleRetry() {
         if (!status.canTransitionTo(DeliveryStatus.RETRYING)) {
             throw new IllegalStateTransitionException(status, DeliveryStatus.RETRYING);
@@ -113,9 +95,6 @@ public final class NotificationEvent {
         status = DeliveryStatus.RETRYING;
     }
 
-    /**
-     * Marks the event as failed.
-     */
     public void fail() {
         if (!status.canTransitionTo(DeliveryStatus.FAILED)) {
             throw new IllegalStateTransitionException(status, DeliveryStatus.FAILED);
@@ -123,9 +102,6 @@ public final class NotificationEvent {
         status = DeliveryStatus.FAILED;
     }
 
-    /**
-     * Marks the event for replay.
-     */
     public void replay() {
         if (status != DeliveryStatus.FAILED) {
             throw new ReplayNotAllowedException(eventId, status);
@@ -135,72 +111,42 @@ public final class NotificationEvent {
         deliveredAt = Optional.empty();
     }
 
-    /**
-     * Returns the event ID.
-     */
     public EventId eventId() {
         return eventId;
     }
 
-    /**
-     * Returns the client ID.
-     */
     public ClientId clientId() {
         return clientId;
     }
 
-    /**
-     * Returns the event key.
-     */
     public EventKey eventKey() {
         return eventKey;
     }
 
-    /**
-     * Returns the content.
-     */
     public String content() {
         return content;
     }
 
-    /**
-     * Returns the creation timestamp.
-     */
     public Instant createdAt() {
         return createdAt;
     }
 
-    /**
-     * Returns the reception timestamp.
-     */
     public Instant receivedAt() {
         return receivedAt;
     }
 
-    /**
-     * Returns the delivery status.
-     */
     public DeliveryStatus status() {
         return status;
     }
 
-    /**
-     * Returns the subscription ID if available.
-     */
     public Optional<String> subscriptionId() {
         return subscriptionId;
     }
 
-    /**
-     * Returns the delivery cycle.
-     */
     public int cycle() {
         return cycle;
     }
 
-    /**
-     * Returns the delivery timestamp if available.
-     */
     public Optional<Instant> deliveredAt() {
         return deliveredAt;
     }

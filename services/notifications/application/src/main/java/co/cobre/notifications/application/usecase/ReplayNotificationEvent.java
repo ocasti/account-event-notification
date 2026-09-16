@@ -14,18 +14,12 @@ import co.cobre.notifications.domain.EventId;
 
 import java.time.Clock;
 
-/**
- * Use case for replaying a failed notification event.
- */
 @UseCase
 public final class ReplayNotificationEvent {
     private final NotificationEventRepository events;
     private final DeliveryAttemptRepository attempts;
     private final Clock clock;
 
-    /**
-     * Creates a new replay notification event use case.
-     */
     public ReplayNotificationEvent(
         NotificationEventRepository events,
         DeliveryAttemptRepository attempts,
@@ -36,9 +30,6 @@ public final class ReplayNotificationEvent {
         this.clock = clock;
     }
 
-    /**
-     * Replays a notification event.
-     */
     public ReplayResult replay(ClientId clientId, EventId eventId) {
         var event = events.findByClientAndId(clientId, eventId)
             .orElseThrow(() -> new NotificationEventNotFoundException(eventId));

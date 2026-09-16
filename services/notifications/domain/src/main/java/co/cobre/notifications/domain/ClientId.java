@@ -1,8 +1,5 @@
 package co.cobre.notifications.domain;
 
-/**
- * Value object representing a client identifier.
- */
 public record ClientId(String value) {
     private static final int MAX_LENGTH = 64;
 

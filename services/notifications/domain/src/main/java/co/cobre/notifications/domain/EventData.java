@@ -3,7 +3,6 @@ package co.cobre.notifications.domain;
 import java.time.Instant;
 import java.util.Objects;
 
-/** Record capturing core event data for notification registration. */
 public record EventData(
     EventId eventId,
     ClientId clientId,

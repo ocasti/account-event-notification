@@ -4,7 +4,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 
-/** Record representing a claim for delivery attempts to be processed. */
 public record DeliveryClaim(
     Instant now,
     int limit,

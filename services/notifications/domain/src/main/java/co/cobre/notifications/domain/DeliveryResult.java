@@ -3,7 +3,6 @@ package co.cobre.notifications.domain;
 import java.time.Duration;
 import java.util.Optional;
 
-/** Record representing the result of a delivery attempt. */
 public record DeliveryResult(
     Optional<Integer> responseStatus,
     Optional<String> failureReason,

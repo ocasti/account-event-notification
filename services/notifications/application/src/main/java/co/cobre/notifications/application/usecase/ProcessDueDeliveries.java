@@ -21,9 +21,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.random.RandomGenerator;
 
-/**
- * Use case for processing delivery attempts that are due.
- */
 @UseCase
 public final class ProcessDueDeliveries {
     private final NotificationEventRepository events;
@@ -36,9 +33,6 @@ public final class ProcessDueDeliveries {
     private final DeliveryWorkerSettings settings;
     private final Executor executor;
 
-    /**
-     * Creates a new process due deliveries use case.
-     */
     public ProcessDueDeliveries(
         NotificationEventRepository events,
         DeliveryAttemptRepository attempts,
@@ -61,9 +55,6 @@ public final class ProcessDueDeliveries {
         this.executor = executor;
     }
 
-    /**
-     * Processes a batch of due delivery attempts.
-     */
     public int processBatch() {
         var claim = new DeliveryClaim(clock.instant(), settings.batchSize(), settings.maxPerClient(), settings.workerId(), settings.lease());
         var claimed = attempts.claimDue(claim);
@@ -79,9 +70,6 @@ public final class ProcessDueDeliveries {
         return claimed.size();
     }
 
-    /**
-     * Processes a single delivery attempt.
-     */
     public void process(DeliveryAttempt attempt) {
         var event = events.findById(attempt.eventId());
         if (event.isEmpty()) {

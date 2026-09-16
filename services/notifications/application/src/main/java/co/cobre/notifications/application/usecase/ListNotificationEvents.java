@@ -12,25 +12,16 @@ import co.cobre.notifications.domain.EventId;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Use case for listing notification events.
- */
 @UseCase
 public final class ListNotificationEvents {
     private final NotificationEventRepository events;
     private final DeliveryAttemptRepository attempts;
 
-    /**
-     * Creates a new list notification events use case.
-     */
     public ListNotificationEvents(NotificationEventRepository events, DeliveryAttemptRepository attempts) {
         this.events = events;
         this.attempts = attempts;
     }
 
-    /**
-     * Lists notification events with attempts count for each event.
-     */
     public NotificationEventSummaryPage list(ListNotificationEventsQuery query) {
         NotificationEventPage page = events.search(query);
 

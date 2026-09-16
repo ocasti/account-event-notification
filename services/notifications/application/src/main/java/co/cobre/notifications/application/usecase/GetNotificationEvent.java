@@ -8,17 +8,11 @@ import co.cobre.notifications.domain.NotificationEventNotFoundException;
 import co.cobre.notifications.domain.ClientId;
 import co.cobre.notifications.domain.EventId;
 
-/**
- * Use case for retrieving a notification event with its delivery attempts.
- */
 @UseCase
 public final class GetNotificationEvent {
     private final NotificationEventRepository events;
     private final DeliveryAttemptRepository attempts;
 
-    /**
-     * Creates a new get notification event use case.
-     */
     public GetNotificationEvent(
         NotificationEventRepository events,
         DeliveryAttemptRepository attempts
@@ -27,9 +21,6 @@ public final class GetNotificationEvent {
         this.attempts = attempts;
     }
 
-    /**
-     * Gets a notification event by client and event ID.
-     */
     public NotificationEventDetail get(ClientId clientId, EventId eventId) {
         var event = events.findByClientAndId(clientId, eventId)
             .orElseThrow(() -> new NotificationEventNotFoundException(eventId));

@@ -13,9 +13,6 @@ import co.cobre.notifications.domain.NotificationEvent;
 
 import java.time.Clock;
 
-/**
- * Use case for registering a new notification event.
- */
 @UseCase
 public final class RegisterNotificationEvent {
     private final NotificationEventRepository events;
@@ -23,9 +20,6 @@ public final class RegisterNotificationEvent {
     private final SubscriptionRepository subscriptions;
     private final Clock clock;
 
-    /**
-     * Creates a new register notification event use case.
-     */
     public RegisterNotificationEvent(
         NotificationEventRepository events,
         DeliveryAttemptRepository attempts,
@@ -38,9 +32,6 @@ public final class RegisterNotificationEvent {
         this.clock = clock;
     }
 
-    /**
-     * Registers a notification event.
-     */
     public RegistrationResult register(RegisterEventCommand command) {
         if (events.existsById(command.eventId())) {
             return RegistrationResult.DUPLICATE;

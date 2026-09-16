@@ -4,7 +4,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 
 /**
- * Value object representing a webhook URL (HTTP or HTTPS).
  * HTTPS is enforced by policy in WebhookUrlValidator, not in this domain object.
  */
 public record WebhookUrl(URI value) {
@@ -20,9 +19,6 @@ public record WebhookUrl(URI value) {
         }
     }
 
-    /**
-     * Creates a WebhookUrl from a raw string.
-     */
     public static WebhookUrl of(String raw) {
         try {
             URI uri = new URI(raw);

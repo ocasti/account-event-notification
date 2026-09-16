@@ -4,9 +4,6 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.Set;
 
-/**
- * Represents a subscription to receive notifications.
- */
 public record Subscription(
     String id,
     ClientId clientId,
@@ -18,9 +15,6 @@ public record Subscription(
     Instant createdAt
 ) {
 
-    /**
-     * Checks if this subscription matches the given event key.
-     */
     public boolean matches(EventKey eventKey) {
         if (!active) {
             return false;
