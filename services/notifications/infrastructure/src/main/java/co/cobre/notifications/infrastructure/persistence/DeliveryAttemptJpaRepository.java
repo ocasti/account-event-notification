@@ -23,7 +23,8 @@ public interface DeliveryAttemptJpaRepository extends JpaRepository<DeliveryAtte
                    "AND d.next_attempt_at <= now() " +
                    "AND (d.claimed_at IS NULL OR d.claimed_at < now() - make_interval(secs => :leaseSeconds)) " +
                    "ORDER BY d.next_attempt_at ASC " +
-                   "LIMIT :limit", nativeQuery = true)
+                   "LIMIT :limit " +
+                   "FOR UPDATE OF d SKIP LOCKED", nativeQuery = true)
     List<Map<String, Object>> claimDueAttempts(
         @Param("leaseSeconds") long leaseSeconds,
         @Param("limit") int limit
