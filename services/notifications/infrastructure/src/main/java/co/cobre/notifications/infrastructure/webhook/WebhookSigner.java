@@ -8,9 +8,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.HexFormat;
 
-/**
- * Signs webhook payloads using HMAC-SHA256.
- */
 @Component
 public class WebhookSigner {
     private final Clock clock;

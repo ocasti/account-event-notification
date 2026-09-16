@@ -6,9 +6,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Response DTO for a paginated list of notification events.
- */
 public record NotificationEventPageResponse(
     @Schema(description = "Page of notification events, newest first")
     @JsonProperty("items")

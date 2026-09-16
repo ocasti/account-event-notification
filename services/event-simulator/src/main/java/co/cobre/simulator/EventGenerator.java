@@ -5,9 +5,6 @@ import org.springframework.stereotype.Component;
 import java.time.Clock;
 import java.util.random.RandomGenerator;
 
-/**
- * Generates derived events from the catalog.
- */
 @Component
 public class EventGenerator {
 

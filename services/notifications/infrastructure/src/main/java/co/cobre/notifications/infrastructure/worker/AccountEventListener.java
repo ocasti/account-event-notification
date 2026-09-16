@@ -9,9 +9,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
-/**
- * SQS listener for account events.
- */
 @Component
 @Profile("worker")
 public class AccountEventListener {

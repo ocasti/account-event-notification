@@ -22,18 +22,10 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
 
-/**
- * Spring Security configuration for JWT-based resource server.
- */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    /**
-     * Configures the security filter chain for API security.
-     * No session creation, CSRF disabled, /notification_events/** requires authentication,
-     * health and prometheus endpoints are public, resource server with JWT.
-     */
     @Bean
     public SecurityFilterChain apiSecurity(HttpSecurity http, JwtProperties props) throws Exception {
         http

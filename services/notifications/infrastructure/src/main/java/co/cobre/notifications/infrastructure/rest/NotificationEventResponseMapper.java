@@ -16,9 +16,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Mapper for converting domain objects to REST response DTOs.
- */
 @Component
 public class NotificationEventResponseMapper {
 

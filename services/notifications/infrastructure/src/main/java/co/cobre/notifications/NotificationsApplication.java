@@ -24,9 +24,6 @@ import org.springframework.context.annotation.FilterType;
 @ConfigurationPropertiesScan
 public class NotificationsApplication {
 
-    /**
-     * Starts the notification service.
-     */
     public static void main(String[] args) {
         SpringApplication.run(NotificationsApplication.class, args);
     }

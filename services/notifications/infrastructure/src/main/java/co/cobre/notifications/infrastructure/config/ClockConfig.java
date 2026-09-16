@@ -5,9 +5,6 @@ import org.springframework.context.annotation.Configuration;
 
 import java.time.Clock;
 
-/**
- * Configuration for system clock.
- */
 @Configuration
 public class ClockConfig {
 

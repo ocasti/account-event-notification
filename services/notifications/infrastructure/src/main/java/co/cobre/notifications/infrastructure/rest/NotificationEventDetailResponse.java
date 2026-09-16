@@ -7,9 +7,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Response DTO for a notification event with full details and delivery attempts.
- */
 public record NotificationEventDetailResponse(
     @Schema(description = "Notification event identifier", example = "EVT003")
     @JsonProperty("event_id")

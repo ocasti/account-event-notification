@@ -10,9 +10,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.random.RandomGenerator;
 
-/**
- * Loads and provides access to the reference event catalog.
- */
 @Component
 public class EventCatalog {
 

@@ -6,9 +6,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.Optional;
 
-/**
- * Response DTO for a notification event summary.
- */
 public record NotificationEventResponse(
     @Schema(description = "Notification event identifier", example = "EVT003")
     @JsonProperty("event_id")

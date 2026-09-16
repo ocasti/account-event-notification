@@ -4,9 +4,6 @@ import co.cobre.notifications.domain.ClientId;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
-/**
- * Resolves the client ID from a JWT token.
- */
 @Component
 public class ClientIdResolver {
     private final JwtProperties props;
@@ -16,9 +13,6 @@ public class ClientIdResolver {
         this.props = props;
     }
 
-    /**
-     * Resolves the client ID from a JWT token.
-     */
     public ClientId resolve(Jwt jwt) {
         String claim = jwt.getClaimAsString(props.clientClaim());
         if (claim == null) {

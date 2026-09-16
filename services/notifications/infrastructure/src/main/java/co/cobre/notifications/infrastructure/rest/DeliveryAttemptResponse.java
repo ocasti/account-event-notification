@@ -7,9 +7,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 
-/**
- * Response DTO for a delivery attempt.
- */
 public record DeliveryAttemptResponse(
     @Schema(description = "Delivery cycle this attempt belongs to; a replay starts a new cycle", example = "1")
     @JsonProperty("cycle")

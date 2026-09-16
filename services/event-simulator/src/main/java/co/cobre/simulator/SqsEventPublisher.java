@@ -4,9 +4,6 @@ import io.awspring.cloud.sqs.operations.SqsTemplate;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
-/**
- * Publishes events to an SQS queue.
- */
 @Component
 public class SqsEventPublisher {
 

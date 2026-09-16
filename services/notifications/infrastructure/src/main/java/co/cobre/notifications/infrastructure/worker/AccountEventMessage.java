@@ -4,9 +4,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.Instant;
 
-/**
- * SQS account event message.
- */
 public record AccountEventMessage(
     @JsonProperty("event_id")
     String eventId,
