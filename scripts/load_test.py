@@ -591,8 +591,7 @@ class FailedIdPool:
     may still be sitting there); there is no `id_to_client` entry for those, but the client
     whose token fetched the listing/detail response is, by the API's own client-scoped
     authorization, necessarily its owner. Popping removes the entry so the same id is not
-    replayed twice back-to-back before its new cycle has a chance to finish (a second immediate
-    replay of a non-failed event is rejected by the API with 409)."""
+    replayed twice: one replay per id per run, so the run reaches a terminal state."""
 
     def __init__(self):
         self._lock = threading.Lock()
@@ -614,7 +613,9 @@ class FailedIdPool:
                 return None
             idx = random.randrange(len(self._entries))
             eid, client = self._entries.pop(idx)
-            self._seen_ids.discard(eid)
+            # _seen_ids is deliberately NOT cleared: each id is replayed at most once per run,
+            # otherwise every replay cycle that ends failed is replayed again and the run never
+            # reaches a terminal state.
             return eid, client
 
 
@@ -678,7 +679,8 @@ def _rest_do_replay(eid, token, stats):
     """10% bucket: replay an id already known to be failed. Expects 202."""
     url = f"{API_URL}/notification_events/{urllib.parse.quote(eid, safe='')}/replay"
     status, elapsed = timed_post(url, token)
-    stats.record("replay", status, elapsed, {202})
+    # 409 is a legitimate answer: the event is not in a replayable state yet (its cycle is running).
+    stats.record("replay", status, elapsed, {202, 409})
     if status == 202:
         stats.note_replay()
 
