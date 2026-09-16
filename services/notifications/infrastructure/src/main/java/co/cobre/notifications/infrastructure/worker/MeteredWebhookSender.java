@@ -10,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
 
 /**
  * Metered decorator for WebhookSender that records delivery latency metrics.
@@ -41,8 +40,18 @@ public class MeteredWebhookSender implements WebhookSender {
         };
 
         metrics.webhookLatency(event.clientId().value(), latency);
+        logAttempt(outcome, event, attempt);
 
-        // Log structured event for delivery attempt
+        return outcome;
+    }
+
+    private void logAttempt(DeliveryOutcome outcome, NotificationEvent event, DeliveryAttempt attempt) {
+        var latency = switch (outcome) {
+            case DeliveryOutcome.Success s -> s.latency();
+            case DeliveryOutcome.TransientFailure tf -> tf.latency();
+            case DeliveryOutcome.PermanentFailure pf -> pf.latency();
+        };
+
         var outcomeType = switch (outcome) {
             case DeliveryOutcome.Success s -> "success";
             case DeliveryOutcome.TransientFailure tf -> "transient_failure";
@@ -74,7 +83,5 @@ public class MeteredWebhookSender implements WebhookSender {
         }
 
         logBuilder.log("webhook delivery attempt");
-
-        return outcome;
     }
 }

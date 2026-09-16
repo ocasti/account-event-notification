@@ -3,7 +3,6 @@ package co.cobre.notifications.infrastructure.worker;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import co.cobre.notifications.application.port.WebhookSender;
 import co.cobre.notifications.domain.AttemptOrigin;
 import co.cobre.notifications.domain.ClientId;
 import co.cobre.notifications.domain.DeliveryAttempt;

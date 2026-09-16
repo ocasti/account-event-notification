@@ -1,8 +1,5 @@
 package co.cobre.notifications.domain;
 
-import co.cobre.notifications.domain.IllegalStateTransitionException;
-import co.cobre.notifications.domain.ReplayNotAllowedException;
-
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;

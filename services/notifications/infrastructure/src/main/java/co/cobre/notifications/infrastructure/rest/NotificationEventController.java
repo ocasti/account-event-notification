@@ -3,16 +3,9 @@ package co.cobre.notifications.infrastructure.rest;
 import co.cobre.notifications.application.usecase.ListNotificationEventsQuery;
 import co.cobre.notifications.application.usecase.GetNotificationEvent;
 import co.cobre.notifications.application.usecase.ListNotificationEvents;
-import co.cobre.notifications.application.usecase.NotificationEventSummaryPage;
 import co.cobre.notifications.application.usecase.ReplayNotificationEvent;
 import co.cobre.notifications.domain.ClientId;
-import co.cobre.notifications.domain.DeliveryStatus;
 import co.cobre.notifications.domain.EventId;
-import co.cobre.notifications.infrastructure.rest.ListRequest;
-import co.cobre.notifications.infrastructure.rest.NotificationEventDetailResponse;
-import co.cobre.notifications.infrastructure.rest.NotificationEventPageResponse;
-import co.cobre.notifications.infrastructure.rest.ReplayResponse;
-import co.cobre.notifications.infrastructure.rest.NotificationEventResponseMapper;
 import co.cobre.notifications.infrastructure.security.AuthenticatedClient;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -29,8 +22,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/notification_events")
@@ -89,7 +80,6 @@ public class NotificationEventController {
         return mapper.toPage(page);
     }
 
-    
     @Operation(
         summary = "Get a notification event",
         description = "Gets a single notification event owned by the authenticated client, "

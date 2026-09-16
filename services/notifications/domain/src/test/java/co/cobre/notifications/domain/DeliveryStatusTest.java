@@ -101,4 +101,19 @@ class DeliveryStatusTest {
     void shouldNotConsiderRetryingAsTerminal() {
         assertThat(DeliveryStatus.RETRYING.isTerminal()).isFalse();
     }
+
+    @Test
+    void fromApiValue_withKnownUppercaseValue_returnsStatus() {
+        assertThat(DeliveryStatus.fromApiValue("FAILED")).contains(DeliveryStatus.FAILED);
+    }
+
+    @Test
+    void fromApiValue_withKnownLowercaseValue_returnsStatus() {
+        assertThat(DeliveryStatus.fromApiValue("completed")).contains(DeliveryStatus.COMPLETED);
+    }
+
+    @Test
+    void fromApiValue_withUnknownValue_returnsEmpty() {
+        assertThat(DeliveryStatus.fromApiValue("bogus")).isEmpty();
+    }
 }

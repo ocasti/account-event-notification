@@ -4,8 +4,6 @@ import co.cobre.notifications.application.port.SubscriptionRepository;
 import co.cobre.notifications.domain.ClientId;
 import co.cobre.notifications.domain.EventKey;
 import co.cobre.notifications.domain.Subscription;
-import co.cobre.notifications.infrastructure.persistence.SubscriptionJpaRepository;
-import co.cobre.notifications.infrastructure.persistence.SubscriptionEntityMapper;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;

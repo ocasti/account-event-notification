@@ -1,7 +1,5 @@
 package co.cobre.notifications.infrastructure.persistence;
 
-import co.cobre.notifications.infrastructure.persistence.DeliveryStatusEntity;
-
 import java.time.Instant;
 import java.util.Optional;
 

@@ -34,6 +34,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -44,6 +45,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -106,14 +108,10 @@ class ReferenceDatasetAcceptanceIT {
         .waitingFor(Wait.forHttp("/__admin/health").forStatusCode(200));
 
     static {
-        try {
-            POSTGRES.start();
-            ELASTICMQ.start();
-            WIREMOCK.start();
-            createSqsQueue();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to initialize acceptance test containers", e);
-        }
+        POSTGRES.start();
+        ELASTICMQ.start();
+        WIREMOCK.start();
+        createSqsQueue();
     }
 
     /**
@@ -133,7 +131,10 @@ class ReferenceDatasetAcceptanceIT {
 
             sqs.createQueue(req -> req.queueName(QUEUE_NAME)).get();
             sqs.close();
-        } catch (Exception e) {
+        } catch (URISyntaxException | ExecutionException e) {
+            throw new RuntimeException("Failed to create SQS queue in ElasticMQ", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new RuntimeException("Failed to create SQS queue in ElasticMQ", e);
         }
     }

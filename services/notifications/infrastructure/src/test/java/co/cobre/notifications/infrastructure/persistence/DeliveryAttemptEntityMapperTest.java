@@ -3,7 +3,6 @@ package co.cobre.notifications.infrastructure.persistence;
 import co.cobre.notifications.domain.AttemptOrigin;
 import co.cobre.notifications.domain.DeliveryAttempt;
 import co.cobre.notifications.domain.EventId;
-import co.cobre.notifications.infrastructure.persistence.DeliveryAttemptEntity;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -13,7 +12,6 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DeliveryAttemptEntityMapperTest {
 

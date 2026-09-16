@@ -232,6 +232,80 @@ class WebhookUrlValidatorTest {
         assertThat(ip.getHostAddress()).isEqualTo("93.184.216.34");
     }
 
+    @Test
+    void shouldRejectHostThatDoesNotResolve() throws Exception {
+        var props = new WebhookProperties(
+            Duration.ofSeconds(5),
+            Duration.ofSeconds(10),
+            true,
+            List.of(),
+            Duration.ofSeconds(30)
+        );
+        var validator = new WebhookUrlValidator(props);
+
+        var url = new WebhookUrl(new java.net.URI("https://does-not-exist.invalid/hook"));
+
+        assertThatThrownBy(() -> validator.validate(url))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("Webhook host does not resolve: does-not-exist.invalid");
+    }
+
+    @Test
+    void shouldRejectIpv6UniqueLocalFc00() throws Exception {
+        var props = new WebhookProperties(
+            Duration.ofSeconds(5),
+            Duration.ofSeconds(10),
+            true,
+            List.of(),
+            Duration.ofSeconds(30)
+        );
+        var resolver = createMockResolver("fc00::1");
+        var validator = new WebhookUrlValidator(props, resolver);
+
+        var url = new WebhookUrl(new java.net.URI("https://example.com/hook"));
+
+        assertThatThrownBy(() -> validator.validate(url))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Webhook URL resolves to a unique local address");
+    }
+
+    @Test
+    void shouldRejectIpv6UniqueLocalFd12() throws Exception {
+        var props = new WebhookProperties(
+            Duration.ofSeconds(5),
+            Duration.ofSeconds(10),
+            true,
+            List.of(),
+            Duration.ofSeconds(30)
+        );
+        var resolver = createMockResolver("fd12::1");
+        var validator = new WebhookUrlValidator(props, resolver);
+
+        var url = new WebhookUrl(new java.net.URI("https://example.com/hook"));
+
+        assertThatThrownBy(() -> validator.validate(url))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Webhook URL resolves to a unique local address");
+    }
+
+    @Test
+    void shouldAcceptIpv6DocumentationAddress() throws Exception {
+        var props = new WebhookProperties(
+            Duration.ofSeconds(5),
+            Duration.ofSeconds(10),
+            true,
+            List.of(),
+            Duration.ofSeconds(30)
+        );
+        var resolver = createMockResolver("2001:db8::1");
+        var validator = new WebhookUrlValidator(props, resolver);
+
+        var url = new WebhookUrl(new java.net.URI("https://example.com/hook"));
+        var ip = validator.validate(url);
+
+        assertThat(ip.getHostAddress()).contains("2001:db8");
+    }
+
     private java.util.function.Function<String, List<InetAddress>> createMockResolver(String ipAddress) throws Exception {
         return host -> {
             try {

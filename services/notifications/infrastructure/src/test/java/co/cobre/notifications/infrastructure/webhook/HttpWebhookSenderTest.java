@@ -4,17 +4,16 @@ import co.cobre.notifications.domain.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.ResourceAccessException;
 
 import java.net.InetAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Function;
 import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -281,7 +280,7 @@ class HttpWebhookSenderTest {
             host -> {
                 try {
                     return List.of(InetAddress.getByName("10.0.0.5"));
-                } catch (Exception e) {
+                } catch (UnknownHostException e) {
                     throw new RuntimeException(e);
                 }
             }
@@ -317,7 +316,7 @@ class HttpWebhookSenderTest {
         var validator = new WebhookUrlValidator(props, host -> {
             try {
                 return List.of(InetAddress.getByName("93.184.216.34"));
-            } catch (Exception e) {
+            } catch (UnknownHostException e) {
                 throw new RuntimeException(e);
             }
         });

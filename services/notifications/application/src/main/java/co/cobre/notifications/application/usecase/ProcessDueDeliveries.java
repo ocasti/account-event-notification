@@ -9,12 +9,12 @@ import co.cobre.notifications.application.port.WebhookSender;
 import co.cobre.notifications.domain.DeliveryAttempt;
 import co.cobre.notifications.domain.DeliveryOutcome;
 import co.cobre.notifications.domain.DeliveryResult;
-import co.cobre.notifications.domain.DeliveryStatus;
 import co.cobre.notifications.domain.NotificationEvent;
 import co.cobre.notifications.domain.Subscription;
 import co.cobre.notifications.domain.RetryPolicy;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -59,12 +59,7 @@ public final class ProcessDueDeliveries {
         var claim = new DeliveryClaim(clock.instant(), settings.batchSize(), settings.maxPerClient(), settings.workerId(), settings.lease());
         var claimed = attempts.claimDue(claim);
         var futures = claimed.stream()
-            .map(attempt -> CompletableFuture.runAsync(() -> {
-                try {
-                    process(attempt);
-                } catch (Exception ignored) {
-                }
-            }, executor))
+            .map(attempt -> CompletableFuture.runAsync(() -> process(attempt), executor))
             .toArray(CompletableFuture[]::new);
         CompletableFuture.allOf(futures).join();
         return claimed.size();
@@ -82,7 +77,7 @@ public final class ProcessDueDeliveries {
         var subscription = resolveSubscription(notificationEvent);
         var outcome = subscription
             .map(sub -> sender.send(sub, notificationEvent, attempt))
-            .orElseGet(() -> new DeliveryOutcome.PermanentFailure(0, "subscription unavailable", java.time.Duration.ZERO));
+            .orElseGet(() -> new DeliveryOutcome.PermanentFailure(0, "subscription unavailable", Duration.ZERO));
 
         var result = DeliveryResult.of(outcome);
         var executed = attempt.executed(now, settings.workerId(), result);
@@ -103,7 +98,7 @@ public final class ProcessDueDeliveries {
             .filter(Subscription::active);
     }
 
-    private void handleOutcome(NotificationEvent event, DeliveryAttempt attempt, DeliveryOutcome outcome, java.time.Instant now) {
+    private void handleOutcome(NotificationEvent event, DeliveryAttempt attempt, DeliveryOutcome outcome, Instant now) {
         switch (outcome) {
             case DeliveryOutcome.Success s -> event.complete(now);
             case DeliveryOutcome.TransientFailure tf -> {

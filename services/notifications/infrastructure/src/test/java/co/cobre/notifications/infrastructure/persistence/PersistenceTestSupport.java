@@ -1,11 +1,5 @@
 package co.cobre.notifications.infrastructure.persistence;
 
-import co.cobre.notifications.infrastructure.persistence.DeliveryAttemptRepositoryAdapter;
-import co.cobre.notifications.infrastructure.persistence.NotificationEventRepositoryAdapter;
-import co.cobre.notifications.infrastructure.persistence.SubscriptionRepositoryAdapter;
-import co.cobre.notifications.infrastructure.persistence.DeliveryAttemptEntityMapper;
-import co.cobre.notifications.infrastructure.persistence.NotificationEventEntityMapper;
-import co.cobre.notifications.infrastructure.persistence.SubscriptionEntityMapper;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;

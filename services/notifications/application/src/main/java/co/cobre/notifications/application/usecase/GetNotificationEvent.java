@@ -3,7 +3,6 @@ package co.cobre.notifications.application.usecase;
 import co.cobre.notifications.application.UseCase;
 import co.cobre.notifications.application.port.DeliveryAttemptRepository;
 import co.cobre.notifications.application.port.NotificationEventRepository;
-import co.cobre.notifications.application.usecase.NotificationEventDetail;
 import co.cobre.notifications.domain.NotificationEventNotFoundException;
 import co.cobre.notifications.domain.ClientId;
 import co.cobre.notifications.domain.EventId;

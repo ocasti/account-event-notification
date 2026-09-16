@@ -5,8 +5,6 @@ import co.cobre.notifications.domain.DeliveryStatus;
 import co.cobre.notifications.domain.EventId;
 import co.cobre.notifications.domain.EventKey;
 import co.cobre.notifications.domain.NotificationEvent;
-import co.cobre.notifications.infrastructure.persistence.DeliveryStatusEntity;
-import co.cobre.notifications.infrastructure.persistence.NotificationEventEntity;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -14,7 +12,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class NotificationEventEntityMapperTest {
 

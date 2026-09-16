@@ -1,8 +1,6 @@
 package co.cobre.notifications.infrastructure.worker;
 
-import co.cobre.notifications.application.usecase.RegistrationResult;
 import co.cobre.notifications.application.usecase.RegisterNotificationEvent;
-import co.cobre.notifications.infrastructure.worker.DeliveryMetrics;
 import io.awspring.cloud.sqs.annotation.SqsListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,7 +17,6 @@ public class AccountEventListener {
     private final AccountEventMessageMapper mapper;
     private final DeliveryMetrics metrics;
 
-    
     public AccountEventListener(
         RegisterNotificationEvent registerNotificationEvent,
         AccountEventMessageMapper mapper,

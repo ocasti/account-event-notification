@@ -5,8 +5,6 @@ import co.cobre.notifications.domain.DeliveryStatus;
 import co.cobre.notifications.domain.EventId;
 import co.cobre.notifications.domain.EventKey;
 import co.cobre.notifications.domain.NotificationEvent;
-import co.cobre.notifications.infrastructure.persistence.DeliveryStatusEntity;
-import co.cobre.notifications.infrastructure.persistence.NotificationEventEntity;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;

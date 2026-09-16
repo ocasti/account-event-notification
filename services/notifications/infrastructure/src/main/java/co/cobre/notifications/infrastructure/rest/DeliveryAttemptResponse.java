@@ -3,7 +3,6 @@ package co.cobre.notifications.infrastructure.rest;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 

@@ -7,10 +7,6 @@ import co.cobre.notifications.domain.ClientId;
 import co.cobre.notifications.domain.DeliveryStatus;
 import co.cobre.notifications.domain.EventId;
 import co.cobre.notifications.domain.NotificationEvent;
-import co.cobre.notifications.infrastructure.persistence.DeliveryStatusEntity;
-import co.cobre.notifications.infrastructure.persistence.NotificationEventJpaRepository;
-import co.cobre.notifications.infrastructure.persistence.SearchCriteria;
-import co.cobre.notifications.infrastructure.persistence.NotificationEventEntityMapper;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 

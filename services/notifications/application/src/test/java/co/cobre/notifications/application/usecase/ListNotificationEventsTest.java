@@ -2,10 +2,6 @@ package co.cobre.notifications.application.usecase;
 
 import co.cobre.notifications.application.port.DeliveryAttemptRepository;
 import co.cobre.notifications.application.port.NotificationEventRepository;
-import co.cobre.notifications.application.usecase.ListNotificationEventsQuery;
-import co.cobre.notifications.application.usecase.NotificationEventPage;
-import co.cobre.notifications.application.usecase.NotificationEventSummary;
-import co.cobre.notifications.application.usecase.NotificationEventSummaryPage;
 import co.cobre.notifications.domain.ClientId;
 import co.cobre.notifications.domain.DeliveryStatus;
 import co.cobre.notifications.domain.EventData;

@@ -1,7 +1,5 @@
 package co.cobre.notifications.domain;
 
-import co.cobre.notifications.domain.DeliveryStatus;
-
 public class IllegalStateTransitionException extends RuntimeException {
     private final DeliveryStatus from;
     private final DeliveryStatus to;

@@ -1,6 +1,5 @@
 package co.cobre.notifications.infrastructure.config;
 
-import co.cobre.notifications.application.usecase.DeliveryWorkerSettings;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;

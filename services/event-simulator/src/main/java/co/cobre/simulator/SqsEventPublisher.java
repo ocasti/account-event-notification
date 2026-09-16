@@ -19,11 +19,7 @@ public class SqsEventPublisher {
 
     public void publish(ReferenceEvent event) {
         AccountEventMessage message = AccountEventMessage.from(event);
-        try {
-            String json = mapper.writeValueAsString(message);
-            sqsTemplate.send(properties.queueName(), json);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to publish event", e);
-        }
+        String json = mapper.writeValueAsString(message);
+        sqsTemplate.send(properties.queueName(), json);
     }
 }

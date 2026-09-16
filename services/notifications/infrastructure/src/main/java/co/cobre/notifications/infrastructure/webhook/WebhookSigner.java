@@ -5,6 +5,8 @@ import org.springframework.stereotype.Component;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.util.HexFormat;
 
@@ -32,8 +34,8 @@ public class WebhookSigner {
             mac.init(new SecretKeySpec(keyBytes, 0, keyBytes.length, "HmacSHA256"));
             var hash = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash).toLowerCase();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to compute HMAC-SHA256", e);
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+            throw new IllegalStateException("HMAC-SHA256 unavailable", e);
         }
     }
 }

@@ -1,7 +1,5 @@
 package co.cobre.notifications.domain;
 
-import co.cobre.notifications.domain.IllegalStateTransitionException;
-import co.cobre.notifications.domain.ReplayNotAllowedException;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;

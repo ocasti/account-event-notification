@@ -3,8 +3,6 @@ package co.cobre.notifications.infrastructure.persistence;
 import co.cobre.notifications.domain.AttemptOrigin;
 import co.cobre.notifications.domain.DeliveryAttempt;
 import co.cobre.notifications.domain.EventId;
-import co.cobre.notifications.infrastructure.persistence.AttemptOriginEntity;
-import co.cobre.notifications.infrastructure.persistence.DeliveryAttemptEntity;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;

@@ -4,20 +4,15 @@ import co.cobre.notifications.application.port.DeliveryClaim;
 import co.cobre.notifications.application.port.DeliveryAttemptRepository;
 import co.cobre.notifications.domain.DeliveryAttempt;
 import co.cobre.notifications.domain.EventId;
-import co.cobre.notifications.infrastructure.persistence.DeliveryAttemptJpaRepository;
-import co.cobre.notifications.infrastructure.persistence.DeliveryAttemptEntityMapper;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Repository
 public class DeliveryAttemptRepositoryAdapter implements DeliveryAttemptRepository {
@@ -62,44 +57,38 @@ public class DeliveryAttemptRepositoryAdapter implements DeliveryAttemptReposito
             claim.limit()
         );
 
+        var ids = capPerClient(allClaimed, claim.maxPerClient());
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+
+        int rowsUpdated = jpaRepository.updateClaimedBatch(ids, claim.workerId());
+        if (rowsUpdated == 0) {
+            return List.of();
+        }
+
+        return reload(ids, claim.workerId());
+    }
+
+    private List<UUID> capPerClient(List<Map<String, Object>> rows, int maxPerClient) {
         Map<String, Integer> clientCount = new HashMap<>();
-        var limitedResults = allClaimed.stream()
+        return rows.stream()
             .filter(row -> {
-                UUID id = (UUID) row.get("id");
                 String clientId = (String) row.get("client_id");
                 int count = clientCount.getOrDefault(clientId, 0);
-                if (count < claim.maxPerClient()) {
+                if (count < maxPerClient) {
                     clientCount.put(clientId, count + 1);
                     return true;
                 }
                 return false;
             })
-            .toList();
-
-        if (limitedResults.isEmpty()) {
-            return List.of();
-        }
-
-        var ids = limitedResults.stream()
             .map(row -> (UUID) row.get("id"))
             .toList();
+    }
 
-        int rowsUpdated = jpaRepository.updateClaimedBatch(ids, claim.workerId());
-
-        if (rowsUpdated == 0) {
-            return List.of();
-        }
-
-        // If not all rows were updated, filter to only those that were actually updated
-        if (rowsUpdated < ids.size()) {
-            return jpaRepository.findAllById(ids).stream()
-                .filter(entity -> claim.workerId().equals(entity.getClaimedBy()) && entity.getExecutedAt() == null)
-                .map(mapper::toDomain)
-                .toList();
-        }
-
-        // All ids were updated, so reload them as-is
+    private List<DeliveryAttempt> reload(List<UUID> ids, String workerId) {
         return jpaRepository.findAllById(ids).stream()
+            .filter(entity -> workerId.equals(entity.getClaimedBy()) && entity.getExecutedAt() == null)
             .map(mapper::toDomain)
             .toList();
     }

@@ -2,7 +2,7 @@ package co.cobre.notifications.infrastructure.webhook;
 
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -94,7 +94,7 @@ class WebhookClientConfigTest {
                     .uri("http://127.0.0.1:" + port + "/webhook")
                     .retrieve()
                     .body(String.class);
-            } catch (Exception ignored) {
+            } catch (RestClientException ignored) {
             }
 
             assertThat(counter.get()).isEqualTo(1);
