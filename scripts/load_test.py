@@ -2,12 +2,22 @@
 """Load test for the account-event-notification local stack.
 
 Publishes N account events straight onto the SQS queue (ElasticMQ), a fraction of which are
-made to fail every webhook delivery attempt via a temporary WireMock stub, then polls the API
-until every event reaches a terminal delivery status (or the timeout is reached). Reports
-whether any event was lost, whether completed/failed counts match what was published, whether
-the API's attempt count matches what WireMock actually received, and the relevant Prometheus
-deltas (registered, duplicates, deliveries by status) plus webhook p95 latency and attempts-due
-backlog for the run window.
+made to fail every webhook delivery attempt via a temporary WireMock stub, then waits for the
+backlog to drain and reports whether any event was lost, whether completed/failed counts match
+what was published, whether the API's attempt count matches what WireMock actually received,
+and the relevant Prometheus deltas (registered, duplicates, deliveries by status) plus webhook
+p95 latency and attempts-due backlog for the run window.
+
+The wait phase does NOT poll every event id every round. Instead, each round it makes 6 cheap
+listing requests (`GET /notification_events?delivery_status=pending&limit=1` and
+`...=retrying&limit=1`, once per client) and considers the system drained once two consecutive
+rounds come back empty for all three clients — a single empty round is not enough because the
+background event simulator emits roughly one event every 2s, which can appear as `pending` for
+only a few milliseconds. This keeps the harness itself from competing on CPU with the service
+under test and with Prometheus/Grafana during a large run. Only once the system is drained (or
+the wait timeout is reached) does the script make one single pass of `GET
+/notification_events/{id}` per id, at rest, to classify everyone's final status; any id still
+non-terminal after that pass gets up to 3 more passes, 5s apart, before being reported stuck.
 
 Runs entirely on the Python 3 standard library (urllib, json, threading via
 concurrent.futures, argparse, uuid, datetime) so it can execute unmodified inside a bare
@@ -40,8 +50,12 @@ PROMETHEUS_URL = os.environ.get("PROMETHEUS_URL", "http://prometheus:9090").rstr
 CLIENTS = ["CLIENT001", "CLIENT002", "CLIENT003"]
 EVENT_TYPES = ["credit_deposit", "debit_purchase", "credit_transfer"]
 TERMINAL_STATUSES = {"completed", "failed"}
-POLL_WORKERS = 16
-POLL_INTERVAL_S = 2
+LISTING_STATUSES = ("pending", "retrying")
+POLL_INTERVAL_S = 5
+DRAIN_CONFIRM_ROUNDS = 2  # consecutive empty rounds required before declaring the system drained
+FINAL_CLASSIFY_RETRIES = 3  # extra passes over ids still non-terminal after the final pass
+FINAL_CLASSIFY_RETRY_INTERVAL_S = 5
+DEFAULT_POLL_CONCURRENCY = 8
 BATCH_SIZE = 10
 
 
@@ -290,58 +304,139 @@ def fetch_event_status(event_id, client_id, token):
     return "error", None, None
 
 
-def wait_for_terminal(events, tokens, timeout_s):
+def fetch_listing_page(client, token, delivery_status):
+    """GET /notification_events?delivery_status=...&limit=1 for one client.
+
+    Returns (ok, items). ok is False on any non-200 response or network error, in which
+    case the caller must treat the client as "not confirmed empty" (i.e. keep polling)
+    rather than assume it drained.
+    """
+    params = urllib.parse.urlencode({"delivery_status": delivery_status, "limit": 1})
+    url = f"{API_URL}/notification_events?{params}"
+    status, body = http_get_json(url, headers={"Authorization": f"Bearer {token}"})
+    if status != 200 or body is None:
+        return False, None
+    return True, body.get("items", [])
+
+
+def all_clients_drained(tokens):
+    """One round of the aggregated poll: 6 cheap listing requests (pending + retrying,
+    per client), run concurrently. True only if every listing came back empty for every
+    client."""
+    pairs = [(client, delivery_status) for client in CLIENTS for delivery_status in LISTING_STATUSES]
+    with ThreadPoolExecutor(max_workers=len(pairs)) as pool:
+        futures = [
+            pool.submit(fetch_listing_page, client, tokens[client], delivery_status)
+            for client, delivery_status in pairs
+        ]
+        drained = True
+        for fut in futures:
+            ok, items = fut.result()
+            if not ok or items:
+                drained = False
+        return drained
+
+
+def wait_for_drain(tokens, timeout_s, deliveries_before):
+    """Polls the pending/retrying listings every POLL_INTERVAL_S until DRAIN_CONFIRM_ROUNDS
+    consecutive rounds come back empty for all clients, or until timeout_s elapses. Prints one
+    progress line per round (Prometheus attempts-due backlog and the deliveries-by-status delta
+    since the run started) without touching the per-id detail endpoint. Returns
+    (drained: bool, elapsed_seconds: float).
+    """
+    print(
+        "  (progreso por ronda via listado agregado; las entregas incluyen trafico de fondo "
+        "del simulador de eventos, que sigue emitiendo durante la corrida)"
+    )
+    start = time.time()
+    consecutive_empty = 0
+    while True:
+        elapsed = time.time() - start
+        if elapsed > timeout_s:
+            return False, elapsed
+
+        empty_round = all_clients_drained(tokens)
+        consecutive_empty = consecutive_empty + 1 if empty_round else 0
+
+        backlog = prom_scalar_sum("max(notifications_attempts_due)")
+        deliveries_now = prom_deliveries_snapshot()
+        deliveries_delta = {
+            status: deliveries_now.get(status, 0.0) - deliveries_before.get(status, 0.0)
+            for status in sorted(set(deliveries_now) | set(deliveries_before))
+        }
+        delta_str = ", ".join(f"{status} {delta:+.0f}" for status, delta in deliveries_delta.items())
+        print(
+            f"  [{elapsed:5.0f}s] backlog vencido {backlog:.0f} · "
+            f"entregas desde el inicio: {delta_str}",
+            flush=True,
+        )
+
+        if consecutive_empty >= DRAIN_CONFIRM_ROUNDS:
+            return True, elapsed
+
+        time.sleep(POLL_INTERVAL_S)
+
+
+def classify_pass(ids, id_to_client, tokens, concurrency):
+    """One GET per id, in parallel. Returns dict event_id -> (kind, status, attempts)."""
+    results = {}
+    with ThreadPoolExecutor(max_workers=concurrency) as pool:
+        futures = {
+            pool.submit(fetch_event_status, eid, id_to_client[eid], tokens[id_to_client[eid]]): eid
+            for eid in ids
+        }
+        for fut in as_completed(futures):
+            eid = futures[fut]
+            results[eid] = fut.result()
+    return results
+
+
+def classify_all(events, tokens, concurrency):
+    """Single pass of GET /notification_events/{id} over every id, done once the system is
+    at rest (drained or timed out). Ids still non-terminal after that single pass get up to
+    FINAL_CLASSIFY_RETRIES more passes, FINAL_CLASSIFY_RETRY_INTERVAL_S apart, before being
+    reported as stuck. 404s from the first pass are reported as lost right away — they are
+    not retried, since the aggregated wait already gave the system time to settle.
+
+    Returns (final_state, lost_ids, stuck_ids):
+      - final_state: event_id -> (delivery_status, attempts_count) for every id ever found
+      - lost_ids: ids that came back 404 (or errored) on the first pass
+      - stuck_ids: ids found but still non-terminal after all passes
+    """
     ids = [ev["event_id"] for ev in events]
     id_to_client = {ev["event_id"]: ev["client_id"] for ev in events}
-    n = len(ids)
 
-    pending_ids = set(ids)  # not yet confirmed terminal
-    found_ever = set()
-    final_state = {}  # event_id -> (delivery_status, attempts_count)
+    results = classify_pass(ids, id_to_client, tokens, concurrency)
 
-    start = time.time()
-    round_no = 0
-    with ThreadPoolExecutor(max_workers=POLL_WORKERS) as pool:
-        while True:
-            round_no += 1
-            elapsed = time.time() - start
-            to_check = list(pending_ids)
-            if not to_check:
-                break
-            if elapsed > timeout_s:
-                break
+    final_state = {}
+    lost_ids = []
+    non_terminal_ids = []
+    for eid in ids:
+        kind, status_, attempts = results[eid]
+        if kind == "found":
+            final_state[eid] = (status_, attempts)
+            if status_ not in TERMINAL_STATUSES:
+                non_terminal_ids.append(eid)
+        else:
+            lost_ids.append(eid)
 
-            futures = {
-                pool.submit(
-                    fetch_event_status, eid, id_to_client[eid], tokens[id_to_client[eid]]
-                ): eid
-                for eid in to_check
-            }
-            for fut in as_completed(futures):
-                eid = futures[fut]
-                kind, status_, attempts = fut.result()
-                if kind == "found":
-                    found_ever.add(eid)
-                    final_state[eid] = (status_, attempts)
-                    if status_ in TERMINAL_STATUSES:
-                        pending_ids.discard(eid)
-                # not_found / error: stays in pending_ids, retried next round
+    extra_pass = 0
+    while non_terminal_ids and extra_pass < FINAL_CLASSIFY_RETRIES:
+        time.sleep(FINAL_CLASSIFY_RETRY_INTERVAL_S)
+        extra_pass += 1
+        results = classify_pass(non_terminal_ids, id_to_client, tokens, concurrency)
+        still_pending = []
+        for eid in non_terminal_ids:
+            kind, status_, attempts = results[eid]
+            if kind == "found":
+                final_state[eid] = (status_, attempts)
+                if status_ not in TERMINAL_STATUSES:
+                    still_pending.append(eid)
+            else:
+                still_pending.append(eid)
+        non_terminal_ids = still_pending
 
-            completed_n = sum(1 for s, _ in final_state.values() if s == "completed")
-            failed_n = sum(1 for s, _ in final_state.values() if s == "failed")
-            stuck_n = len(found_ever) - completed_n - failed_n
-            print(
-                f"  [{elapsed:5.0f}s] registrados {len(found_ever)}/{n}, "
-                f"completed {completed_n}, failed {failed_n}, pendientes {stuck_n + (n - len(found_ever))}",
-                flush=True,
-            )
-
-            if pending_ids:
-                time.sleep(POLL_INTERVAL_S)
-
-    duration = time.time() - start
-    lost_ids = [eid for eid in ids if eid not in found_ever]
-    return final_state, lost_ids, duration
+    return final_state, lost_ids, non_terminal_ids
 
 
 # --------------------------------------------------------------------------- Main
@@ -373,7 +468,13 @@ def parse_args():
     p.add_argument("--events", type=int, default=2000, help="number of events to publish (default 2000)")
     p.add_argument("--fail-ratio", type=float, default=0.10, help="fraction that must fail every attempt (default 0.10)")
     p.add_argument("--concurrency", type=int, default=8, help="publishing threads, batches of 10 (default 8)")
-    p.add_argument("--timeout", type=int, default=300, help="seconds to wait for terminal status (default 300)")
+    p.add_argument("--timeout", type=int, default=300, help="seconds to wait for the backlog to drain (default 300)")
+    p.add_argument(
+        "--poll-concurrency",
+        type=int,
+        default=DEFAULT_POLL_CONCURRENCY,
+        help="threads for the single final id-by-id classification pass (default 8)",
+    )
     p.add_argument("--run", default=uuid.uuid4().hex[:8], help="run tag, used to namespace event ids (default: random hex)")
     return p.parse_args()
 
@@ -423,11 +524,23 @@ def main():
             print(f"  WARN: {len(publish_errors)} errores durante la publicacion (primeros 5): "
                   f"{publish_errors[:5]}")
 
-        print(f"Esperando estado terminal (timeout {args.timeout}s)...")
-        final_state, lost_ids, wait_duration = wait_for_terminal(events, tokens, args.timeout)
+        print(f"Esperando drenado del backlog (timeout {args.timeout}s)...")
+        drained, wait_duration = wait_for_drain(tokens, args.timeout, prom_before["deliveries"])
+        if drained:
+            print(f"  drenado confirmado en {wait_duration:.0f}s ({DRAIN_CONFIRM_ROUNDS} rondas vacias seguidas)")
+        else:
+            print(f"  WARN: no se confirmo drenado antes del timeout ({args.timeout}s); "
+                  f"se hace la clasificacion final igual")
 
         run_end_ts = int(time.time())
         total_duration = run_end_ts - run_start_ts
+
+        print(f"Clasificacion final (una pasada por id, sistema en reposo, "
+              f"{args.poll_concurrency} hilos)...")
+        final_state, lost_ids, unresolved_ids = classify_all(events, tokens, args.poll_concurrency)
+        if unresolved_ids:
+            print(f"  WARN: {len(unresolved_ids)} ids seguian sin estado terminal tras "
+                  f"{FINAL_CLASSIFY_RETRIES} pasadas adicionales")
 
         # ---- derive outcome sets
         registered_ids = set(final_state.keys())
@@ -496,7 +609,7 @@ def main():
             print(f"  WARN: {len(failed_with_wrong_attempts)} failed con attempts_count != 5 (ej: {sample})")
         if stuck_ids:
             sample = list(stuck_ids)[:10]
-            print(f"  WARN: {len(stuck_ids)} ids registrados pero sin estado terminal al timeout (ej: {sample})")
+            print(f"  WARN: {len(stuck_ids)} ids registrados pero sin estado terminal tras la clasificacion final (ej: {sample})")
         print(f"Duracion total:        {total_duration}s, throughput entregas: {throughput_deliveries:.2f}/s "
               f"(completed+failed={delivered_n})")
         print(f"Intentos API (suma attempts_count): {api_attempts_total}")
