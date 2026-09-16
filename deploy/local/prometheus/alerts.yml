@@ -30,6 +30,14 @@
 # HTTP percentile buckets enabled in application.yaml (management.metrics.distribution
 # .percentiles-histogram."http.server.requests") only insofar as it needs the *_count series, which
 # was already emitted before that change; it does not use histogram_quantile.
+#
+# 2026-09-16 (segunda tanda, junto con la fila "Carga de Postgres" y cAdvisor): añadidas
+# PostgresActiveTimeHigh (job postgres, ya cargado) y ContainerMemoryNearLimit (job cadvisor).
+# ContainerMemoryNearLimit está sujeta a la misma limitación de cAdvisor bajo OrbStack documentada
+# en deploy/local/compose.yaml y deploy/local/README.md: hoy no hay ninguna serie con el label
+# container_label_com_docker_compose_service (cAdvisor no resuelve el layer de ningún contenedor
+# bajo el snapshotter de containerd), así que la regla carga pero no puede evaluar a true para
+# ningún servicio hasta correr en un host donde cAdvisor sí vea contenedores.
 groups:
   - name: notifications.rules
     rules:
@@ -141,3 +149,30 @@ groups:
         annotations:
           summary: "El intento de entrega vencido más antiguo lleva {{ $value | printf \"%.0f\" }}s esperando ejecución"
           runbook: "Igual que NotificationsAttemptsDueBacklog: escalar notifications-worker o revisar la salud/carga de Postgres; esta alarma mira la cola desde la base de datos, no desde el gauge en memoria del worker."
+
+      # 11. La base de datos notifications está activamente ejecutando consultas casi todo el
+      #     tiempo (rate del contador acumulado de tiempo activo, sección 16-bis "Carga de
+      #     Postgres" del tablero). Con >0.8 sostenido durante 5 minutos, Postgres está saturado.
+      - alert: PostgresActiveTimeHigh
+        expr: rate(pg_stat_database_active_time_seconds_total{datname="notifications"}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Postgres (notifications) tiene actividad activa el {{ $value | humanizePercentage }} del tiempo durante 5 minutos"
+          runbook: "La base está saturada de consultas; revisar el panel 'Carga de Postgres' (scans por tabla, tuplas por segundo, backends por estado) y considerar índices o bajar la concurrencia del worker."
+
+      # 12. Un contenedor se acerca a su límite de memoria (cAdvisor, fila "Recursos de
+      #     contenedores"). Sujeta a la limitación de cAdvisor bajo OrbStack: ver cabecera de este
+      #     archivo y deploy/local/README.md.
+      - alert: ContainerMemoryNearLimit
+        expr: |
+          container_memory_working_set_bytes{container_label_com_docker_compose_service!=""}
+          / container_spec_memory_limit_bytes{container_label_com_docker_compose_service!=""}
+          > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.container_label_com_docker_compose_service }} está al {{ $value | humanizePercentage }} de su límite de memoria durante 5 minutos"
+          runbook: "Revisar el panel 'Memoria: working set vs. límite por servicio'; subir el límite del servicio en compose.yaml o investigar una fuga/carga anómala antes de que el kernel mate el contenedor (OOM)."

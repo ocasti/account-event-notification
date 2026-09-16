@@ -2,7 +2,7 @@
 # Profiles (see Makefile):
 #   infra          postgres, elasticmq, wiremock
 #   app            notifications-api, notifications-worker, event-simulator
-#   observability  prometheus, grafana, postgres-exporter
+#   observability  prometheus, grafana, postgres-exporter, cadvisor
 # All variables come from .env at the repository root (copy .env.example). One network, no
 # persistent volume for Postgres. Build contexts point at the repository root so .dockerignore
 # applies; everything else in this file is relative to deploy/local.
@@ -211,6 +211,50 @@ services:
       resources:
         limits:
           memory: 128M
+    networks: [notifications]
+
+  # cAdvisor exposes per-container CPU/memory/fs/network metrics on /metrics (Prometheus format).
+  # Runs privileged and reads host paths read-only (standard cAdvisor deployment: it inspects
+  # cgroups and the Docker storage driver from outside every container). No ports published;
+  # Prometheus scrapes it inside the notifications network (job cadvisor in prometheus.yml).
+  #
+  # KNOWN LIMITATION under OrbStack (verified running cadvisor:v0.52.1 as a temporary container
+  # against this same Docker daemon): `docker info` here reports storage driver overlayfs with
+  # driver-type io.containerd.snapshotter.v1 (the containerd snapshotter, not the classic overlay2
+  # graphdriver). cAdvisor v0.52.1's Docker handler only knows how to resolve a container's
+  # read-write layer through the classic graphdriver layout
+  # (/var/lib/docker/image/overlayfs/layerdb/mounts/<id>/mount-id); that path does not exist under
+  # the containerd snapshotter, so cAdvisor logs "failed to identify the read-write layer ID" for
+  # every container and never creates a per-container handler. Net effect: no container-scoped
+  # metric (cpu/memory/fs/network, and the container_label_com_docker_compose_service label) has
+  # any series under this stack today — only the root cgroup ("/") is exposed. See
+  # deploy/local/README.md, section "cAdvisor", for the full explanation; the dashboard panels are
+  # left in place (correct PromQL, will populate on a host where cAdvisor's Docker integration
+  # works, e.g. a classic overlay2 graphdriver) and documented as "sin datos" here on purpose,
+  # instead of removed.
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    profiles: [observability]
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=10s
+      - --store_container_labels=false
+      - --whitelisted_container_labels=com.docker.compose.service
+    # No published ports: only reachable inside the notifications network.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    mem_limit: 192m
     networks: [notifications]
 
   prometheus:
