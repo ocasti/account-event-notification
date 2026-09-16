@@ -100,3 +100,91 @@ cargan pero nunca disparan por el mismo hueco de instrumentación descrito arrib
 existe: ElasticMQ no expone su profundidad de DLQ en formato Prometheus; hace falta un gauge de
 Micrometer que lea `ApproximateNumberOfMessages` de `account-events-dlq` (cambio de código Java) o un
 exportador dedicado — ambos fuera del alcance de este cambio.
+
+## Demostración con un receptor externo
+
+Ensayo de entrega contra un receptor HTTPS público real (no WireMock), para probar el camino
+completo: firma, cabeceras, TLS y el comportamiento del `WebhookUrlValidator` frente a un host
+público.
+
+**1. Crear un receptor efímero en webhook.site:**
+
+```bash
+curl -s -X POST https://webhook.site/token
+# {"uuid":"<uuid>", ...}
+```
+
+La URL del receptor es `https://webhook.site/<uuid>`; las peticiones recibidas se listan en
+`https://webhook.site/token/<uuid>/requests?sorting=newest`.
+
+**2. Apuntar las suscripciones seed al receptor.** La URL de las tres suscripciones (`CLIENT001`,
+`CLIENT002`, `CLIENT003`) se fija al crear la base, en
+`V2__initial_subscriptions.sql` (placeholder `${webhookUrl}`, resuelto desde `WEBHOOK_URL` por
+`spring.flyway.placeholders.webhookUrl`, ver `application-api.yaml`). Cambiar `WEBHOOK_URL` en
+`.env` solo afecta a bases nuevas, así que hace falta recrear el volumen:
+
+```bash
+# En .env (NO comitear):
+#   WEBHOOK_URL=https://webhook.site/<uuid>
+#   WEBHOOK_ALLOWLIST=        (vacío: el host es público y HTTPS, no necesita allowlist)
+make down     # borra el volumen de Postgres
+make up       # vuelve a correr Flyway con la nueva URL
+```
+
+**3. Verificar las peticiones recibidas** (esperar ~30 s a que el simulador emita el lote de
+referencia):
+
+```bash
+curl -s "https://webhook.site/token/<uuid>/requests?sorting=newest"
+```
+
+Cada petición trae el cuerpo `{"id","event_key","client_id","created_at","content"}` y las
+cabeceras `event-timestamp`, `event-signature`, `x-cobre-event-id`, `x-cobre-attempt`.
+
+**4. Verificar la firma con `openssl`** (HMAC-SHA256 de `timestamp + "." + body`, clave de la
+suscripción del cliente — `local-signing-key-client001`, `...client002`, `...client003`, ver
+`V2__initial_subscriptions.sql`):
+
+```bash
+TS="2026-09-16T02:15:06.399958866Z"
+BODY='{"id":"EVT004","event_key":"debit_automatic_payment","client_id":"CLIENT002","created_at":"2024-03-15T12:05:33Z","content":"Monthly utility bill payment of $85.50"}'
+printf '%s.%s' "$TS" "$BODY" | openssl dgst -sha256 -hmac "local-signing-key-client002"
+# => b962e23bb239c8644e19365626851a979728ace220ccd1534a844bbbc3a950d1
+# coincide byte a byte con la cabecera event-signature de esa petición.
+```
+
+**5. Confirmar en la API** que los eventos de referencia quedan `completed`:
+
+```bash
+make token CLIENT=CLIENT001
+curl -s localhost:8080/notification_events -H "Authorization: Bearer <token>"
+```
+
+**Resultado real de este ensayo (2026-09-15):** webhook.site recibió y registró las peticiones (50
+conservadas en el historial, el máximo de su plan gratuito); cuerpo y las cuatro cabeceras
+correctos en el 100 % de las inspeccionadas, y la firma HMAC-SHA256 verificada con `openssl`
+coincide byte a byte (ejemplo `EVT004`/`CLIENT002` arriba). De los diez eventos de referencia,
+4 (`EVT003`, `EVT004`, `EVT005`, `EVT006`) llegaron a `completed` en el primer intento. Los otros
+seis quedaron en `retrying`/`pending`: bajo la carga sostenida del simulador
+(`SIMULATOR_EMIT_INTERVAL=2s` × 3 clientes, más reintentos) webhook.site empezó a devolver
+`429 Too Many Requests` — visible en `attempts[].response_status` de cada evento — y el bloqueo
+persistió más de 7 minutos incluso después de detener el simulador y sondear con una petición
+manual (`curl -o /dev/null -w '%{http_code}' -X POST https://webhook.site/<uuid>` siguió devolviendo
+`429`). El pipeline de reintentos y backoff (`RetryPolicy`, `application-local.yaml`:
+`base-delay=2s`, `factor=4`, `max-delay=10s`, `max-attempts=5`) se comportó exactamente como se
+espera frente a ese fallo transitorio: cada evento pasó a `retrying` y reintentó con backoff
+exponencial hasta agotar sus 5 intentos. Conclusión: el camino de entrega (firma, cabeceras, TLS,
+validación de URL pública) queda demostrado extremo a extremo; el límite lo puso la política de
+abuso del receptor gratuito, no el sistema. Para un ensayo sostenido sin ese límite, usar un
+receptor propio (Postman Echo, un servidor local expuesto con `ngrok`, o similar) o detener el
+simulador (`docker compose ... stop event-simulator`) apenas se emita el lote de referencia.
+
+**6. Volver a WireMock:**
+
+```bash
+# En .env: restaurar los valores de .env.example
+#   WEBHOOK_URL=http://wiremock:8080/webhook
+#   WEBHOOK_ALLOWLIST=wiremock
+make down
+make up   # o make up-all
+```
