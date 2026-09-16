@@ -131,6 +131,8 @@ A restart is required, not just a config reload: the seeded subscriptions' URL i
 make test   # ./mvnw verify in services/notifications and services/event-simulator
 ```
 
+`verify` also runs PMD (`pmd-ruleset.xml` in each service): unused imports, unused private members, empty or generic catch blocks and lost stack traces fail the build, locally and in CI.
+
 Both modules use Testcontainers for integration tests, which needs a working Docker socket. On macOS with OrbStack (not Docker Desktop), Testcontainers may not auto-detect the socket; if `make test` fails to reach Docker, run:
 
 ```bash
