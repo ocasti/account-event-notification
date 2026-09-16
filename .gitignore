@@ -22,3 +22,5 @@ deploy/local/keys/*.pem
 *.jar
 !.mvn/wrapper/*.jar
 .claude/
+__pycache__/
+*.pyc
