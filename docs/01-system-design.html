@@ -314,17 +314,17 @@ flowchart TB
 
   <!-- 4 -->
   <h2 id="hexagono">4. El hexágono</h2>
-  <p>Tres módulos Maven. <code>domain</code> y <code>application</code> no dependen de Spring ni de ninguna librería de infraestructura, y ArchUnit lo verifica en CI. Las flechas siempre apuntan hacia adentro.</p>
+  <p>Tres módulos Maven. <code>domain</code> es un paquete plano de Java puro; <code>application</code> se divide en <code>application.port</code> (puertos de salida) y <code>application.usecase</code> (los cinco casos de uso); <code>infrastructure</code> agrupa los adaptadores en <code>infrastructure.{config,persistence,rest,security,webhook,worker}</code>. Ninguno de los dos primeros depende de Spring ni de ninguna librería de infraestructura, y ArchUnit lo verifica en CI. Las flechas siempre apuntan hacia adentro.</p>
   <figure class="diagram">
 <pre class="mermaid">
 flowchart LR
-  subgraph in["Adaptadores de entrada · infrastructure"]
-    rest["REST controllers\nGET /notification_events\nGET /{id}\nPOST /{id}/replay"]
-    seed["SQS listener (ElasticMQ / SQS)\nperfil worker"]
-    sched["Delivery scheduler\n@Scheduled cada 1 s · perfil worker"]
+  subgraph in["Adaptadores de entrada"]
+    rest["infrastructure.rest\nGET /notification_events\nGET /{id}\nPOST /{id}/replay"]
+    seed["infrastructure.worker\nAccountEventListener (SQS listener)"]
+    sched["infrastructure.worker\nDeliveryScheduler (@Scheduled)"]
   end
 
-  subgraph app["application · puertos de entrada (casos de uso)"]
+  subgraph app["application.usecase · casos de uso"]
     uc1["ListNotificationEvents"]
     uc2["GetNotificationEvent"]
     uc3["ReplayNotificationEvent"]
@@ -332,26 +332,23 @@ flowchart LR
     uc5["ProcessDueDeliveries"]
   end
 
-  subgraph dom["domain · Java puro"]
+  subgraph dom["domain · Java puro, paquete plano"]
     ne["NotificationEvent\nDeliveryStatus (máquina de estados)"]
-    sub["Subscription\nclient_id · events[] · url · event_signature_key"]
+    sub["Subscription\nclient_id · event_keys[] · url · event_signature_key"]
     att["DeliveryAttempt\nnumber · next_attempt_at · result"]
     pol["RetryPolicy\nbackoff exponencial + jitter"]
   end
 
-  subgraph out["application · puertos de salida"]
+  subgraph out["application.port · puertos de salida"]
     p1["NotificationEventRepository"]
     p2["SubscriptionRepository"]
     p3["DeliveryAttemptRepository"]
     p4["WebhookSender"]
-    p5["DeliveryMetrics"]
-    p6["Clock"]
   end
 
-  subgraph outad["Adaptadores de salida · infrastructure"]
-    jpa["Spring Data JPA\nPostgreSQL + Flyway"]
-    http["RestClient HTTPS\nHMAC signer · timeouts"]
-    mm["Micrometer\nPrometheus registry"]
+  subgraph outad["Adaptadores de salida"]
+    jpa["infrastructure.persistence\nSpring Data JPA · PostgreSQL + Flyway"]
+    http["infrastructure.webhook\nRestClient HTTPS · HMAC signer · timeouts"]
   end
 
   rest --> uc1 & uc2 & uc3
@@ -364,22 +361,23 @@ flowchart LR
   uc1 & uc2 & uc3 & uc4 & uc5 --> p1
   uc4 & uc5 --> p2
   uc3 & uc5 --> p3
-  uc5 --> p4 & p5 & p6
+  uc5 --> p4
   p1 & p2 & p3 -.-> jpa
   p4 -.-> http
-  p5 -.-> mm
 
   style dom stroke:#B5602A,stroke-width:2px
 </pre>
-    <figcaption><b>El dominio no sabe que existe HTTP.</b> <code>WebhookSender</code> es una interfaz; en tests se reemplaza por un fake que devuelve 200, 500 o timeout, y la política de reintentos se prueba sin levantar nada. Línea continua: llamada directa. Línea punteada: implementación de un puerto.</figcaption>
+    <figcaption><b>El dominio no sabe que existe HTTP.</b> <code>WebhookSender</code> es una interfaz; en tests se reemplaza por un fake que devuelve 200, 500 o timeout, y la política de reintentos se prueba sin levantar nada. Línea continua: llamada directa. Línea punteada: implementación de un puerto. El reloj no es un puerto propio: <code>ProcessDueDeliveries</code> y <code>RegisterNotificationEvent</code> reciben <code>java.time.Clock</code> directamente, inyectado por <code>infrastructure.config.ClockConfig</code>. Las métricas tampoco son un puerto: <code>DeliveryMetrics</code> vive en <code>infrastructure.worker</code> y la llaman los adaptadores de entrada (<code>AccountEventListener</code>, <code>DeliveryScheduler</code>, <code>DueAttemptsGaugeUpdater</code>) después de invocar el caso de uso, nunca el caso de uso mismo.</figcaption>
   </figure>
 
   <h3>Reglas que ArchUnit hace cumplir</h3>
+  <p>Cinco reglas en <code>HexagonalArchitectureTest</code>, bajo <code>infrastructure/src/test/java/co/cobre/notifications/architecture/</code>:</p>
   <ul class="tight">
-    <li><code>domain</code> no importa nada de <code>application</code> ni de <code>infrastructure</code>, ni paquetes <code>org.springframework</code>, <code>jakarta.persistence</code> o <code>com.fasterxml</code>.</li>
-    <li><code>application</code> solo importa <code>domain</code>. Las únicas interfaces del núcleo son los puertos de salida, en el paquete <code>application.port</code>; los casos de uso son clases concretas en <code>application.usecase</code>, sin interfaz de entrada, y los adaptadores los invocan directamente.</li>
-    <li>Los controllers solo llaman puertos de entrada; nunca repositorios ni entidades JPA.</li>
-    <li>Las entidades JPA viven en <code>infrastructure.persistence</code> y se traducen al dominio con mappers explícitos. El dominio no lleva anotaciones.</li>
+    <li><code>domain</code> no importa nada de <code>application</code> ni de <code>infrastructure</code>, ni paquetes <code>org.springframework</code>, <code>jakarta</code>, <code>com.fasterxml</code> o <code>tools.jackson</code> (Jackson 3).</li>
+    <li><code>application</code> no importa <code>infrastructure</code> ni esos mismos paquetes de framework. Las únicas interfaces del núcleo son los puertos de salida, en el paquete <code>application.port</code>; los casos de uso son clases concretas en <code>application.usecase</code>, sin interfaz de entrada, y los adaptadores los invocan directamente.</li>
+    <li>Toda clase anotada con <code>@Entity</code> reside en <code>infrastructure.persistence</code>.</li>
+    <li><code>infrastructure.rest</code> no depende de <code>infrastructure.persistence</code>: los controllers solo llaman casos de uso, nunca repositorios ni entidades JPA.</li>
+    <li><code>infrastructure.worker</code> no depende de <code>infrastructure.rest</code> ni de <code>infrastructure.security</code>, e <code>infrastructure.rest</code> no depende de <code>infrastructure.worker</code>: los procesos <code>api</code> y <code>worker</code> quedan aislados en tiempo de compilación, no solo por perfil de Spring.</li>
   </ul>
 
   <!-- 5 -->
@@ -423,7 +421,7 @@ stateDiagram-v2
     </tbody>
   </table>
   </div>
-  <p>Base 30 segundos, factor 4, tope 15 minutos: unos 26 minutos en total hasta FAILED. El tope de 15 minutos no es casual, es el máximo de <code>DelaySeconds</code> de SQS, así la misma política sirve si en el futuro los reintentos se mueven a la cola. Un replay abre un ciclo nuevo: el contador vuelve a cero y el evento dispone otra vez de los cinco intentos. Para demostraciones los tiempos se acortan por configuración (por ejemplo base 2 s) para ver los cinco intentos en menos de un minuto. Los errores 4xx distintos de 408 y 429 no se reintentan: el endpoint del cliente está diciendo que la petición es inválida, y repetirla no cambia nada.</p>
+  <p>La política es configurable, en <code>notifications.retry.*</code> de <code>application.yaml</code>: <code>base-delay</code>, <code>factor</code>, <code>max-delay</code>, <code>jitter-ratio</code> y <code>max-attempts</code> son propiedades de <code>RetryProperties</code>, leídas por <code>RetryConfig</code> para construir el <code>RetryPolicy</code> del dominio. Los valores por defecto son los de la tabla: base 30 segundos, factor 4, tope 15 minutos, jitter ±20 %, 5 intentos; unos 26 minutos en total hasta FAILED. El tope de 15 minutos no es casual, es el máximo de <code>DelaySeconds</code> de SQS, así la misma política sirve si en el futuro los reintentos se mueven a la cola. El perfil <code>local</code> (<code>application-local.yaml</code>) sobrescribe <code>base-delay</code> a 2 s y <code>max-delay</code> a 10 s (variables <code>RETRY_BASE_DELAY</code> y <code>RETRY_MAX_DELAY</code>), lo que deja los cinco intentos en menos de un minuto sin tocar código. Un replay abre un ciclo nuevo: la columna <code>cycle</code> del evento se incrementa, el contador de intentos vuelve a cero dentro de ese ciclo, y el evento dispone otra vez de los cinco intentos. Los errores 4xx distintos de 408 y 429 no se reintentan: el endpoint del cliente está diciendo que la petición es inválida, y repetirla no cambia nada.</p>
 
   <!-- 6 -->
   <h2 id="seq-entrega">6. Secuencia: entrega con reintentos</h2>
@@ -447,49 +445,52 @@ sequenceDiagram
   P->>Q: publica {event_id, event_type, client_id, content, occurred_at}
   S->>Q: long polling (recibe mensaje)
   S->>R: register(event)
-  Note over S,R: si event_id ya existe, se confirma el mensaje y no se registra dos veces
+  Note over S,R: existsById(event_id) ya true → RegistrationResult.DUPLICATE, se confirma el mensaje y no se registra dos veces
   R->>SR: findActive(client_id, event_type)
   alt sin suscripción activa
     SR-->>R: vacío
     R->>DB: guardar evento como SKIPPED (no se entrega)
-    R->>M: notifications.skipped++
+    R-->>S: RegistrationResult.SKIPPED
+    S->>M: notifications.skipped++
   else suscripción encontrada
     SR-->>R: subscription {url, secret}
     R->>DB: guardar evento PENDING + DeliveryAttempt #1 (next_attempt_at = now) · COMMIT
-    R->>M: notifications.registered++
-    S->>Q: ack del mensaje (el listener termina aquí, en milisegundos)
+    R-->>S: RegistrationResult.REGISTERED
+    S->>M: notifications.registered++
   end
+  S->>Q: ack del mensaje (el listener termina aquí, en milisegundos)
 
-  loop scheduler cada 1 s, intentos vencidos y libres (o con arrendamiento vencido)
-    W->>D: processDue(lote = paralelismo HTTP del worker, 50, repetido mientras el lote vuelva lleno)
-    D->>DB: TX1: UPDATE … SET claimed_at = now(), claimed_by = instancia WHERE id IN (SELECT … WHERE next_attempt_at ≤ now() AND executed_at IS NULL AND (claimed_at IS NULL OR claimed_at anterior a now() - lease) ORDER BY next_attempt_at FOR UPDATE SKIP LOCKED LIMIT 50) RETURNING * · COMMIT
-    D->>H: send(url, payload, secret) en paralelo, fuera de transacción · lease = 2 × (timeout conexión + lectura)
-    H->>C: POST HTTPS · event-timestamp · event-signature (HMAC-SHA256) · x-cobre-event-id · x-cobre-attempt
+  loop scheduler cada poll-interval (1 s por defecto), intentos vencidos y libres (o con arrendamiento vencido)
+    W->>D: processBatch() · batch-size = 50, max-per-client = 10, lease = 16 s (notifications.worker.*)
+    D->>DB: SELECT d.id, e.client_id … WHERE executed_at IS NULL AND next_attempt_at ≤ now() AND (claimed_at IS NULL OR claimed_at anterior a now() - lease) ORDER BY next_attempt_at LIMIT batch-size · sin bloqueo de fila
+    D->>D: descarta en memoria las filas que excedan max-per-client por cliente dentro del lote
+    D->>DB: UPDATE delivery_attempts SET claimed_at = now(), claimed_by = instancia WHERE id IN (lote filtrado) · COMMIT
+    D->>H: send(url, payload, secret) por cada intento reclamado, en paralelo vía Executor (virtual threads), fuera de la transacción de reclamo
+    H->>C: POST HTTPS · event-timestamp · event-signature (HMAC-SHA256) · x-cobre-event-id · x-cobre-attempt · sin reintentos propios del cliente HTTP
     alt 2xx
       C-->>H: 200 OK
       H-->>D: DeliveryResult.success(status, latency)
       D->>DB: TX2: UPDATE attempt SET result = 200, executed_at = now() WHERE id = ? AND claimed_by = instancia AND executed_at IS NULL · event.status = COMPLETED · delivered_at = now() · si afecta 0 filas, descartar
-      D->>M: notifications.deliveries{status="completed"}++ · notifications.webhook.latency
     else 5xx, timeout, 408 o 429
       C-->>H: 503 / sin respuesta
       H-->>D: DeliveryResult.transientFailure
-      D->>D: RetryPolicy.next(attemptNumber) → delay con jitter
+      D->>D: RetryPolicy.delayBefore(attemptNumber) → delay con jitter
       alt quedan intentos
         D->>DB: attempt.result = 503 · nuevo attempt #n+1 (next_attempt_at = now + delay) · status = RETRYING
-        D->>M: notifications.deliveries{status="retrying"}++
       else intentos agotados
         D->>DB: attempt.result = 503 · status = FAILED · failure_reason
-        D->>M: notifications.deliveries{status="failed"}++
       end
     else 4xx definitivo
       C-->>H: 400 / 404 / 410
       H-->>D: DeliveryResult.permanentFailure
       D->>DB: status = FAILED · failure_reason = "client rejected"
-      D->>M: notifications.deliveries{status="failed"}++
     end
+    D-->>W: processed = intentos reclamados en este tick
+    W->>M: notifications.batches += processed
   end
+  Note over D,M: notifications.deliveries, notifications.webhook.latency y notifications.leases.expired están definidas en DeliveryMetrics con estas mismas etiquetas, para publicarlas aquí como evolución cercana
 </pre>
-    <figcaption><b>El registro y la entrega son transacciones separadas.</b> El listener solo registra: evento e intento #1 en una transacción, ack del mensaje en milisegundos, así el visibility timeout de la cola solo debe cubrir el registro. El scheduler, cada segundo, reclama tantos intentos como POST puede ejecutar en paralelo y repite el reclamo mientras el lote vuelva lleno, y el arrendamiento dura el doble del tiempo máximo de un POST, de modo que ningún otro worker puede reclamar las mismas filas mientras el lote está en vuelo. La escritura del resultado es condicional a que la fila siga reclamada por esta instancia; si no, el resultado se descarta. Los tiempos de reclamo y vencimiento usan el reloj de Postgres, no el de cada worker. Si el servicio cae antes del commit del registro, la cola reentrega y el <code>event_id</code> como clave primaria evita duplicados. Registrar el evento nunca espera a la red del cliente. El worker toma intentos vencidos con <code>SKIP LOCKED</code>, lo que permite varias réplicas del worker sin entregas duplicadas. Cada métrica lleva la etiqueta <code>client_id</code>, así monitoreo puede responder una queja de un cliente concreto.</figcaption>
+    <figcaption><b>El registro y la entrega son transacciones separadas.</b> El listener solo registra: comprueba <code>existsById(event_id)</code> para no duplicar, guarda evento e intento #1 en una transacción, ack del mensaje en milisegundos, así el visibility timeout de la cola solo debe cubrir el registro. El scheduler (<code>DeliveryScheduler</code>, <code>@Scheduled</code>) llama a <code>ProcessDueDeliveries.processBatch()</code> cada <code>poll-interval</code>; el reclamo (<code>DeliveryAttemptRepositoryAdapter.claimDue</code>) es una consulta nativa que trae hasta <code>batch-size</code> filas vencidas o con arrendamiento expirado ordenadas por <code>next_attempt_at</code>, un filtro en memoria por <code>max-per-client</code>, y un <code>UPDATE</code> por lote que marca <code>claimed_at</code>/<code>claimed_by</code> para los ids resultantes; no usa <code>SELECT … FOR UPDATE SKIP LOCKED</code>. Cada POST corre en un hilo virtual propio a través del <code>Executor</code> inyectado en <code>ProcessDueDeliveries</code> (bean <code>@Primary</code> de <code>ExecutorConfig</code>, <code>newVirtualThreadPerTaskExecutor</code>), fuera de la transacción de reclamo. La escritura del resultado (<code>recordResultIf</code>) es condicional a que la fila siga reclamada por <code>claimed_by = instancia</code> y sin ejecutar; si otra instancia ya la reclamó de nuevo tras vencer el arrendamiento, la escritura afecta cero filas y se descarta. El cliente HTTP (Apache HttpClient 5 con <code>disableAutomaticRetries()</code> y <code>disableRedirectHandling()</code>) no reintenta por su cuenta: todo reintento lo decide <code>RetryPolicy</code> en el dominio. Si el servicio cae antes del commit del registro, la cola reentrega y el <code>event_id</code> como clave primaria evita duplicados. Registrar el evento nunca espera a la red del cliente. Cada métrica lleva la etiqueta <code>client_id</code>, así monitoreo puede responder una queja de un cliente concreto.</figcaption>
   </figure>
 
   <!-- 7 -->
@@ -507,7 +508,7 @@ sequenceDiagram
   participant Repo as NotificationEventRepository
   participant DB as PostgreSQL
 
-  C->>F: GET /notification_events?from=2024-03-15&to=2024-03-16&delivery_status=failed&limit=20<br/>Authorization: Bearer <jwt sub=CLIENT002>
+  C->>F: GET /notification_events?from=2024-03-15&to=2024-03-16&delivery_status=failed&limit=20<br/>Authorization: Bearer jwt(sub=CLIENT002)
   F->>F: valida firma, expiración y audiencia
   alt token inválido o ausente
     F-->>C: 401 Unauthorized
@@ -594,7 +595,7 @@ erDiagram
   SUBSCRIPTIONS {
     varchar id PK "sub_xxxxxx, como en Cobre"
     varchar client_id "índice con active"
-    text_array events "claves de evento, o * para todas"
+    text_array event_keys "claves de evento, o * para todas"
     varchar url "HTTPS obligatorio, sin IP privadas"
     varchar description
     varchar event_signature_key "10 a 64 chars, cifrado en reposo como evolución"
@@ -604,9 +605,9 @@ erDiagram
   NOTIFICATION_EVENTS {
     varchar event_id PK "EVT001"
     varchar client_id "índice compuesto con created_at y status"
-    varchar event_type
+    varchar event_key
     text content
-    varchar delivery_status "PENDING RETRYING COMPLETED FAILED SKIPPED"
+    varchar status "PENDING RETRYING COMPLETED FAILED SKIPPED"
     timestamptz created_at "= occurred_at del emisor"
     timestamptz received_at "hora de recepción en la cola"
     timestamptz delivered_at "null hasta COMPLETED"
@@ -628,7 +629,7 @@ erDiagram
     varchar origin "SYSTEM o REPLAY"
   }
 </pre>
-    <figcaption><b>Un índice sostiene la API y otro sostiene el worker.</b> <code>(client_id, delivery_status, created_at DESC, event_id DESC)</code> sirve al filtro por estado con rango de fechas y keyset, y <code>(client_id, created_at DESC, event_id DESC)</code> al listado sin estado. <code>(next_attempt_at) WHERE executed_at IS NULL</code> hace que el sondeo del worker sea barato aunque la tabla crezca. <code>claimed_at</code> y <code>claimed_by</code> implementan el arrendamiento de la sección 13.</figcaption>
+    <figcaption><b>Un índice sostiene la API y otro sostiene el worker.</b> <code>notification_events_client_status_created (client_id, status, created_at DESC, event_id DESC)</code> sirve al filtro por estado con rango de fechas y keyset, y <code>notification_events_client_created (client_id, created_at DESC, event_id DESC)</code> al listado sin estado. <code>delivery_attempts_next_attempt_at (next_attempt_at) WHERE executed_at IS NULL</code> hace que el sondeo del worker sea barato aunque la tabla crezca. <code>delivery_attempts_event_cycle_attempt (event_id, cycle, attempt_number)</code> ordena el historial de un evento para el detalle de la API. <code>subscriptions_client_id_active (client_id, active)</code> resuelve la suscripción vigente. <code>claimed_at</code> y <code>claimed_by</code> implementan el arrendamiento de la sección 13. Todos definidos en <code>V1__schema.sql</code>; no hay columna <code>version</code>.</figcaption>
   </figure>
 
   <!-- 10 -->
@@ -724,7 +725,7 @@ flowchart TB
       <tr><td>Tabla de trabajos con reclamo (estilo outbox)</td><td>Tabla <code>delivery_attempts</code>; el worker la drena. No es un outbox clásico porque no publica a un broker: el "consumidor" es el propio worker</td><td>Registrar el evento y programar su primer intento ocurren en una sola transacción local. Todo evento PENDING nace con su intento; SKIPPED no tiene intentos por definición.</td></tr>
       <tr><td>Entrega al menos una vez + consumidor idempotente</td><td>Reintentos y replay de nuestro lado; <code>event_id</code> en cada POST para el lado del cliente</td><td>Podemos reenviar sin miedo. El contrato del webhook exige al cliente tolerar duplicados por <code>event_id</code>.</td></tr>
       <tr><td>Reintento con backoff y dead letter</td><td><code>RetryPolicy</code> en el dominio; estado FAILED como cola de fallidos; replay como redrive manual</td><td>Un cliente caído no consume recursos de forma agresiva y el fallo definitivo queda visible y recuperable.</td></tr>
-      <tr><td>Consumidores en competencia</td><td>Réplicas del worker sobre la misma cola y <code>SKIP LOCKED</code> sobre la tabla</td><td>Escalado horizontal sin entregas duplicadas.</td></tr>
+      <tr><td>Consumidores en competencia</td><td>Réplicas del worker sobre la misma cola y reclamo por lote con escritura condicional sobre la tabla</td><td>Escalado horizontal sin entregas duplicadas.</td></tr>
       <tr><td>Notificación de eventos (Fowler)</td><td>Payload mínimo del webhook; la API self-service para el detalle</td><td>El cliente se entera de que algo pasó y consulta si necesita más. Menos acoplamiento al esquema interno.</td></tr>
       <tr><td>Aislamiento por tenant</td><td><code>client_id</code> derivado del JWT y obligatorio en cada consulta del repositorio</td><td>Un cliente no puede ver ni reenviar eventos de otro.</td></tr>
     </tbody>
@@ -757,19 +758,19 @@ flowchart TB
   <p><b>El perfil apaga beans, no solo configura.</b> Listener SQS y scheduler llevan <code>@Profile("worker")</code>; controllers y seguridad web llevan <code>@Profile("api")</code>. En perfil <code>api</code> el proceso no abre conexión a la cola. Flyway migra solo en la API; el worker espera a que la API esté healthy, y así escalar workers nunca produce carrera de migraciones.</p>
   <p><b>Construcción: Dockerfile multi-stage con <code>mvnw</code>, sin Buildpacks ni Jib.</b> Etapa de build sobre <code>eclipse-temurin:21-jdk</code>: copia los POM y cachea dependencias en una capa, luego copia el código y empaqueta. Etapa final sobre <code>eclipse-temurin:21-jre</code>, usuario no root, jar extraído en capas para que las dependencias no se reconstruyan al cambiar una línea de Java. Reproducible con <code>docker compose build</code> en cualquier máquina con Docker, sin Java ni Maven instalados. Buildpacks descarga cientos de MB la primera vez y Jib es un plugin más que explicar.</p>
 
-  <h3>Contenedores: cinco core y tres opcionales</h3>
+  <h3>Contenedores: ocho, en tres perfiles de Compose</h3>
   <div class="tablewrap">
   <table>
     <thead><tr><th>Servicio</th><th>Imagen</th><th>Perfil Compose</th><th>Por qué está</th></tr></thead>
     <tbody>
-      <tr><td><code>postgres</code></td><td><code>postgres:16-alpine</code></td><td>core</td><td>Única fuente de verdad; sin ella no hay API ni outbox</td></tr>
-      <tr><td><code>notifications-api</code></td><td><code>cobre/notifications</code>, perfil <code>api</code></td><td>core</td><td>Los tres endpoints self-service</td></tr>
-      <tr><td><code>notifications-worker</code></td><td><code>cobre/notifications</code>, perfil <code>worker</code></td><td>core</td><td>Entrega, reintentos y replay; aislado de la API para que un fallo no afecte al otro</td></tr>
-      <tr><td><code>elasticmq</code></td><td><code>softwaremill/elasticmq-native</code></td><td>core</td><td>Cola con API SQS; el mismo listener sirve en AWS</td></tr>
-      <tr><td><code>event-simulator</code></td><td><code>cobre/event-simulator</code></td><td>core</td><td>Ocupa el lugar de la plataforma emisora: emite los eventos del JSON y sigue generando eventos derivados</td></tr>
-      <tr><td><code>wiremock</code></td><td><code>wiremock/wiremock:3.13.1</code></td><td><code>dev</code></td><td>Receptor de pruebas para ensayar 503 y timeouts; solo archivos de configuración</td></tr>
-      <tr><td><code>prometheus</code></td><td><code>prom/prometheus</code></td><td><code>observability</code></td><td>Scrape de métricas; última fase</td></tr>
-      <tr><td><code>grafana</code></td><td><code>grafana/grafana</code></td><td><code>observability</code></td><td>Dashboard provisionado por archivo; última fase</td></tr>
+      <tr><td><code>postgres</code></td><td><code>postgres:16-alpine</code></td><td><code>infra</code></td><td>Única fuente de verdad; sin ella no hay API ni outbox</td></tr>
+      <tr><td><code>elasticmq</code></td><td><code>softwaremill/elasticmq-native:1.6.12</code></td><td><code>infra</code></td><td>Cola con API SQS; el mismo listener sirve en AWS</td></tr>
+      <tr><td><code>wiremock</code></td><td><code>wiremock/wiremock:3.13.1</code></td><td><code>infra</code></td><td>Receptor de pruebas para ensayar 503 y timeouts; solo archivos de configuración</td></tr>
+      <tr><td><code>notifications-api</code></td><td><code>cobre/notifications</code>, perfil Spring <code>api</code></td><td><code>app</code></td><td>Los tres endpoints self-service; migra con Flyway al arrancar</td></tr>
+      <tr><td><code>notifications-worker</code></td><td><code>cobre/notifications</code>, perfil Spring <code>worker</code></td><td><code>app</code></td><td>Entrega, reintentos y replay; aislado de la API para que un fallo no afecte al otro</td></tr>
+      <tr><td><code>event-simulator</code></td><td><code>cobre/event-simulator</code></td><td><code>app</code></td><td>Ocupa el lugar de la plataforma emisora: emite los eventos del JSON y sigue generando eventos derivados</td></tr>
+      <tr><td><code>prometheus</code></td><td><code>prom/prometheus:latest</code></td><td><code>observability</code></td><td>Scrape de métricas; última fase</td></tr>
+      <tr><td><code>grafana</code></td><td><code>grafana/grafana:latest</code></td><td><code>observability</code></td><td>Dashboard provisionado por archivo; última fase</td></tr>
     </tbody>
   </table>
   </div>
@@ -778,7 +779,7 @@ flowchart TB
   <h3>Arranque</h3>
   <ul class="tight">
     <li><b>Cadena:</b> <code>postgres</code> y <code>elasticmq</code> → <code>notifications-api</code> (migra) → <code>notifications-worker</code> → <code>event-simulator</code>. Todo con <code>depends_on</code> y <code>condition: service_healthy</code>.</li>
-    <li><b>Healthchecks:</b> <code>pg_isready</code> para Postgres; <code>/actuator/health/readiness</code> para api y worker. Para ElasticMQ, <b>verificar en la primera fase</b> si la imagen nativa trae <code>wget</code>; si no, usar la imagen JVM <code>softwaremill/elasticmq</code> o dejar que el listener reintente la conexión al arrancar.</li>
+    <li><b>Healthchecks:</b> <code>pg_isready</code> para Postgres; <code>/actuator/health/readiness</code> para api y worker; para WireMock, <code>GET /__admin/health</code>. Para ElasticMQ, la imagen queda fijada en <code>softwaremill/elasticmq-native:1.6.12</code>: expone <code>/statistics/queues</code> en el puerto 9325 con <code>wget</code> de busybox, que es lo que usa el healthcheck; la serie 1.7.x quitó ese servidor de estadísticas tanto en la imagen nativa como en la JVM, así que no se actualiza sin revisar antes cómo sondear la cola.</li>
     <li><b>Una red, sin volumen para Postgres.</b> <code>docker compose down</code> deja el entorno limpio; Flyway rehace el esquema y el simulador vuelve a emitir.</li>
     <li><b>Configuración:</b> <code>.env.example</code> versionado, <code>.env</code> ignorado. Para apuntar a un receptor distinto solo se edita <code>WEBHOOK_URL</code>. Puertos parametrizados en <code>.env</code> con un script <code>preflight</code> que verifica puertos libres y memoria disponible en Docker antes de arrancar.</li>
     <li><b>Ciclo de desarrollo:</b> infraestructura en contenedores, aplicación en el host con <code>./mvnw spring-boot:run</code>. Reconstruir imagen por cada cambio es un loop de minutos; en el host es de segundos. Los tests de integración usan Testcontainers y no dependen de Compose.</li>
@@ -791,9 +792,9 @@ flowchart TB
   <figure class="diagram"><pre style="margin:0;font-family:'IBM Plex Mono',monospace;font-size:13px;line-height:1.5">account-event-notification/
 ├── services/
 │   ├── notifications/         proyecto Maven propio (pom.xml, mvnw): reactor de tres módulos
-│   │   ├── domain/            Java puro
-│   │   ├── application/       casos de uso y puertos, Java puro
-│   │   └── infrastructure/    Spring Boot: REST, JPA, SQS, RestClient, scheduler, security, metrics
+│   │   ├── domain/            co.cobre.notifications.domain, Java puro, paquete plano
+│   │   ├── application/       co.cobre.notifications.application.{port,usecase}, Java puro
+│   │   └── infrastructure/    co.cobre.notifications.infrastructure.{config,persistence,rest,security,webhook,worker}
 │   └── event-simulator/       proyecto Maven independiente; doble de pruebas, sin dependencia del hexágono
 ├── deploy/
 │   └── local/
@@ -802,18 +803,23 @@ flowchart TB
 │       ├── wiremock/mappings/         escenarios 200 / 503 / timeout
 │       ├── prometheus/prometheus.yml
 │       ├── grafana/provisioning/      datasource + dashboard JSON
-│       └── keys/                      par RS256 generado por make keys (.pem ignorados)
+│       ├── keys/                      par RS256 generado por make keys (.pem ignorados)
+│       └── README.md                  referencia del stack local
 ├── docker/
 │   ├── notifications.Dockerfile       contexto de build: raíz del repositorio
 │   └── simulator.Dockerfile
 ├── docs/
 │   ├── notification_events.json      datos de referencia
+│   ├── case-description.pdf           enunciado original
 │   ├── 01-system-design.html          este documento
 │   ├── 02-security.md                 análisis OWASP
 │   └── 03-ai-usage.md                 anexo de uso de IA
+├── scripts/
+│   ├── preflight.sh            valida Docker, puertos y memoria antes de arrancar
+│   └── token.sh                 emite el JWT de demostración
 ├── .env.example
-├── Makefile                   build · up · up-all · emit · replay · token · logs · down · preflight
-└── .github/workflows/ci.yml   mvnw verify por servicio + docker compose config</pre></figure>
+├── Makefile                   preflight · keys · up · up-all · down · logs · ps · build · test · token · emit · replay · clean
+└── .github/workflows/ci.yml   mvnw verify por servicio (con informe y cobertura) + build de ambas imágenes</pre></figure>
 
   <h3>Plan de implementación por fases</h3>
   <div class="tablewrap">
@@ -821,7 +827,7 @@ flowchart TB
     <thead><tr><th>Fase</th><th>Al cierre debe funcionar</th><th>Qué queda cubierto</th></tr></thead>
     <tbody>
       <tr><td>Núcleo, ingestión y API</td><td><code>domain</code> y <code>application</code> completos con tests de máquina de estados y política de reintentos. ElasticMQ, listener SQS y simulador emitiendo los eventos del JSON. API con los tres endpoints sobre Postgres, JWT con aislamiento por cliente, 404 para evento ajeno, 409 para replay no permitido. ArchUnit verde. Compose con <code>api</code>, <code>worker</code> en modo solo ingestión, <code>postgres</code>, <code>elasticmq</code> y <code>event-simulator</code>.</td><td>Eventos entrando por la cola y visibles en la API; consulta, detalle y validación del replay</td></tr>
-      <tr><td>Entrega</td><td><code>WebhookSender</code> HTTPS con HMAC y timeouts. Scheduler cada 1 s con <code>SKIP LOCKED</code>, arrendamiento por lote y escritura condicional del resultado. Estados RETRYING y FAILED reales, replay ejecutado por el worker con ciclo nuevo. Tope de filas por cliente por lote. WireMock con los tres fallos del conjunto de referencia. Métricas Micrometer con nombres definitivos. Un test de integración end-to-end con Testcontainers y el test de reclamo concurrente. <b>Fuera de esta fase por control de alcance:</b> cifrado en reposo de la clave de firma, caché de suscripciones, lotes adaptativos, circuit breaker por suscripción, test de carga. <b>Al cierre, el alcance funcional queda congelado.</b></td><td>Entrega completa: webhook firmado, reintentos, replay, aislamiento entre clientes</td></tr>
+      <tr><td>Entrega</td><td><code>WebhookSender</code> HTTPS con HMAC y timeouts. Scheduler cada 1 s con reclamo por lote, arrendamiento por lote y escritura condicional del resultado. Estados RETRYING y FAILED reales, replay ejecutado por el worker con ciclo nuevo. Tope de filas por cliente por lote. WireMock con los tres fallos del conjunto de referencia. Métricas Micrometer con nombres definitivos. Un test de integración end-to-end con Testcontainers y el test de reclamo concurrente. <b>Fuera de esta fase por control de alcance:</b> cifrado en reposo de la clave de firma, caché de suscripciones, lotes adaptativos, circuit breaker por suscripción, test de carga. <b>Al cierre, el alcance funcional queda congelado.</b></td><td>Entrega completa: webhook firmado, reintentos, replay, aislamiento entre clientes</td></tr>
       <tr><td>Observabilidad y documentación</td><td>Documento de diseño y documento de seguridad en <code>docs/</code>, anexo de uso de IA, README con arranque en un comando. Grafana con tres paneles provisionados. GitHub Actions. Ensayo completo de la demostración con la URL del receptor inyectada por variable de entorno.</td><td>Diseño, seguridad, anexo de IA, demostración ensayada</td></tr>
     </tbody>
   </table>
@@ -844,7 +850,7 @@ flowchart TB
   <p>Con varias réplicas del worker hay tres puntos donde un mismo evento podría procesarse dos veces. Cada uno tiene su barrera, y ninguna barrera sola cubre los tres. La garantía resultante es <b>al menos una vez hacia el cliente, exactamente una vez en nuestro estado</b>.</p>
 
   <figure>
-    <svg class="hand" viewBox="0 0 900 300" role="img" aria-label="Cuatro workers compiten por un mensaje en la cola y por filas en la tabla de intentos; tres barreras evitan el doble procesamiento: visibility timeout, clave primaria y SKIP LOCKED con arrendamiento.">
+    <svg class="hand" viewBox="0 0 900 300" role="img" aria-label="Cuatro workers compiten por un mensaje en la cola y por filas en la tabla de intentos; tres barreras evitan el doble procesamiento: visibility timeout, clave primaria y reclamo por lote con arrendamiento.">
       <defs>
         <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
@@ -879,7 +885,7 @@ flowchart TB
       <line x1="360" y1="87" x2="468" y2="130" stroke="currentColor" stroke-width="1.5" marker-end="url(#arr2)"/>
       <!-- barrier 3 -->
       <line x1="655" y1="60" x2="655" y2="240" stroke="#B5602A" stroke-width="2" stroke-dasharray="6 4"/>
-      <text x="655" y="48" text-anchor="middle" font-size="11" font-weight="600" fill="#B5602A">3 · SKIP LOCKED + arrendamiento</text>
+      <text x="655" y="48" text-anchor="middle" font-size="11" font-weight="600" fill="#B5602A">3 · reclamo por lote + arrendamiento</text>
       <text x="655" y="262" text-anchor="middle" font-size="10.5" fill="currentColor" opacity="0.75">una fila, un worker, un POST</text>
       <!-- polling arrows from workers to db -->
       <line x1="600" y1="145" x2="360" y2="222" stroke="currentColor" stroke-width="1" opacity="0.5" marker-end="url(#arr2)"/>
@@ -902,7 +908,7 @@ flowchart TB
     <tbody>
       <tr><td>Cuatro workers hacen polling de la cola y llega un mensaje</td><td><b>Visibility timeout de SQS / ElasticMQ.</b> El worker que lo recibe lo oculta a los demás; se borra solo cuando el listener termina sin excepción (modo <code>ON_SUCCESS</code>). Timeout configurado mayor al tiempo de registro.</td><td>El worker se cae después de registrar y antes de confirmar. El mensaje reaparece y otro worker lo recibe. Pasa a la barrera 2.</td></tr>
       <tr><td>Dos workers registran el mismo <code>event_id</code></td><td><b>Clave primaria.</b> Evento e intento #1 se insertan en una sola transacción. La segunda inserción falla por unicidad; el código la trata como "ya registrado", confirma el mensaje y no crea intento.</td><td>Ninguno. Postgres serializa la carrera aunque ocurra en el mismo milisegundo. También cubre que el productor emita dos veces el mismo <code>event_id</code>.</td></tr>
-      <tr><td>Cuatro workers hacen polling de <code>delivery_attempts</code> y hay filas vencidas</td><td><b><code>FOR UPDATE SKIP LOCKED</code> + arrendamiento por lote + escritura condicional.</b> TX1 corta: toma tantas filas vencidas y libres como POST puede ejecutar en paralelo, marca <code>claimed_at</code> y <code>claimed_by</code> con el reloj de Postgres, confirma. Los POST corren fuera de transacción y en paralelo. TX2 graba el resultado solo si la fila sigue reclamada por esta instancia. El arrendamiento dura el doble del tiempo máximo de un POST, así que un lote entero cabe dentro de él.</td><td>El worker se cae entre el POST y TX2. El arrendamiento vence y otro worker repite el POST. <b>Duplicado hacia el cliente, inevitable sin transacción distribuida.</b> El contrato del webhook exige idempotencia por <code>event_id</code>, igual que Stripe o GitHub.</td></tr>
+      <tr><td>Cuatro workers hacen polling de <code>delivery_attempts</code> y hay filas vencidas</td><td><b>Reclamo por lote + arrendamiento + escritura condicional.</b> TX1: una consulta nativa sin bloqueo trae hasta <code>batch-size</code> filas vencidas y libres (o con arrendamiento vencido), un filtro en memoria aplica <code>max-per-client</code>, y un <code>UPDATE … WHERE id IN (...)</code> marca <code>claimed_at</code> y <code>claimed_by</code> con el reloj de Postgres para esos ids, confirma. Como la consulta no bloquea filas, dos workers pueden leer el mismo candidato antes de que ninguno confirme su <code>UPDATE</code>; ambos lo reclaman. Los POST corren fuera de transacción y en paralelo, uno por hilo virtual. TX2 graba el resultado solo si la fila sigue reclamada por <code>claimed_by</code> igual a esta instancia y sin ejecutar: el último <code>UPDATE</code> de reclamo gana, así que como máximo un <code>recordResultIf</code> tiene éxito por fila. El arrendamiento dura el doble del tiempo máximo de un POST, así que un lote entero cabe dentro de él.</td><td>Dos workers reclaman la misma fila y ambos hacen el POST. Solo uno logra <code>recordResultIf</code>; el otro descarta su resultado. <b>Duplicado hacia el cliente, inevitable sin transacción distribuida ni bloqueo en el reclamo.</b> El contrato del webhook exige idempotencia por <code>event_id</code>, igual que Stripe o GitHub.</td></tr>
       <tr><td>Dos replays simultáneos sobre el mismo evento FAILED</td><td><b>Actualización condicional al estado:</b> <code>UPDATE … WHERE event_id = ? AND status = 'FAILED'</code>. Ambos leen FAILED; el segundo UPDATE afecta cero filas y responde 409.</td><td>Ninguno. Solo se crea un intento.</td></tr>
       <tr><td>API y worker actualizan el mismo evento a la vez</td><td>Toda transición de estado es un UPDATE condicional al estado de origen.</td><td>Quien pierde ve cero filas afectadas y no pisa el estado del otro.</td></tr>
     </tbody>
@@ -917,9 +923,9 @@ flowchart TB
 
   <h3>Cómo se demuestra</h3>
   <ul class="tight">
-    <li><b>Test de integración</b> con Testcontainers: veinte intentos vencidos, cuatro pollers concurrentes sobre la misma tabla, y la aserción de que cada intento fue reclamado exactamente una vez y ejecutado exactamente una vez.</li>
-    <li><b>Test de registro duplicado:</b> el mismo mensaje entregado dos veces al listener produce un solo evento y un solo intento.</li>
-    <li><b>En el entorno local:</b> <code>docker compose up -d --scale notifications-worker=4</code>, emitir veinte eventos, y mostrar en el registro de peticiones de WireMock exactamente veinte POST.</li>
+    <li><b>Test de integración</b> (<code>persistence/DeliveryAttemptRepositoryAdapterIT</code>, <code>testClaimDueConcurrency</code>): veinte intentos vencidos y cuatro workers reales llamando <code>claimDue</code> de forma concurrente (sin transacción externa), verificando que la unión de lo reclamado cubre los veinte. Que el resultado de cada uno se grabe una sola vez lo prueban por separado los tests de <code>recordResultIf</code> en la misma clase.</li>
+    <li><b>Test del listener</b> (<code>worker/AccountEventListenerIT</code>, <code>listenDuplicateEventOnlyRegistersOnce</code>): el mismo mensaje entregado dos veces a la cola llega dos veces al listener, que delega en <code>RegisterNotificationEvent</code> la decisión de no registrar el evento dos veces.</li>
+    <li><b>En el entorno local:</b> <code>docker compose up -d --scale notifications-worker=4</code>, emitir veinte eventos, y contar en WireMock (<code>/__admin/requests/count</code>) exactamente veinte POST a <code>/webhook</code>.</li>
   </ul>
 
   <!-- 14 -->
@@ -952,7 +958,7 @@ flowchart TB
     <thead><tr><th>Aspecto</th><th>Postgres</th><th>DynamoDB</th><th>MongoDB</th></tr></thead>
     <tbody>
       <tr><td>Consulta por cliente, rango de fechas y estado, paginada</td><td>Un índice compuesto, keyset pagination</td><td>Single table por cliente más un GSI por combinación de estado; todo lo no previsto es escaneo</td><td>Índice compuesto, viable</td></tr>
-      <tr><td>Outbox con reclamo atómico</td><td><code>SKIP LOCKED</code> + arrendamiento, demostrable en local</td><td>No existe; GSI sparse por fragmentos y escrituras condicionales, o mover reintentos a SQS con delay</td><td><code>findOneAndUpdate</code> atómico, viable</td></tr>
+      <tr><td>Outbox con reclamo atómico</td><td>Reclamo por lote + arrendamiento + escritura condicional, demostrable en local</td><td>No existe; GSI sparse por fragmentos y escrituras condicionales, o mover reintentos a SQS con delay</td><td><code>findOneAndUpdate</code> atómico, viable</td></tr>
       <tr><td>Transacción evento + intento</td><td>ACID sin límite práctico</td><td><code>TransactWriteItems</code>, doble costo</td><td>Multi-documento, más lenta, exige réplica</td></tr>
       <tr><td>Filtros ad hoc para monitoreo y quejas</td><td>SQL libre</td><td>Solo lo que los índices anticipan</td><td>Aggregation pipeline</td></tr>
       <tr><td>Costo mensual aproximado E1 / E2 / E3</td><td class="num">50 / 200 / 600 USD</td><td class="num">2 / 150 a 250 / 1 500 a 2 500 USD</td><td>DocumentDB no es MongoDB completo; Atlas fuera de AWS</td></tr>
@@ -966,7 +972,7 @@ flowchart TB
   <h3>Decisiones derivadas del análisis de capacidad</h3>
   <ul class="tight">
     <li><b>Scheduler cada 1 segundo, sin camino especial para el primer intento.</b> Latencia evento→entrega p50 de unos 500 ms con un solo mecanismo de entrega. La alternativa de ejecutar el intento #1 en línea dentro del listener se descartó: exige un executor propio, un arrendamiento que empieza antes del POST y una arista que el hexágono no tiene.</li>
-    <li><b>Reclamo por lote igual al paralelismo HTTP del worker (50, virtual threads)</b> con <code>UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED LIMIT 50) RETURNING</code>, repetido dentro del mismo tick mientras el lote vuelva lleno, y tope de filas por cliente dentro del lote para que un cliente con miles de reintentos no monopolice a los workers. Lotes mayores e intervalo adaptativo quedan como evolución para E3.</li>
+    <li><b>Reclamo por lote igual al paralelismo HTTP del worker (batch-size 50, virtual threads)</b> con una consulta candidata sin bloqueo seguida de un <code>UPDATE … WHERE id IN (...)</code> por lote (<code>DeliveryAttemptRepositoryAdapter.claimDue</code>), y tope de filas por cliente (<code>max-per-client</code>) dentro del lote para que un cliente con miles de reintentos no monopolice a los workers. Lotes mayores e intervalo adaptativo quedan como evolución para E3.</li>
     <li><b>Tope del backoff en 15 minutos</b>, el máximo de <code>DelaySeconds</code> de SQS, para que la política sirva sin cambios si los reintentos migran a la cola. Ya reflejado en la sección 5.</li>
     <li><b>Índice parcial del outbox</b> <code>(next_attempt_at) WHERE executed_at IS NULL</code>: contiene solo las filas pendientes y no crece con la tabla. La métrica de intentos vencidos se calcula sobre ese índice, nunca con <code>COUNT(*)</code> sobre la tabla completa.</li>
     <li><b>Paginación por keyset</b> en la API, nunca por offset.</li>
@@ -1015,7 +1021,7 @@ flowchart TB
   <p><b>Solo regla de estado más bloqueo optimista.</b> Dos replays sobre el mismo evento: el segundo recibe 409. La cabecera <code>Idempotency-Key</code> se retira del alcance y se menciona como evolución. Secuencia 8 y modelo de datos actualizados.</p>
 
   <h3>Tokens JWT en el entorno local</h3>
-  <p><b>RS256 con un par de claves generado en local, igual que el token real de Cobre.</b> <code>make token CLIENT=CLIENT002</code> firma con la clave privada un JWT con <code>sub</code> igual al cliente, audiencia fija y expiración de 20 minutos, la misma vida que documenta Cobre. La API valida solo con la clave pública, que es lo que haría en producción contra el JWKS del emisor de Cobre. El origen de la clave, el claim de cliente y la audiencia son configuración; la equivalencia exacta con el token real se verifica cuando se integre. El endpoint <code>POST /auth</code> no se implementa porque ya existe en la plataforma; en local lo sustituye el comando.</p>
+  <p><b>RS256 con un par de claves generado en local, igual que el token real de Cobre.</b> <code>make token CLIENT=CLIENT002</code> firma con la clave privada un JWT con <code>sub</code> igual al cliente, audiencia fija y expiración de 20 minutos, la misma vida que documenta Cobre. <code>SecurityConfig</code> configura el resource server: valida la firma con <code>NimbusJwtDecoder.withPublicKey(...)</code> cargada desde un archivo (<code>JwtProperties.publicKey</code>, un <code>Resource</code> tipo <code>file:</code>) y añade un <code>JwtClaimValidator</code> de audiencia sobre <code>JwtValidators.createDefault()</code>. El nombre del claim que identifica al cliente y la audiencia esperada son configuración (<code>JwtProperties.clientClaim</code>, <code>JwtProperties.audience</code>; variables <code>JWT_CLIENT_CLAIM</code>, <code>JWT_AUDIENCE</code>), leídos por <code>ClientIdResolver</code>. Los controllers no leen el JWT directamente: <code>AuthenticatedClientArgumentResolver</code> resuelve cualquier parámetro anotado <code>@AuthenticatedClient</code> tomando el <code>Jwt</code> del <code>JwtAuthenticationToken</code> en el contexto de seguridad y delegando en <code>ClientIdResolver</code>. La equivalencia exacta con el token real se verifica cuando se integre. El endpoint <code>POST /auth</code> no se implementa porque ya existe en la plataforma; en local lo sustituye el comando.</p>
 
   <h3>Contrato del webhook</h3>
   <div class="tablewrap">
@@ -1038,7 +1044,7 @@ flowchart TB
     <tbody>
       <tr><td><code>GET /notification_events</code></td><td><code>from</code>, <code>to</code>: fecha ISO 8601, sobre <code>created_at</code>, ambos inclusivos, <code>to</code> por defecto ahora. <code>delivery_status</code>: <code>pending</code>, <code>retrying</code>, <code>completed</code>, <code>failed</code>, <code>skipped</code>, en minúscula como el conjunto de referencia. <code>limit</code> 1 a 100, por defecto 20. <code>cursor</code> opaco</td><td><code>{"items":[…], "next_cursor": "…" | null}</code>. Cada item: <code>event_id</code>, <code>event_type</code>, <code>client_id</code>, <code>content</code>, <code>created_at</code>, <code>delivery_status</code>, <code>delivery_date</code> (null hasta COMPLETED), <code>attempts_count</code></td><td>200, 400 filtro inválido, 401</td></tr>
       <tr><td><code>GET /notification_events/{notification_event_id}</code></td><td>Identificador en la ruta</td><td>El item anterior más <code>attempts[]</code>: por intento <code>cycle</code>, <code>attempt_number</code>, <code>executed_at</code>, <code>response_status</code>, <code>failure_reason</code>, <code>latency_ms</code>, <code>origin</code>; y <code>next_attempt_at</code> mientras esté PENDING o RETRYING</td><td>200, 401, 404 si no existe o pertenece a otro cliente</td></tr>
-      <tr><td><code>POST /notification_events/{notification_event_id}/replay</code></td><td>Sin cuerpo</td><td><code>{"event_id", "cycle", "delivery_status": "pending"}</code></td><td>202 aceptado, 401, 404, 409 si el estado no es <code>failed</code></td></tr>
+      <tr><td><code>POST /notification_events/{notification_event_id}/replay</code></td><td>Sin cuerpo</td><td><code>{"event_id", "cycle", "delivery_status": "pending"}</code>, sin header <code>Location</code></td><td>202 aceptado, 401, 404, 409 si el estado no es <code>failed</code></td></tr>
     </tbody>
   </table>
   </div>
@@ -1047,18 +1053,20 @@ flowchart TB
   <h3>Observabilidad</h3>
   <div class="tablewrap">
   <table>
-    <thead><tr><th>Métrica (Micrometer)</th><th>Tipo · etiquetas</th><th>Para qué</th></tr></thead>
+    <thead><tr><th>Métrica (Micrometer, en <code>infrastructure.worker.DeliveryMetrics</code>)</th><th>Tipo · etiquetas</th><th>Quién la registra hoy</th><th>Para qué</th></tr></thead>
     <tbody>
-      <tr><td><code>notifications.registered</code></td><td>counter · <code>client_id</code>, <code>event_key</code></td><td>Eventos registrados desde la cola</td></tr>
-      <tr><td><code>notifications.deliveries</code></td><td>counter · <code>client_id</code>, <code>status</code>, <code>event_key</code></td><td>Tasa de entregas por estado; base de las alarmas</td></tr>
-      <tr><td><code>notifications.webhook.latency</code></td><td>timer/histogram · <code>client_id</code></td><td>p95 del POST por cliente; detecta degradación del endpoint del cliente</td></tr>
-      <tr><td><code>notifications.attempts.due</code></td><td>gauge, calculado sobre el índice parcial, publicado por cada worker y agregado con <code>max</code></td><td>Intentos vencidos sin reclamar; si sube, el worker no da abasto</td></tr>
-      <tr><td><code>notifications.leases.expired</code></td><td>counter</td><td>Arrendamientos vencidos retomados por otro worker; cada uno es un POST potencialmente duplicado</td></tr>
-      <tr><td><code>notifications.skipped</code></td><td>counter · <code>client_id</code>, <code>event_key</code></td><td>Eventos sin suscripción activa</td></tr>
+      <tr><td><code>notifications.registered</code></td><td>counter · <code>client_id</code>, <code>event_key</code></td><td><code>AccountEventListener</code>, al recibir <code>RegistrationResult.REGISTERED</code></td><td>Eventos registrados desde la cola</td></tr>
+      <tr><td><code>notifications.skipped</code></td><td>counter · <code>client_id</code>, <code>event_key</code></td><td><code>AccountEventListener</code>, al recibir <code>RegistrationResult.SKIPPED</code></td><td>Eventos sin suscripción activa</td></tr>
+      <tr><td><code>notifications.batches</code></td><td>counter, incrementado en <code>processed</code></td><td><code>DeliveryScheduler</code>, en cada tick exitoso</td><td>Volumen de intentos procesados por el scheduler</td></tr>
+      <tr><td><code>notifications.scheduler.errors</code></td><td>counter</td><td><code>DeliveryScheduler</code>, si <code>processBatch()</code> lanza una excepción</td><td>El tick del scheduler falló</td></tr>
+      <tr><td><code>notifications.attempts.due</code></td><td>gauge, calculado sobre el índice parcial</td><td><code>DueAttemptsGaugeUpdater</code>, en su propio <code>@Scheduled</code> (<code>gauge-interval</code>, 5 s)</td><td>Intentos vencidos sin reclamar; si sube, el worker no da abasto</td></tr>
+      <tr><td><code>notifications.deliveries</code></td><td>counter · <code>client_id</code>, <code>status</code>, <code>event_key</code></td><td>Definida en <code>DeliveryMetrics.delivered(...)</code>; ningún llamador la invoca todavía</td><td>Tasa de entregas por estado; base de las alarmas, como evolución cercana</td></tr>
+      <tr><td><code>notifications.webhook.latency</code></td><td>timer/histogram · <code>client_id</code></td><td>Definida en <code>DeliveryMetrics.webhookLatency(...)</code>; ningún llamador la invoca todavía</td><td>p95 del POST por cliente, como evolución cercana</td></tr>
+      <tr><td><code>notifications.leases.expired</code></td><td>counter</td><td>Definida en <code>DeliveryMetrics.leaseExpired()</code>; ningún llamador la invoca todavía</td><td>Arrendamientos vencidos retomados por otro worker, como evolución cercana</td></tr>
     </tbody>
   </table>
   </div>
-  <p><b>Tres paneles en Grafana:</b> tasa de entregas por estado <code>sum by (status) (rate(notifications_deliveries_total[1m]))</code>; latencia p95 por cliente <code>histogram_quantile(0.95, sum by (le, client_id) (rate(notifications_webhook_latency_seconds_bucket[1m])))</code>; intentos vencidos <code>notifications_attempts_due</code>. El timer de latencia se publica con histograma de percentiles habilitado para que la consulta p95 exista. <b>Alarmas, cada una con su acción:</b> intentos vencidos por encima de 30 segundos de trabajo del worker durante 5 minutos → escalar workers o revisar Postgres; tasa de fallo de un cliente por encima del 20 % con al menos 50 entregas en 10 minutos → avisar al cliente, su endpoint está degradado; métrica de intentos vencidos ausente durante 2 minutos → no queda ningún worker vivo, reiniciar; mensajes en la DLQ mayores que cero → un evento no se pudo registrar, revisar el mensaje y redrenar a mano; arrendamientos vencidos por encima de 10 por minuto → los POST duran más que el arrendamiento, revisar timeouts. <b>DLQ:</b> un mensaje pasa a la cola de fallidos tras 5 recepciones sin ack; nunca se redrena automáticamente. Logs JSON con <code>event_id</code>, <code>client_id</code>, <code>attempt_number</code>, <code>response_status</code>, <code>correlation_id</code>. <b>Acceso del equipo interno:</b> como propietario de la información, responde una queja de cliente consultando directamente la tabla de intentos, los paneles por cliente y los logs; la API self-service es exclusivamente para clientes y no expone datos de un cliente a otro, ni siquiera a roles internos.</p>
+  <p><b>Tres paneles en Grafana:</b> tasa de entregas por estado <code>sum by (status) (rate(notifications_deliveries_total[1m]))</code>; latencia p95 por cliente <code>histogram_quantile(0.95, sum by (le, client_id) (rate(notifications_webhook_latency_seconds_bucket[1m])))</code>; intentos vencidos <code>notifications_attempts_due</code>. Los dos primeros paneles quedan sin datos hasta que <code>notifications.deliveries</code> y <code>notifications.webhook.latency</code> se conecten en <code>ProcessDueDeliveries</code> o en quien lo invoque; el panel de intentos vencidos sí funciona hoy. <b>Alarmas diseñadas, cada una con su acción</b> (dependen de las mismas métricas, algunas pendientes de conectar): intentos vencidos por encima de 30 segundos de trabajo del worker durante 5 minutos → escalar workers o revisar Postgres; tasa de fallo de un cliente por encima del 20 % con al menos 50 entregas en 10 minutos → avisar al cliente, su endpoint está degradado; métrica de intentos vencidos ausente durante 2 minutos → no queda ningún worker vivo, reiniciar; mensajes en la DLQ mayores que cero → un evento no se pudo registrar, revisar el mensaje y redrenar a mano; arrendamientos vencidos por encima de 10 por minuto → los POST duran más que el arrendamiento, revisar timeouts. <b>DLQ:</b> un mensaje pasa a la cola de fallidos tras 5 recepciones sin ack; nunca se redrena automáticamente. Logs JSON con <code>event_id</code>, <code>client_id</code>, <code>attempt_number</code>, <code>response_status</code>, <code>correlation_id</code>. <b>Acceso del equipo interno:</b> como propietario de la información, responde una queja de cliente consultando directamente la tabla de intentos, los paneles por cliente y los logs; la API self-service es exclusivamente para clientes y no expone datos de un cliente a otro, ni siquiera a roles internos.</p>
 
   <h3>Seguridad: cinco vulnerabilidades del OWASP API Top 10</h3>
   <div class="tablewrap">
@@ -1067,7 +1075,7 @@ flowchart TB
     <tbody>
       <tr><td>API1 · Broken Object Level Authorization</td><td>Un cliente consulta o reenvía <code>EVT005</code> de otro cliente cambiando el id</td><td><code>client_id</code> sale del JWT, nunca de la petición; el repositorio no expone búsquedas sin cliente; lo ajeno responde 404. Sección 7</td></tr>
       <tr><td>API2 · Broken Authentication</td><td>Tokens sin expiración, secretos en query, firma no verificada</td><td>JWT RS256 con <code>exp</code> de 20 min y <code>aud</code>, validado con clave pública, solo en header <code>Authorization</code>; 401 sin detalle; la clave privada nunca está en la API ni en el repo</td></tr>
-      <tr><td>API7 · Server-Side Request Forgery</td><td>Una suscripción con <code>url</code> apuntando a <code>169.254.169.254</code> o a la red interna convierte al worker en proxy hacia Cobre</td><td>Validación en aplicación al registrar y al entregar: solo HTTPS, resolver DNS, rechazar rangos privados, loopback y link-local, y <b>conectar a la IP ya resuelta</b> para cerrar el DNS rebinding, lo que exige Apache HttpClient 5 con resolutor propio detrás de <code>RestClient</code>, con redirecciones deshabilitadas. En AWS, security group de egreso del worker solo hacia internet e IMDSv2 con límite de un salto; NAT no es una mitigación, solo gobierna la salida. En perfil <code>local</code> se permite una allowlist explícita (WireMock por HTTP y un receptor de demostración aunque sea HTTP), con advertencia en log. <b>La más relevante para un servicio que hace POST a URL definidas por el cliente</b></td></tr>
+      <tr><td>API7 · Server-Side Request Forgery</td><td>Una suscripción con <code>url</code> apuntando a <code>169.254.169.254</code> o a la red interna convierte al worker en proxy hacia Cobre</td><td><code>WebhookUrlValidator</code> valida antes de enviar (<code>HttpWebhookSender.send</code>): exige HTTPS salvo que el host esté en la allowlist (<code>requireHttps</code>, política que vive en el validador, no en <code>WebhookUrl</code>, que acepta http y https como valor de dominio), resuelve el host con <code>InetAddress.getAllByName</code> y rechaza direcciones site-local, loopback, link-local, "any local", multicast o únicas locales IPv6 (<code>fc00::/7</code>), salvo que el host esté en la allowlist. La conexión HTTP real la abre <code>RestClient</code>/Apache HttpClient 5 contra el host, con su propia resolución de DNS en el momento de conectar; <b>pinear la conexión a la dirección ya validada para cerrar el DNS rebinding queda como evolución</b>, no está implementado hoy. Sin seguir redirecciones (<code>disableRedirectHandling</code>). En AWS, security group de egreso del worker solo hacia internet e IMDSv2 con límite de un salto; NAT no es una mitigación, solo gobierna la salida. En perfil <code>local</code>, <code>WEBHOOK_ALLOWLIST</code> permite hosts HTTP o de rango privado explícitos (WireMock, receptores de demostración). <b>La más relevante para un servicio que hace POST a URL definidas por el cliente</b></td></tr>
       <tr><td>API4 · Unrestricted Resource Consumption</td><td>Páginas de un millón de filas, webhooks que cuelgan, replays en bucle</td><td>Tamaño de página máximo 100 y paginación por keyset; timeouts 3 s y 5 s; backoff con tope; tope de filas por cliente por lote; replay solo desde FAILED. Rate limiting por cliente en el ALB con WAF en AWS; en local no aplica</td></tr>
       <tr><td>API8 · Security Misconfiguration</td><td>Actuator público, stack traces en errores, CORS abierto, Swagger en producción</td><td>Actuator en puerto de gestión interno; errores con formato fijo sin detalle interno; Swagger solo en perfil local; contenedor no root; dependencias gestionadas por el BOM de Spring Boot</td></tr>
     </tbody>
@@ -1079,6 +1087,23 @@ flowchart TB
   <!-- 17 -->
   <h2 id="revision">17. Registro de cambios de diseño</h2>
   <p>Cambios aplicados a este documento tras dos revisiones de consistencia contra los requisitos, con la sección afectada y el motivo. Se conserva como trazabilidad de las decisiones.</p>
+  <h3>Versión 3</h3>
+  <p>Alineación del documento contra el código de <code>services/notifications</code> tal como quedó implementado. Cada fila es un punto donde la construcción obligó a ajustar el diseño, no al revés.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Sección</th><th>Lo que decía el diseño</th><th>Lo que hace el código, y por qué</th></tr></thead>
+    <tbody>
+      <tr><td>5</td><td>Backoff con valores fijos en el texto (base 30 s, tope 15 min)</td><td>Configurable en <code>notifications.retry.*</code> (<code>RetryProperties</code> / <code>RetryConfig</code>); esos valores son solo el default de <code>application.yaml</code>. El perfil <code>local</code> los acorta a base 2 s y tope 10 s para demostrar los cinco intentos en menos de un minuto sin recompilar</td></tr>
+      <tr><td>6, 13</td><td>Reclamo por lote con <code>SELECT … FOR UPDATE SKIP LOCKED</code></td><td><code>DeliveryAttemptRepositoryAdapter.claimDue</code> no usa <code>SKIP LOCKED</code>: hace una consulta nativa sin bloqueo, filtra <code>max-per-client</code> en memoria y actualiza el lote con un <code>UPDATE … WHERE id IN (...)</code>. La exclusión mutua real la da la escritura condicional del resultado (<code>recordResultIf</code>), no el reclamo</td></tr>
+      <tr><td>6</td><td>El lote se entregaba sin mecanismo explícito de paralelismo en el texto</td><td>Cada intento reclamado se envía en su propio hilo virtual a través de un <code>Executor</code> (<code>ExecutorConfig.deliveryExecutor</code>, <code>@Primary</code>, <code>newVirtualThreadPerTaskExecutor</code>) inyectado en <code>ProcessDueDeliveries</code></td></tr>
+      <tr><td>6, 16</td><td>Sin mención del comportamiento de reintento del cliente HTTP</td><td><code>WebhookClientConfig</code> construye el <code>HttpClient</code> con <code>disableAutomaticRetries()</code>: todo reintento es decisión del dominio (<code>RetryPolicy</code>), nunca del cliente HTTP</td></tr>
+      <tr><td>14</td><td><code>RandomGenerator.getDefault()</code> para el jitter</td><td>Sustituido por <code>new java.util.Random()</code> en <code>RetryConfig</code>: el algoritmo por defecto de <code>RandomGenerator</code> no está garantizado en la imagen <code>eclipse-temurin:21-jre-alpine</code>, y <code>Random</code> no depende de un proveedor cargado por <code>ServiceLoader</code></td></tr>
+      <tr><td>16</td><td>Política HTTPS descrita como parte del contrato del webhook sin dueño explícito</td><td>Vive en <code>WebhookUrlValidator</code> (<code>requireHttps</code>, allowlist); <code>WebhookUrl</code> en el dominio acepta HTTP y HTTPS por diseño y no conoce la política</td></tr>
+      <tr><td>16</td><td>Sin precisar si el replay devuelve <code>Location</code></td><td><code>NotificationEventController.replay</code> responde <code>ResponseEntity.accepted().body(...)</code> sin cabecera <code>Location</code>: no hay un recurso "intento de replay" direccionable todavía</td></tr>
+      <tr><td>4, 12</td><td>Paquetes de infraestructura descritos sin nombre fijo (por ejemplo "RestClient HTTPS", "Spring Data JPA" como si fueran el paquete)</td><td>Paquetes planos y explícitos: <code>domain</code> sin subpaquetes; <code>application.port</code> / <code>application.usecase</code>; <code>infrastructure.{config,persistence,rest,security,webhook,worker}</code>, verificados por <code>HexagonalArchitectureTest</code></td></tr>
+    </tbody>
+  </table>
+  </div>
   <h3>Versión 2</h3>
   <div class="tablewrap">
   <table>
@@ -1141,7 +1166,7 @@ flowchart TB
   <h3>Riesgos abiertos</h3>
   <ul class="tight">
     <li><b>Compatibilidad de versiones.</b> Spring Boot 4.1 con Spring Cloud AWS 4.1 se verifica en la primera fase; alternativa: Spring Boot 4.0.</li>
-    <li><b>Healthcheck de ElasticMQ.</b> Si la imagen nativa no trae cliente HTTP, se usa la imagen JVM o el listener reintenta la conexión.</li>
+    <li><b>Versión de ElasticMQ.</b> Fijada en <code>1.6.12</code> porque 1.7.x quitó el servidor de estadísticas que sostiene el healthcheck; subir de versión exige antes decidir un sondeo distinto.</li>
     <li><b>POST duplicado tras caída entre el envío y la escritura del resultado.</b> Inherente a la entrega al menos una vez; se mide con <code>notifications.leases.expired</code>.</li>
     <li><b>Despliegue con dos versiones conviviendo.</b> Flyway migra desde la API; los cambios de esquema siguen la regla de expandir primero y contraer después, y el contrato de la cola se mantiene compatible con la versión anterior del worker.</li>
     <li><b>Retención y regulación.</b> El contenido de los eventos puede incluir datos financieros; la retención definitiva y el archivo previo al borrado se definen con el área de cumplimiento.</li>
@@ -1153,15 +1178,16 @@ flowchart TB
   <table>
     <thead><tr><th>Criterio</th><th>Cómo se verifica</th></tr></thead>
     <tbody>
-      <tr><td>Los diez eventos del conjunto de referencia llegan por la cola y quedan visibles en la API con su cliente y su fecha original</td><td>Test de integración con ElasticMQ y Postgres en Testcontainers</td></tr>
-      <tr><td>Con WireMock fallando para EVT003, EVT005 y EVT009, el sistema termina con exactamente esos tres en <code>failed</code> y los otros siete en <code>completed</code></td><td>Test de extremo a extremo comparando contra el archivo</td></tr>
-      <tr><td>Cada POST lleva <code>event-timestamp</code> y <code>event-signature</code> verificables con la clave de la suscripción</td><td>Test unitario del firmador y verificación en WireMock</td></tr>
-      <tr><td>Un cliente no puede ver ni reenviar eventos de otro: 404</td><td>Test de API con dos tokens</td></tr>
-      <tr><td>Replay sobre <code>completed</code>, <code>pending</code>, <code>retrying</code> o <code>skipped</code> responde 409; sobre <code>failed</code> responde 202 y el worker lo entrega en un ciclo nuevo</td><td>Test de API y de integración</td></tr>
-      <tr><td>Veinte intentos vencidos y cuatro workers concurrentes: cada intento se ejecuta exactamente una vez</td><td>Test de integración de reclamo concurrente</td></tr>
-      <tr><td>El mismo mensaje entregado dos veces por la cola produce un solo evento y un solo intento</td><td>Test de integración del listener</td></tr>
-      <tr><td>El dominio y la aplicación no dependen de Spring ni de JPA</td><td>ArchUnit en CI</td></tr>
-      <tr><td><code>/actuator/prometheus</code> expone las seis métricas con sus etiquetas</td><td>Test de contrato del endpoint</td></tr>
+      <tr><td>Los diez eventos del conjunto de referencia llegan por la cola y quedan visibles en la API con su cliente y su fecha original</td><td>Test de aceptación con ElasticMQ y Postgres en Testcontainers</td></tr>
+      <tr><td>Con WireMock fallando para EVT003, EVT005 y EVT009, el sistema termina con exactamente esos tres en <code>failed</code> y los otros siete en <code>completed</code></td><td>Test de aceptación comparando contra el archivo de referencia (<code>docs/notification_events.json</code>)</td></tr>
+      <tr><td>Cada POST lleva <code>event-timestamp</code> y <code>event-signature</code> verificables con la clave de la suscripción</td><td>Test unitario de <code>WebhookSigner</code> y verificación en WireMock</td></tr>
+      <tr><td>Un cliente no puede ver ni reenviar eventos de otro: 404</td><td><code>boot/ApiProfileBootIT</code>, con dos tokens</td></tr>
+      <tr><td>Replay sobre <code>completed</code>, <code>pending</code>, <code>retrying</code> o <code>skipped</code> responde 409; sobre <code>failed</code> responde 202 y el worker lo entrega en un ciclo nuevo</td><td><code>boot/ApiProfileBootIT</code> para la API; <code>boot/WorkerProfileBootIT</code> para que el worker lo recoja</td></tr>
+      <tr><td>La aplicación arranca en perfil <code>api</code> con sus beans (controllers, seguridad, Flyway) y en perfil <code>worker</code> con los suyos (listener, scheduler), cada uno sin los del otro</td><td><code>boot/ApiProfileBootIT</code>, <code>boot/WorkerProfileBootIT</code></td></tr>
+      <tr><td>Veinte intentos vencidos y cuatro workers concurrentes: cada intento se ejecuta exactamente una vez</td><td><code>persistence/DeliveryAttemptRepositoryAdapterIT</code> (<code>testClaimDueConcurrency</code>)</td></tr>
+      <tr><td>El mismo mensaje entregado dos veces por la cola se procesa dos veces por el listener, que delega en <code>RegisterNotificationEvent</code> la decisión de no duplicar el evento</td><td><code>worker/AccountEventListenerIT</code> (<code>listenDuplicateEventOnlyRegistersOnce</code>)</td></tr>
+      <tr><td>El dominio no depende de <code>application</code>/<code>infrastructure</code>/Spring/JPA/Jackson; <code>application</code> no depende de <code>infrastructure</code>; las entidades JPA quedan en <code>infrastructure.persistence</code>; los procesos <code>api</code> y <code>worker</code> no se importan entre sí</td><td><code>architecture/HexagonalArchitectureTest</code></td></tr>
+      <tr><td><code>/actuator/prometheus</code> expone <code>notifications.registered</code>, <code>notifications.skipped</code>, <code>notifications.batches</code>, <code>notifications.scheduler.errors</code> y <code>notifications.attempts.due</code> con sus etiquetas</td><td>Test de contrato del endpoint; <code>notifications.deliveries</code>, <code>notifications.webhook.latency</code> y <code>notifications.leases.expired</code> quedan definidas y sin invocar (sección 16), así que este criterio no las cubre todavía</td></tr>
     </tbody>
   </table>
   </div>
