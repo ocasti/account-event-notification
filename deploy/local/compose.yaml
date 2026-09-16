@@ -2,7 +2,7 @@
 # Profiles (see Makefile):
 #   infra          postgres, elasticmq, wiremock
 #   app            notifications-api, notifications-worker, event-simulator
-#   observability  prometheus, grafana
+#   observability  prometheus, grafana, postgres-exporter
 # All variables come from .env at the repository root (copy .env.example). One network, no
 # persistent volume for Postgres. Build contexts point at the repository root so .dockerignore
 # applies; everything else in this file is relative to deploy/local.
@@ -189,6 +189,30 @@ services:
     networks: [notifications]
 
   # --------------------------------------------------------- observability
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.20.1
+    profiles: [observability]
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-notifications}:${POSTGRES_PASSWORD:-notifications}@postgres:5432/${POSTGRES_DB:-notifications}?sslmode=disable
+      PG_EXPORTER_EXTEND_QUERY_PATH: /queries.yaml
+    volumes:
+      - ./postgres-exporter/queries.yaml:/queries.yaml:ro
+    # No published ports: Prometheus scrapes it inside the notifications network.
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9187/metrics >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    networks: [notifications]
+
   prometheus:
     image: prom/prometheus:latest
     profiles: [observability]

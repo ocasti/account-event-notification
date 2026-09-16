@@ -29,3 +29,11 @@ scrape_configs:
     relabel_configs:
       - target_label: role
         replacement: worker
+
+  # prometheus-community/postgres_exporter (deploy/local/postgres-exporter), one static target,
+  # no ports published on the exporter itself (only reachable inside the notifications network).
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+        labels:
+          role: postgres

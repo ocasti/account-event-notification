@@ -11,13 +11,25 @@
 #                                             change, out of this agent's write area: deploy/local/**).
 #   notifications_leases_expired_total    -> same gap: DeliveryMetrics.leaseExpired() has no caller
 #                                             outside the test. Rule 5: BLOCKED for the same reason.
-#   DLQ depth (account-events-dlq)        -> no Prometheus metric exists yet for ElasticMQ's DLQ.
-#                                             Rule 4 references notifications_dlq_messages_visible as
-#                                             a placeholder for a gauge that still needs to be added
-#                                             (either an app-side Micrometer gauge reading SQS
-#                                             GetQueueAttributes ApproximateNumberOfMessages on the
-#                                             DLQ, or a dedicated exporter sidecar). Also out of scope
-#                                             here. The rule loads and is inert until that metric exists.
+#   DLQ depth (account-events-dlq)        -> no Prometheus metric exists yet for ElasticMQ's DLQ, and
+#                                             none is added here (ElasticMQ exposes no Prometheus
+#                                             endpoint; see deploy/local/README.md, "Qué no está
+#                                             instrumentado"). The old NotificationsDlqNotEmpty rule
+#                                             that referenced the placeholder gauge
+#                                             notifications_dlq_messages_visible was DROPPED on
+#                                             2026-09-16 instead of kept inert: a rule that can never
+#                                             fire is worse than no rule, because it looks covered in
+#                                             the alert list. See README, section "Alarmas", for the
+#                                             decision and what would need to exist (app-side gauge or
+#                                             a dedicated exporter) to bring it back.
+#
+# 2026-09-16: added NotificationsErrorLogRateHigh, NotificationsApiServerErrors,
+# NotificationsDbPoolExhausted, PostgresDown and NotificationsOldestPendingTooOld (the last two
+# depend on the postgres-exporter job in prometheus.yml, deploy/local/postgres-exporter/queries.yaml
+# for the cobre_* gauges, and pg_up for PostgresDown). NotificationsApiServerErrors depends on the
+# HTTP percentile buckets enabled in application.yaml (management.metrics.distribution
+# .percentiles-histogram."http.server.requests") only insofar as it needs the *_count series, which
+# was already emitted before that change; it does not use histogram_quantile.
 groups:
   - name: notifications.rules
     rules:
@@ -63,17 +75,6 @@ groups:
           summary: "notifications_attempts_due has not been scraped for 2 minutes"
           runbook: "No queda ningún worker vivo; reiniciar notifications-worker."
 
-      # 4. "Mensajes en la DLQ mayores que cero". BLOCKED today: no exporter publishes DLQ depth
-      #    (see header). notifications_dlq_messages_visible is the placeholder gauge name.
-      - alert: NotificationsDlqNotEmpty
-        expr: max(notifications_dlq_messages_visible) > 0
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "account-events-dlq has {{ $value }} message(s)"
-          runbook: "Un evento no se pudo registrar; revisar el mensaje en la DLQ y redrenar a mano."
-
       # 5. "Arrendamientos vencidos por encima de 10 por minuto". BLOCKED today: see header
       #    (notifications_leases_expired_total is never populated).
       - alert: NotificationsLeaseExpirationsHigh
@@ -84,3 +85,59 @@ groups:
         annotations:
           summary: "More than 10 lease expirations per minute, sustained for 5 minutes"
           runbook: "Los POST duran más que el arrendamiento; revisar timeouts del webhook."
+
+      # 6. Tasa sostenida de logs de nivel error en cualquier instancia (api o worker).
+      - alert: NotificationsErrorLogRateHigh
+        expr: sum by (job) (rate(logback_events_total{level="error"}[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} está logueando más de 0.5 errores/s durante 5 minutos ({{ $value | printf \"%.2f\" }}/s)"
+          runbook: "Revisar los logs del job {{ $labels.job }} (docker compose logs) para identificar la causa; si es un solo cliente, ver el panel Errores del tablero."
+
+      # 7. Más del 1% de las respuestas HTTP de la API son 5xx durante 5 minutos.
+      - alert: NotificationsApiServerErrors
+        expr: |
+          (
+            sum(rate(http_server_requests_seconds_count{job="notifications-api",status=~"5.."}[5m]))
+            /
+            sum(rate(http_server_requests_seconds_count{job="notifications-api"}[5m]))
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Más del 1% de las peticiones a notifications-api devuelven 5xx ({{ $value | humanizePercentage }})"
+          runbook: "Revisar el panel API HTTP (RPS por uri/status) y los logs de notifications-api; si coincide con HikariCP agotado, ver NotificationsDbPoolExhausted."
+
+      # 8. El pool de conexiones de HikariCP tiene peticiones esperando conexión de forma sostenida.
+      - alert: NotificationsDbPoolExhausted
+        expr: hikaricp_connections_pending > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} ({{ $labels.instance }}) tiene {{ $value }} conexión(es) esperando el pool de HikariCP desde hace 2 minutos"
+          runbook: "Revisar el panel Base de datos (HikariCP activas/idle/max) y pg_stat_activity; considerar subir hikari.maximum-pool-size o investigar consultas lentas."
+
+      # 9. Postgres no responde al postgres-exporter.
+      - alert: PostgresDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "postgres-exporter no puede conectarse a Postgres desde hace 1 minuto"
+          runbook: "Revisar el contenedor postgres (docker compose ps/logs); sin Postgres, la API y el worker no pueden registrar ni entregar eventos."
+
+      # 10. El intento vencido más viejo lleva más de 2 minutos esperando ejecución (dato de Postgres,
+      #     independiente del gauge en memoria notifications_attempts_due).
+      - alert: NotificationsOldestPendingTooOld
+        expr: cobre_oldest_pending_age_seconds > 120
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "El intento de entrega vencido más antiguo lleva {{ $value | printf \"%.0f\" }}s esperando ejecución"
+          runbook: "Igual que NotificationsAttemptsDueBacklog: escalar notifications-worker o revisar la salud/carga de Postgres; esta alarma mira la cola desde la base de datos, no desde el gauge en memoria del worker."
