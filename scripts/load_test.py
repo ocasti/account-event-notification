@@ -377,13 +377,13 @@ def fetch_event_status(event_id, client_id, token):
 
 
 def fetch_listing_page(client, token, delivery_status):
-    """GET /notification_events?delivery_status=...&limit=1 for one client.
+    """GET /notification_events?delivery_status=...&limit=50 for one client.
 
     Returns (ok, items). ok is False on any non-200 response or network error, in which
     case the caller must treat the client as "not confirmed empty" (i.e. keep polling)
     rather than assume it drained.
     """
-    params = urllib.parse.urlencode({"delivery_status": delivery_status, "limit": 1})
+    params = urllib.parse.urlencode({"delivery_status": delivery_status, "limit": 50})
     url = f"{API_URL}/notification_events?{params}"
     status, body = http_get_json(url, headers={"Authorization": f"Bearer {token}"})
     if status != 200 or body is None:
@@ -391,10 +391,11 @@ def fetch_listing_page(client, token, delivery_status):
     return True, body.get("items", [])
 
 
-def all_clients_drained(tokens):
+def all_clients_drained(tokens, run_prefix):
     """One round of the aggregated poll: 6 cheap listing requests (pending + retrying,
-    per client), run concurrently. True only if every listing came back empty for every
-    client."""
+    per client), run concurrently. True only if no listing returned an item of this run
+    (ids starting with run_prefix); events of the background simulator are ignored, since
+    they sit in pending for a few milliseconds every two seconds and are not part of the run."""
     pairs = [(client, delivery_status) for client in CLIENTS for delivery_status in LISTING_STATUSES]
     with ThreadPoolExecutor(max_workers=len(pairs)) as pool:
         futures = [
@@ -404,7 +405,7 @@ def all_clients_drained(tokens):
         drained = True
         for fut in futures:
             ok, items = fut.result()
-            if not ok or items:
+            if not ok or any(str(it.get("event_id", "")).startswith(run_prefix) for it in items):
                 drained = False
         return drained
 
@@ -422,6 +423,7 @@ def wait_for_drain(tokens, timeout_s, deliveries_before, events, api_rps, api_cl
 
     Returns (drained: bool, elapsed_seconds: float, rest_stats: RestLoadStats).
     """
+    run_prefix = events[0]["event_id"].split("-")[0] + "-" + events[0]["event_id"].split("-")[1] + "-"
     print(
         "  (progreso por ronda via listado agregado; las entregas incluyen trafico de fondo "
         "del simulador de eventos, que sigue emitiendo durante la corrida)"
@@ -441,7 +443,7 @@ def wait_for_drain(tokens, timeout_s, deliveries_before, events, api_rps, api_cl
             if elapsed > timeout_s:
                 return False, elapsed, rest_stats
 
-            empty_round = all_clients_drained(tokens)
+            empty_round = all_clients_drained(tokens, run_prefix)
             consecutive_empty = consecutive_empty + 1 if empty_round else 0
 
             backlog = prom_scalar_sum("max(notifications_attempts_due)")
