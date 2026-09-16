@@ -2,7 +2,7 @@ package co.cobre.notifications.infrastructure.webhook;
 
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
-import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.core5.util.Timeout;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,6 +12,7 @@ import org.springframework.web.client.RestClient;
 /**
  * Configuration for the webhook RestClient.
  * Uses Apache HttpClient 5 with configured timeouts, no redirects, and DNS validation.
+ * DNS resolver is pinned to prevent DNS rebinding attacks.
  */
 @Configuration
 public class WebhookClientConfig {
@@ -23,8 +24,12 @@ public class WebhookClientConfig {
             .setSocketTimeout(Timeout.ofMilliseconds(props.readTimeout().toMillis()))
             .build();
 
-        var connectionManager = new PoolingHttpClientConnectionManager();
-        connectionManager.setDefaultConnectionConfig(connectionConfig);
+        var dnsResolver = new PinnedDnsResolver(validator);
+
+        var connectionManager = PoolingHttpClientConnectionManagerBuilder.create()
+            .setDefaultConnectionConfig(connectionConfig)
+            .setDnsResolver(dnsResolver)
+            .build();
 
         var httpClient = HttpClientBuilder.create()
             .setConnectionManager(connectionManager)

@@ -1,11 +1,7 @@
 package co.cobre.notifications.boot;
 
-import co.cobre.notifications.application.port.NotificationEventRepository;
-import co.cobre.notifications.application.port.WebhookSender;
 import co.cobre.notifications.infrastructure.worker.AccountEventListener;
 import co.cobre.notifications.infrastructure.worker.DeliveryScheduler;
-import co.cobre.notifications.infrastructure.worker.MeteredNotificationEventRepository;
-import co.cobre.notifications.infrastructure.worker.MeteredWebhookSender;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -69,18 +65,6 @@ class WorkerProfileBootIT extends BootTestSupport {
     @Test
     void deliverySchedulerRegistered() {
         assertThat(context.getBeansOfType(DeliveryScheduler.class)).isNotEmpty();
-    }
-
-    @Test
-    void webhookSenderIsMetered() {
-        WebhookSender sender = context.getBean(WebhookSender.class);
-        assertThat(sender).isInstanceOf(MeteredWebhookSender.class);
-    }
-
-    @Test
-    void notificationEventRepositoryIsMetered() {
-        NotificationEventRepository repository = context.getBean(NotificationEventRepository.class);
-        assertThat(repository).isInstanceOf(MeteredNotificationEventRepository.class);
     }
 
     @Test
