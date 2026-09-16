@@ -15,9 +15,17 @@ import java.util.function.Function;
  * Validates webhook URLs for security constraints.
  * Rejects non-HTTPS unless allowlisted, resolves DNS and rejects private IP ranges,
  * loopback and link-local addresses unless allowlisted.
+ * <p>
+ * Validation runs as an ordered sequence of rules: each {@code requireX}/{@code rejectX}
+ * method checks one invariant and throws {@link IllegalArgumentException} on violation.
  */
 @Component
 public class WebhookUrlValidator {
+
+    private static final String HTTP_SCHEME = "http";
+    private static final int IPV6_UNIQUE_LOCAL_PREFIX_MASK = 0xFE;
+    private static final int IPV6_UNIQUE_LOCAL_PREFIX = 0xFC;
+
     private final WebhookProperties props;
     private final Function<String, List<InetAddress>> resolver;
 
@@ -42,24 +50,11 @@ public class WebhookUrlValidator {
     }
 
     public InetAddress validate(URI uri) {
-        var scheme = uri.getScheme();
-        var host = uri.getHost();
-
-        if (host == null || host.isEmpty()) {
-            throw new IllegalArgumentException("Webhook URL must have a valid host");
-        }
-
-        if (props.requireHttps() && "http".equalsIgnoreCase(scheme)) {
-            throw new IllegalArgumentException("HTTPS is required for webhook URLs");
-        }
-
-        if ("http".equalsIgnoreCase(scheme) && !props.allowlist().contains(host)) {
-            throw new IllegalArgumentException("HTTP scheme requires host to be in allowlist");
-        }
-
-        var addresses = resolveHost(host);
-        validateAddress(host, addresses);
-        return addresses;
+        var host = requireHost(uri);
+        requireAllowedScheme(uri, host);
+        var address = resolveHost(host);
+        rejectRestrictedAddress(host, address);
+        return address;
     }
 
     /**
@@ -67,13 +62,45 @@ public class WebhookUrlValidator {
      * Used by DNS resolver to ensure pinning after validation.
      */
     public InetAddress validateHost(String host) {
+        requireNonBlankHost(host);
+        var address = resolveHost(host);
+        rejectRestrictedAddress(host, address);
+        return address;
+    }
+
+    private String requireHost(URI uri) {
+        var host = uri.getHost();
+        if (host == null || host.isEmpty()) {
+            throw new IllegalArgumentException("Webhook URL must have a valid host");
+        }
+        return host;
+    }
+
+    private void requireNonBlankHost(String host) {
         if (host == null || host.isEmpty()) {
             throw new IllegalArgumentException("Host must not be null or empty");
         }
+    }
 
-        var address = resolveHost(host);
-        validateAddress(host, address);
-        return address;
+    private void requireAllowedScheme(URI uri, String host) {
+        var scheme = uri.getScheme();
+        if (!HTTP_SCHEME.equalsIgnoreCase(scheme)) {
+            return;
+        }
+        requireHttpsNotEnforced();
+        requireAllowlistedHost(host);
+    }
+
+    private void requireHttpsNotEnforced() {
+        if (props.requireHttps()) {
+            throw new IllegalArgumentException("HTTPS is required for webhook URLs");
+        }
+    }
+
+    private void requireAllowlistedHost(String host) {
+        if (!props.allowlist().contains(host)) {
+            throw new IllegalArgumentException("HTTP scheme requires host to be in allowlist");
+        }
     }
 
     private InetAddress resolveHost(String host) {
@@ -84,29 +111,31 @@ public class WebhookUrlValidator {
         return addresses.getFirst();
     }
 
-    private void validateAddress(String host, InetAddress address) {
+    private void rejectRestrictedAddress(String host, InetAddress address) {
         if (props.allowlist().contains(host)) {
             return;
         }
-
-        if (address.isSiteLocalAddress() ||
-            address.isLoopbackAddress() ||
-            address.isLinkLocalAddress() ||
-            address.isAnyLocalAddress() ||
-            address.isMulticastAddress()) {
+        if (isRestrictedAddress(address)) {
             throw new IllegalArgumentException("Webhook URL resolves to a restricted address");
         }
-
         if (isUniqueLocalAddress(address)) {
             throw new IllegalArgumentException("Webhook URL resolves to a unique local address");
         }
     }
 
+    private boolean isRestrictedAddress(InetAddress address) {
+        return address.isSiteLocalAddress()
+            || address.isLoopbackAddress()
+            || address.isLinkLocalAddress()
+            || address.isAnyLocalAddress()
+            || address.isMulticastAddress();
+    }
+
     private boolean isUniqueLocalAddress(InetAddress address) {
-        if (address instanceof Inet6Address v6) {
-            var bytes = v6.getAddress();
-            return (bytes[0] & 0xFE) == 0xFC;
+        if (!(address instanceof Inet6Address v6)) {
+            return false;
         }
-        return false;
+        var bytes = v6.getAddress();
+        return (bytes[0] & IPV6_UNIQUE_LOCAL_PREFIX_MASK) == IPV6_UNIQUE_LOCAL_PREFIX;
     }
 }
