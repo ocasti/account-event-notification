@@ -27,8 +27,12 @@ make up          # builds and starts postgres, elasticmq, wiremock, api, worker,
 | `notifications-api` | `cobre/notifications:local`, profile `api` | `${API_PORT:-8080}` → 8080 | Self-service REST API (list, detail, replay), JWT-protected; runs the Flyway migrations |
 | `notifications-worker` | `cobre/notifications:local`, profile `worker` | none (scales with `--scale notifications-worker=N`) | Consumes the queue, claims due delivery attempts and delivers webhooks with retries |
 | `event-simulator` | `cobre/event-simulator:local` | `${SIMULATOR_PORT:-8090}` → 8080 | Stands in for the platform that emits events: replays the reference data set and keeps generating derived events |
-| `prometheus` (only with `make up-all`) | `prom/prometheus:latest` | `${PROMETHEUS_PORT:-9090}` → 9090 | Scrapes `/actuator/prometheus` from the api and every worker replica |
+| `postgres-exporter` (only with `make up-all`) | `prometheuscommunity/postgres-exporter:v0.20.1` | none (scraped inside the network) | Exposes Postgres metrics for Prometheus |
+| `node-exporter` (only with `make up-all`) | `quay.io/prometheus/node-exporter:v1.8.2` | none (scraped inside the network) | Exposes host/VM-level metrics (CPU, memory, disk, network) for Prometheus; see `deploy/local/README.md` for why not per-container metrics under OrbStack |
+| `prometheus` (only with `make up-all`) | `prom/prometheus:latest` | `${PROMETHEUS_PORT:-9090}` → 9090 | Scrapes `/actuator/prometheus` from the api and every worker replica, plus `postgres-exporter` and `node-exporter` |
 | `grafana` (only with `make up-all`) | `grafana/grafana:latest` | `${GRAFANA_PORT:-3001}` → 3000 | Provisioned dashboard: delivery rate by status, webhook p95 by client, attempts due |
+
+`make up` starts the first 6 rows (infra + app); `make up-all` starts all 10.
 
 ## Demo flow
 
@@ -84,6 +88,33 @@ make up-all
 # Grafana on http://localhost:${GRAFANA_PORT:-3001} (anonymous access, provisioned dashboard)
 ```
 
+Run a load test against the stack (publishes events straight onto the queue, drains the backlog,
+and checks nothing was lost or double-delivered):
+
+```bash
+make load   # EVENTS=2000 FAIL_RATIO=0.10 CONCURRENCY=8 TIMEOUT=300 API_RPS=20 API_CLIENTS=4 by default
+```
+
+## API documentation
+
+Three contracts, kept next to the code in [`docs/api/`](docs/api/):
+
+- [`docs/api/openapi.json`](docs/api/openapi.json) — the self-service REST API (list, detail,
+  replay), generated from the running code with `make openapi`.
+- [`docs/api/asyncapi.yaml`](docs/api/asyncapi.yaml) — the `account-events` queue: the message
+  the worker consumes and its dead-letter queue.
+- [`docs/api/webhook-contract.md`](docs/api/webhook-contract.md) — the outbound webhook the
+  worker sends to each client's receiver: headers, HMAC signature, retries, replay.
+
+[`docs/api/README.md`](docs/api/README.md) explains how to view each one. To browse the REST API
+against the running stack with Swagger UI (profile `local` only):
+
+```bash
+make up
+make token CLIENT=CLIENT002   # copy the token, then paste it into the "Authorize" dialog
+# open http://localhost:8080/swagger-ui/index.html
+```
+
 ## Pointing at a real receiver
 
 Edit `WEBHOOK_URL` in `.env`, then:
@@ -122,7 +153,7 @@ services/
 deploy/
   local/                    compose.yaml plus ElasticMQ, WireMock, Prometheus, Grafana config and the generated JWT keys
 docker/                     notifications.Dockerfile and simulator.Dockerfile (build context: repository root)
-docs/                       RFC (01-system-design.html), security analysis (02-security.md), AI usage log (03-ai-usage.md), reference data set
+docs/                       RFC (01-system-design.html), security analysis (02-security.md), AI usage log (03-ai-usage.md), reference data set, api/ (OpenAPI, AsyncAPI, webhook contract)
 scripts/                    preflight.sh and token.sh
 ```
 
@@ -134,3 +165,4 @@ Each service builds on its own: `cd services/notifications && ./mvnw verify` (or
 - [`docs/02-security.md`](docs/02-security.md): OWASP API Security Top 10 analysis against the code.
 - [`docs/03-ai-usage.md`](docs/03-ai-usage.md): AI usage log.
 - [`deploy/local/README.md`](deploy/local/README.md): local stack reference (profiles, ports, WireMock scenarios, Grafana panels).
+- [`docs/api/`](docs/api/): OpenAPI (REST), AsyncAPI (`account-events` queue) and the outbound webhook contract.

@@ -1,0 +1,245 @@
+asyncapi: 3.0.0
+info:
+  title: Account Event Notification - Account Events Queue
+  version: 1.0.0
+  description: |
+    Asynchronous contract of the `account-events` queue: the message a client platform (or, in
+    the local stack, `event-simulator`) publishes for `notifications-worker` to consume, and the
+    dead-letter queue messages land in after repeated processing failures.
+
+    This document covers only the queue side of the system. The outbound webhook the worker sends
+    to each client's receiver is documented separately in `docs/api/webhook-contract.md`, and the
+    synchronous self-service REST API (list, detail, replay) is documented in `docs/api/openapi.json`.
+
+    See `docs/01-system-design.html` (the RFC, in Spanish) for the full design, and
+    `services/notifications/infrastructure/src/main/java/co/cobre/notifications/infrastructure/worker/`
+    for the consumer implementation.
+servers:
+  local:
+    host: elasticmq:9324
+    protocol: http
+    description: |
+      ElasticMQ, part of the local Docker Compose stack (`deploy/local/compose.yaml`,
+      `deploy/local/elasticmq/custom.conf`). Implements the SQS API. `elasticmq:9324` is reachable
+      from other containers on the `account-event-notification` network; it is not published to
+      the host. The container also serves a statistics UI on `9325`, published to the host as
+      `${ELASTICMQ_UI_PORT:-9325}` (`http://localhost:9325/statistics/queues`), unrelated to the
+      SQS protocol port used here.
+  aws:
+    host: "sqs.{region}.amazonaws.com"
+    protocol: https
+    description: |
+      AWS SQS (target design). Not deployed by this repository: the production design maps the
+      same queue and DLQ to SQS without any code change (`spring.cloud.aws.sqs.endpoint` simply
+      points at SQS instead of ElasticMQ). See `docs/01-system-design.html`, container diagram.
+    variables:
+      region:
+        default: us-east-1
+        description: AWS region of the queue.
+channels:
+  account-events:
+    address: account-events
+    title: Account events
+    servers:
+      - $ref: "#/servers/local"
+      - $ref: "#/servers/aws"
+    messages:
+      accountEvent:
+        $ref: "#/components/messages/AccountEvent"
+    description: |
+      Standard (non-FIFO) queue. A client platform - `event-simulator` locally - publishes one
+      message per account event; `notifications-worker` (`AccountEventListener`, `@SqsListener`,
+      profile `worker`) consumes it, maps it to `RegisterEventCommand`
+      (`AccountEventMessageMapper`) and calls `RegisterNotificationEvent.register`.
+
+      **Delivery guarantees**
+
+      - **At-least-once.** Standard SQS semantics: a message can be redelivered (for example if
+        the consumer crashes after receiving it but before the listener method returns and SQS
+        auto-acks by deleting it). `RegisterNotificationEvent` is idempotent by `event_id`: on
+        redelivery, `events.existsById(command.eventId())` is true, the use case returns
+        `RegistrationResult.DUPLICATE`, no new row and no new delivery attempt are created, and
+        the listener increments the `notifications.duplicates` counter (tagged `client_id`,
+        `event_key`) instead of `notifications.registered`.
+      - **No ordering guaranteed.** The queue is declared with `fifo = false`
+        (`deploy/local/elasticmq/custom.conf`); standard SQS queues do not preserve publish order,
+        and neither does this consumer - it registers whatever it receives, in receipt order, with
+        no reordering by `occurred_at`.
+      - **No message attributes.** The publisher (`SqsEventPublisher` in `event-simulator`, and
+        the equivalent in the real platform) sends the JSON body as the plain message body via
+        `SqsTemplate.send(queueName, json)`; it does not set SQS message attributes. Everything the
+        consumer needs travels in the JSON body described below.
+      - **Visibility timeout: 30 seconds** (`defaultVisibilityTimeout` in
+        `deploy/local/elasticmq/custom.conf`). If the listener does not ack (return normally)
+        within that window - because it is still processing or because the JVM/container died -
+        the message becomes visible again for another consumer to receive.
+      - **Dead-letter queue after 5 receives without ack.** `maxReceiveCount = 5` on this queue's
+        `deadLettersQueue` (pointing at `account-events-dlq`). A message that fails validation
+        every time (for example an `event_id` longer than 64 characters, which makes
+        `AccountEventMessageMapper.toCommand` throw building the `EventId` value object and the
+        listener never acks) is redelivered up to 5 times and then moves to
+        `account-events-dlq` instead of blocking the queue forever.
+      - **Long polling.** `receiveMessageWait = 20 seconds` on this queue, so consumers do not
+        busy-poll an empty queue.
+  account-events-dlq:
+    address: account-events-dlq
+    title: Account events dead-letter queue
+    servers:
+      - $ref: "#/servers/local"
+      - $ref: "#/servers/aws"
+    messages:
+      accountEvent:
+        $ref: "#/components/messages/AccountEvent"
+    description: |
+      Dead-letter queue for `account-events` (`deploy/local/elasticmq/custom.conf`). Receives a
+      message unchanged - same JSON body, same shape as `AccountEvent` - once it has been received
+      from `account-events` 5 times (`maxReceiveCount = 5`) without the consumer acking it. Nothing
+      in this repository consumes `account-events-dlq` today: messages here need manual inspection
+      and, if the underlying issue is fixed, manual redrive back onto `account-events`. No
+      dedicated visibility timeout override is set for this queue in the local config beyond the
+      default declared on it (30 seconds).
+operations:
+  receiveAccountEvent:
+    action: receive
+    channel:
+      $ref: "#/channels/account-events"
+    title: notifications-worker consumes an account event
+    summary: The delivery worker (profile `worker`) receives and registers account events.
+    description: |
+      Implemented by `AccountEventListener.onMessage` (`@SqsListener("${notifications.sqs.queue-name}")`,
+      `@Profile("worker")`). Deserializes the body into `AccountEventMessage`, maps it to
+      `RegisterEventCommand` (`AccountEventMessageMapper`) and calls
+      `RegisterNotificationEvent.register`, which returns one of three results:
+
+      - `REGISTERED` - an active subscription exists for `client_id` and `event_type`; the event
+        is persisted as `PENDING` with a first `DeliveryAttempt` (`notifications.registered++`).
+      - `SKIPPED` - the event is valid and new, but no active subscription matches; it is persisted
+        as `SKIPPED`, no delivery is attempted (`notifications.skipped++`).
+      - `DUPLICATE` - `event_id` was already registered (redelivery); nothing new is persisted
+        (`notifications.duplicates++`, logged at debug with `event_id` and `client_id`).
+
+      The message is acked (deleted from the queue) only if `onMessage` returns normally. Any
+      exception - including a value-object validation failure while mapping, such as a blank
+      `client_id` or an `event_id` over 64 characters - leaves the message unacked, so SQS
+      redelivers it after the visibility timeout, up to `maxReceiveCount` times before it lands on
+      `account-events-dlq`.
+    messages:
+      - $ref: "#/components/messages/AccountEvent"
+  sendAccountEvent:
+    action: send
+    channel:
+      $ref: "#/channels/account-events"
+    title: Platform / event-simulator publishes an account event
+    summary: The client platform (in production) or event-simulator (locally) publishes one account event per message.
+    description: |
+      In the target design this is the platform's account-event source (see
+      `docs/01-system-design.html`, container diagram: "Bus de eventos de la plataforma
+      (EventBridge, existente)" feeding this queue). Locally, `event-simulator` plays this role:
+      `SqsEventPublisher.publish` serializes an `AccountEventMessage` (its own record, same
+      snake_case JSON shape) with `JsonMapper.writeValueAsString` and sends it as the plain SQS
+      message body with `SqsTemplate.send(properties.queueName(), json)` - one message per call, no
+      batching, no message attributes.
+
+      `event-simulator` produces messages two ways: on a fixed interval (`SIMULATOR_EMIT_INTERVAL`,
+      derived from a randomly picked row of the reference dataset via `EventGenerator.derive`,
+      with a freshly generated `event_id` and `occurred_at = now`), and on demand through
+      `POST /simulator/events` (`SimulatorController`, body `{client_id, event_type, content}`,
+      all `@NotBlank`), which generates a new event from the request and publishes it the same way.
+    messages:
+      - $ref: "#/components/messages/AccountEvent"
+components:
+  messages:
+    AccountEvent:
+      name: AccountEvent
+      title: Account event
+      summary: One account event, keyed by event_id, to be registered and (if a subscription matches) delivered.
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/AccountEventPayload"
+      examples:
+        - name: EVT001
+          summary: Credit card payment, from docs/notification_events.json (delivery_date maps to occurred_at).
+          payload:
+            event_id: EVT001
+            event_type: credit_card_payment
+            client_id: CLIENT001
+            content: "Credit card payment received for $150.00"
+            occurred_at: "2024-03-15T09:30:22Z"
+        - name: EVT003
+          summary: Credit transfer, from docs/notification_events.json (delivery_date maps to occurred_at).
+          payload:
+            event_id: EVT003
+            event_type: credit_transfer
+            client_id: CLIENT002
+            content: "Bank transfer received from Account #4567 for $1,500.00"
+            occurred_at: "2024-03-15T11:20:18Z"
+  schemas:
+    AccountEventPayload:
+      type: object
+      description: |
+        JSON body of `AccountEventMessage`
+        (`services/notifications/infrastructure/.../worker/AccountEventMessage.java`), a Java
+        record with `@JsonProperty` snake_case names, deserialized by Jackson 3
+        (`tools.jackson.databind`). No `@JsonIgnoreProperties(ignoreUnknown = true)` is declared on
+        the record, no `application*.yaml` profile sets
+        `spring.jackson.deserialization.fail-on-unknown-properties: false`, and no custom
+        `ObjectMapper`/`JsonMapper` bean relaxes it either (verified by inspecting
+        `services/notifications/infrastructure/src/main/**` and every `application*.yaml`) - so
+        Jackson 3's default (`FAIL_ON_UNKNOWN_PROPERTIES = true`, same default as Jackson 2) applies:
+        an extra field in the body makes deserialization throw, the listener method never returns
+        normally, the message is never acked, and it is redelivered like any other mapping
+        failure (see the `receiveAccountEvent` operation). Hence `additionalProperties: false`
+        below reflects actual behavior, not just intent.
+      additionalProperties: false
+      required:
+        - event_id
+        - event_type
+        - client_id
+        - content
+        - occurred_at
+      properties:
+        event_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: |
+            Unique identifier of the event; the idempotency key for registration. Mapped to the
+            `EventId` value object, which rejects null, blank, or longer than 64 characters
+            (`domain/EventId.java`). Primary key of `notification_events`, so a redelivered
+            message with the same `event_id` is detected and treated as `DUPLICATE`.
+          example: EVT001
+        event_type:
+          type: string
+          pattern: '^(\*|[a-z0-9_]+(\.[a-z0-9_]+)*)$'
+          description: |
+            The event's key, used to match it against subscriptions. Mapped to the `EventKey`
+            value object (`domain/EventKey.java`), which requires either the literal wildcard `*`
+            or lowercase dot-separated segments of `[a-z0-9_]+` (for example `credit_card_payment`
+            or `credit.card.payment`); anything else throws while mapping the message, so it is
+            never registered as-is.
+          example: credit_card_payment
+        client_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: |
+            Identifies which client (and therefore which subscription) the event belongs to.
+            Mapped to the `ClientId` value object, which rejects null, blank, or longer than 64
+            characters (`domain/ClientId.java`).
+          example: CLIENT001
+        content:
+          type: string
+          description: |
+            Free-form human-readable description of the event, forwarded unchanged in the webhook
+            payload's `content` field. Only constraint enforced in code is non-null
+            (`EventData`'s compact constructor); no length limit or format is validated.
+          example: "Credit card payment received for $150.00"
+        occurred_at:
+          type: string
+          format: date-time
+          description: |
+            When the event occurred at the source, as an ISO-8601 instant (UTC, `Z` suffix in the
+            examples). Deserialized into `java.time.Instant`; a missing or unparsable value fails
+            deserialization the same way an unknown property does. Becomes `created_at` in the
+            webhook payload sent to the client.
+          example: "2024-03-15T09:30:22Z"

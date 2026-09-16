@@ -1,0 +1,448 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Account Event Notification API",
+        "description": "API de autoservicio para que un cliente consulte sus eventos de notificaci\u00f3n y relance los fallidos. La autenticaci\u00f3n es Bearer JWT (RS256) y los datos devueltos se acotan siempre al cliente propietario del token.",
+        "version": "0.1.0-SNAPSHOT"
+    },
+    "servers": [
+        {
+            "url": "http://localhost",
+            "description": "Generated server url"
+        }
+    ],
+    "security": [
+        {
+            "bearerAuth": []
+        }
+    ],
+    "paths": {
+        "/notification_events/{notification_event_id}/replay": {
+            "post": {
+                "tags": [
+                    "Notification events"
+                ],
+                "summary": "Replay a notification event",
+                "description": "Schedules a new delivery cycle for a failed notification event owned by the authenticated client.",
+                "operationId": "replay",
+                "parameters": [
+                    {
+                        "name": "notification_event_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Replay accepted and scheduled",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ReplayResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid bearer token",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No event with this ID for the authenticated client",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "The event is not in a state that allows a replay",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/notification_events": {
+            "get": {
+                "tags": [
+                    "Notification events"
+                ],
+                "summary": "List notification events",
+                "description": "Lists the notification events belonging to the authenticated client, newest first, optionally filtered by delivery status and creation date range.",
+                "operationId": "list",
+                "parameters": [
+                    {
+                        "name": "from",
+                        "in": "query",
+                        "description": "Only events created at or after this instant (ISO-8601)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        },
+                        "example": "2024-03-15T00:00:00Z"
+                    },
+                    {
+                        "name": "to",
+                        "in": "query",
+                        "description": "Only events created at or before this instant (ISO-8601)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        },
+                        "example": "2024-03-15T23:59:59Z"
+                    },
+                    {
+                        "name": "delivery_status",
+                        "in": "query",
+                        "description": "Filters by delivery status: pending, retrying, completed or failed",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "failed"
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Maximum number of events to return, between 1 and 100",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "maximum": 100,
+                            "minimum": 1
+                        },
+                        "example": 20
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "description": "Opaque pagination cursor returned as next_cursor by a previous call",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "cursor123"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Page of notification events",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationEventPageResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query parameter (delivery_status, from/to, limit or cursor)",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid bearer token",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/notification_events/{notification_event_id}": {
+            "get": {
+                "tags": [
+                    "Notification events"
+                ],
+                "summary": "Get a notification event",
+                "description": "Gets a single notification event owned by the authenticated client, with its full delivery attempt history.",
+                "operationId": "get",
+                "parameters": [
+                    {
+                        "name": "notification_event_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Notification event detail",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NotificationEventDetailResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid bearer token",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No event with this ID for the authenticated client",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "ErrorResponse": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "description": "Machine-readable error code",
+                        "example": "replay_not_allowed"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Human-readable error message",
+                        "example": "Replay not allowed for this event"
+                    }
+                }
+            },
+            "ReplayResponse": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "Notification event identifier",
+                        "example": "EVT003"
+                    },
+                    "cycle": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "New delivery cycle scheduled by this replay",
+                        "example": 2
+                    },
+                    "delivery_status": {
+                        "type": "string",
+                        "description": "Delivery status of the new cycle right after it is scheduled",
+                        "example": "pending"
+                    }
+                }
+            },
+            "NotificationEventPageResponse": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "description": "Page of notification events, newest first",
+                        "items": {
+                            "$ref": "#/components/schemas/NotificationEventResponse"
+                        }
+                    },
+                    "next_cursor": {
+                        "type": "string",
+                        "description": "Cursor to fetch the next page, absent when there are no more results",
+                        "example": "cursor123"
+                    }
+                }
+            },
+            "NotificationEventResponse": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "Notification event identifier",
+                        "example": "EVT003"
+                    },
+                    "event_type": {
+                        "type": "string",
+                        "description": "Type of the account event that triggered the notification",
+                        "example": "credit_transfer"
+                    },
+                    "client_id": {
+                        "type": "string",
+                        "description": "Identifier of the client that owns the event",
+                        "example": "CLIENT002"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Human-readable description of the event",
+                        "example": "Bank transfer received from Account #4567 for $1,500.00"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "When the event was registered",
+                        "example": "2024-03-15T11:20:18Z"
+                    },
+                    "delivery_status": {
+                        "type": "string",
+                        "description": "Current delivery status: pending, retrying, completed or failed",
+                        "example": "failed"
+                    },
+                    "delivery_date": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "When the event was successfully delivered, if it ever was"
+                    },
+                    "attempts_count": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "Number of delivery attempts made so far",
+                        "example": 3
+                    }
+                }
+            },
+            "DeliveryAttemptResponse": {
+                "type": "object",
+                "properties": {
+                    "cycle": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "Delivery cycle this attempt belongs to; a replay starts a new cycle",
+                        "example": 1
+                    },
+                    "attempt_number": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "Attempt number within the cycle",
+                        "example": 1
+                    },
+                    "executed_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "When the attempt was executed, if it already ran"
+                    },
+                    "response_status": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "HTTP status returned by the client webhook, if the attempt ran",
+                        "example": 503
+                    },
+                    "failure_reason": {
+                        "type": "string",
+                        "description": "Reason the attempt failed, if it did",
+                        "example": "timeout"
+                    },
+                    "latency_ms": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "Round-trip latency in milliseconds, if the attempt ran",
+                        "example": 184
+                    },
+                    "origin": {
+                        "type": "string",
+                        "description": "Origin of the attempt: system or replay",
+                        "example": "system"
+                    }
+                }
+            },
+            "NotificationEventDetailResponse": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "string",
+                        "description": "Notification event identifier",
+                        "example": "EVT003"
+                    },
+                    "event_type": {
+                        "type": "string",
+                        "description": "Type of the account event that triggered the notification",
+                        "example": "credit_transfer"
+                    },
+                    "client_id": {
+                        "type": "string",
+                        "description": "Identifier of the client that owns the event",
+                        "example": "CLIENT002"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Human-readable description of the event",
+                        "example": "Bank transfer received from Account #4567 for $1,500.00"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "When the event was registered",
+                        "example": "2024-03-15T11:20:18Z"
+                    },
+                    "delivery_status": {
+                        "type": "string",
+                        "description": "Current delivery status: pending, retrying, completed or failed",
+                        "example": "failed"
+                    },
+                    "delivery_date": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "When the event was successfully delivered, if it ever was"
+                    },
+                    "attempts_count": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "Number of delivery attempts made so far",
+                        "example": 3
+                    },
+                    "attempts": {
+                        "type": "array",
+                        "description": "Full delivery attempt history, oldest first",
+                        "items": {
+                            "$ref": "#/components/schemas/DeliveryAttemptResponse"
+                        }
+                    },
+                    "next_attempt_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "When the next delivery attempt is scheduled, if any is pending"
+                    }
+                }
+            }
+        },
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT"
+            }
+        }
+    }
+}
