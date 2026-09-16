@@ -10,9 +10,7 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * Delivery attempt persistence entity.
- */
+
 @Entity
 @Table(name = "delivery_attempts")
 public class DeliveryAttemptEntity {

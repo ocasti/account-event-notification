@@ -3,9 +3,6 @@ package co.cobre.notifications.infrastructure.rest;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/**
- * Response DTO for a replay operation.
- */
 public record ReplayResponse(
     @Schema(description = "Notification event identifier", example = "EVT003")
     @JsonProperty("event_id")

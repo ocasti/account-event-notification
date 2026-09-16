@@ -6,9 +6,6 @@ import co.cobre.notifications.domain.EventKey;
 
 import java.time.Instant;
 
-/**
- * Command to register a new notification event.
- */
 public record RegisterEventCommand(
     EventId eventId,
     ClientId clientId,

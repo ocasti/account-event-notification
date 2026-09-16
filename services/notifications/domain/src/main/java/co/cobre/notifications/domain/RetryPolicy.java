@@ -3,9 +3,6 @@ package co.cobre.notifications.domain;
 import java.time.Duration;
 import java.util.random.RandomGenerator;
 
-/**
- * Policy that defines the retry strategy for failed deliveries.
- */
 public record RetryPolicy(
     Duration baseDelay,
     double factor,
@@ -14,9 +11,6 @@ public record RetryPolicy(
     int maxAttempts
 ) {
 
-    /**
-     * Creates the standard retry policy with predefined values.
-     */
     public static RetryPolicy standard() {
         return new RetryPolicy(
             Duration.ofSeconds(30),
@@ -27,9 +21,6 @@ public record RetryPolicy(
         );
     }
 
-    /**
-     * Calculates the delay before the given attempt number.
-     */
     public Duration delayBefore(int attemptNumber, RandomGenerator random) {
         if (attemptNumber <= 0) {
             throw new IllegalArgumentException("Attempt number must be greater than 0");
@@ -49,9 +40,6 @@ public record RetryPolicy(
         return Duration.ofSeconds(jitteredDelayInSeconds);
     }
 
-    /**
-     * Checks if the retry attempts have been exhausted.
-     */
     public boolean isExhausted(int attemptNumber) {
         return attemptNumber > maxAttempts;
     }

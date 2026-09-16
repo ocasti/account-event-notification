@@ -9,9 +9,7 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 
-/**
- * Subscription persistence entity.
- */
+
 @Entity
 @Table(name = "subscriptions")
 public class SubscriptionEntity {

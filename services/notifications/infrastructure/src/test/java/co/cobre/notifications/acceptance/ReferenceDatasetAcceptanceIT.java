@@ -54,7 +54,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Acceptance test reproducing the RFC's main criterion (docs/01-system-design.html, section 19,
- * "Criterios de aceptación"): publish the ten reference-dataset events
+ * "Acceptance criteria"): publish the ten reference-dataset events
  * (docs/notification_events.json) on the queue and verify the system ends with exactly
  * EVT003, EVT005 and EVT009 in FAILED (WireMock answers 503 for those event ids, per
  * deploy/local/wiremock/mappings/webhook-503.json) and the other seven in COMPLETED, each
@@ -89,24 +89,14 @@ class ReferenceDatasetAcceptanceIT {
     private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
     private static final String QUEUE_NAME = "account-events-acceptance";
 
-    /**
-     * Singleton PostgreSQL container, isolated from other boot tests.
-     */
     private static final PostgreSQLContainer<?> POSTGRES =
         new PostgreSQLContainer<>("postgres:16-alpine")
             .withReuse(false);
 
-    /**
-     * Singleton ElasticMQ container, isolated from other boot tests.
-     */
     private static final GenericContainer<?> ELASTICMQ =
         new GenericContainer<>("softwaremill/elasticmq-native:1.6.12")
             .withExposedPorts(9324);
 
-    /**
-     * Singleton WireMock container seeded with the repo's real mappings, so the three
-     * subscriptions created by V2__initial_subscriptions.sql all point at it.
-     */
     private static final GenericContainer<?> WIREMOCK = new GenericContainer<>("wiremock/wiremock:3.13.1")
         .withExposedPorts(8080)
         .withCommand("--port", "8080", "--disable-banner", "--max-request-journal-entries", "5000")

@@ -9,9 +9,6 @@ import org.springframework.web.bind.annotation.BindParam;
 import java.time.Instant;
 import java.util.Optional;
 
-/**
- * Request DTO for listing notification events.
- */
 public record ListRequest(
     @Parameter(
         description = "Only events created at or after this instant (ISO-8601)",

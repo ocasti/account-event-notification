@@ -2,9 +2,6 @@ package co.cobre.simulator;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-/**
- * Message contract for account events sent to SQS (snake_case JSON).
- */
 public record AccountEventMessage(
     @JsonProperty("event_id")
     String eventId,

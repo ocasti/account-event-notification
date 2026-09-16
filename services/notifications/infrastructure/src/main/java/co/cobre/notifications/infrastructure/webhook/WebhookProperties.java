@@ -5,9 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.time.Duration;
 import java.util.List;
 
-/**
- * Webhook configuration properties.
- */
+
 @ConfigurationProperties(prefix = "notifications.webhook")
 public record WebhookProperties(
     Duration connectTimeout,

@@ -1,8 +1,5 @@
 package co.cobre.notifications.domain;
 
-/**
- * Value object representing a notification event identifier.
- */
 public record EventId(String value) {
     private static final int MAX_LENGTH = 64;
 

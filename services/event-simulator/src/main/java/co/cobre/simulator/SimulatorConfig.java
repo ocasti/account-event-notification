@@ -6,9 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import java.time.Clock;
 import java.util.random.RandomGenerator;
 
-/**
- * Configuration beans for the simulator.
- */
 @Configuration
 public class SimulatorConfig {
 

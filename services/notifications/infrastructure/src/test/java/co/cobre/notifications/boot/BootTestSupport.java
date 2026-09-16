@@ -21,29 +21,17 @@ import java.util.Base64;
  */
 public abstract class BootTestSupport {
 
-    /**
-     * Singleton PostgreSQL container with reuse disabled.
-     */
     @ServiceConnection
     protected static final PostgreSQLContainer<?> POSTGRES =
         new PostgreSQLContainer<>("postgres:16-alpine")
             .withReuse(false);
 
-    /**
-     * Singleton ElasticMQ container, simulating SQS.
-     */
     protected static final GenericContainer<?> ELASTICMQ =
         new GenericContainer<>("softwaremill/elasticmq-native:1.6.12")
             .withExposedPorts(9324);
 
-    /**
-     * Path to temporary RSA public key file (PEM format).
-     */
     public static Path publicKeyPath;
 
-    /**
-     * Start containers and generate RSA public key file.
-     */
     static {
         try {
             POSTGRES.start();

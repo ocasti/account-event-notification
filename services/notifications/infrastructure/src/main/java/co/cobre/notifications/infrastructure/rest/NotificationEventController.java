@@ -32,9 +32,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Optional;
 
-/**
- * REST controller for notification events.
- */
 @RestController
 @RequestMapping("/notification_events")
 @Tag(name = "Notification events")
@@ -56,9 +53,6 @@ public class NotificationEventController {
         this.mapper = mapper;
     }
 
-    /**
-     * Lists notification events.
-     */
     @Operation(
         summary = "List notification events",
         description = "Lists the notification events belonging to the authenticated client, "
@@ -95,9 +89,7 @@ public class NotificationEventController {
         return mapper.toPage(page);
     }
 
-    /**
-     * Gets a notification event by ID.
-     */
+    
     @Operation(
         summary = "Get a notification event",
         description = "Gets a single notification event owned by the authenticated client, "
@@ -127,9 +119,6 @@ public class NotificationEventController {
         return mapper.toDetail(detail);
     }
 
-    /**
-     * Replays a notification event.
-     */
     @Operation(
         summary = "Replay a notification event",
         description = "Schedules a new delivery cycle for a failed notification event owned "

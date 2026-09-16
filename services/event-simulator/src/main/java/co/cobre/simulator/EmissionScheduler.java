@@ -5,9 +5,6 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-/**
- * Schedules emission of reference and derived events.
- */
 @Component
 public class EmissionScheduler {
 

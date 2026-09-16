@@ -5,9 +5,6 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
-/**
- * Represents a single delivery attempt of a notification.
- */
 public record DeliveryAttempt(
     UUID id,
     EventId eventId,
@@ -23,9 +20,6 @@ public record DeliveryAttempt(
     AttemptOrigin origin
 ) {
 
-    /**
-     * Creates the first delivery attempt for an event.
-     */
     public static DeliveryAttempt first(EventId eventId, int cycle, Instant at, AttemptOrigin origin) {
         return new DeliveryAttempt(
             UUID.randomUUID(),
@@ -43,9 +37,6 @@ public record DeliveryAttempt(
         );
     }
 
-    /**
-     * Creates the next delivery attempt based on this one.
-     */
     public DeliveryAttempt next(Instant at) {
         return new DeliveryAttempt(
             UUID.randomUUID(),
@@ -63,16 +54,10 @@ public record DeliveryAttempt(
         );
     }
 
-    /**
-     * Checks if this attempt has been executed.
-     */
     public boolean isExecuted() {
         return executedAt.isPresent();
     }
 
-    /**
-     * Returns a new attempt marked as executed with the given result.
-     */
     public DeliveryAttempt executed(Instant at, String workerId, DeliveryResult result) {
         return new DeliveryAttempt(
             id,

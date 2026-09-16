@@ -3,7 +3,6 @@ package co.cobre.notifications.application.usecase;
 import java.time.Duration;
 import java.util.Objects;
 
-/** Record encapsulating settings for a delivery worker. */
 public record DeliveryWorkerSettings(
     String workerId,
     int batchSize,

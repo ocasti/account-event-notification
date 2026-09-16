@@ -11,9 +11,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Clock;
 
-/**
- * Endpoints for manual event emission.
- */
 @RestController
 @RequestMapping("/simulator/events")
 public class SimulatorController {

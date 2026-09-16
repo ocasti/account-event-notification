@@ -12,9 +12,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class AccountEventMessageMapper {
 
-    /**
-     * Maps account event message to register event command.
-     */
+    
     public RegisterEventCommand toCommand(AccountEventMessage message) {
         return new RegisterEventCommand(
             new EventId(message.eventId()),

@@ -1,8 +1,5 @@
 package co.cobre.notifications.domain;
 
-/**
- * Represents the delivery status of a notification.
- */
 public enum DeliveryStatus {
     PENDING,
     RETRYING,
@@ -10,9 +7,6 @@ public enum DeliveryStatus {
     FAILED,
     SKIPPED;
 
-    /**
-     * Determines if a transition to the target status is allowed.
-     */
     public boolean canTransitionTo(DeliveryStatus target) {
         return switch (this) {
             case PENDING -> target == COMPLETED || target == RETRYING || target == FAILED;
@@ -22,9 +16,6 @@ public enum DeliveryStatus {
         };
     }
 
-    /**
-     * Returns true if this status is terminal (no further transitions allowed).
-     */
     public boolean isTerminal() {
         return this == COMPLETED || this == SKIPPED;
     }
