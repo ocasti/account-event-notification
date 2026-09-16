@@ -7,6 +7,7 @@ import co.cobre.notifications.application.usecase.ListNotificationEventsQuery;
 import co.cobre.notifications.application.usecase.NotificationEventPage;
 import co.cobre.notifications.application.usecase.NotificationEventSummary;
 import co.cobre.notifications.application.usecase.NotificationEventSummaryPage;
+import co.cobre.notifications.domain.EventId;
 
 import java.util.List;
 import java.util.Map;
@@ -33,7 +34,7 @@ public final class ListNotificationEvents {
     public NotificationEventSummaryPage list(ListNotificationEventsQuery query) {
         NotificationEventPage page = events.search(query);
 
-        Map<co.cobre.notifications.domain.EventId, Integer> attemptCounts =
+        Map<EventId, Integer> attemptCounts =
             page.items().isEmpty() ?
             Map.of() :
             attempts.countByEvents(

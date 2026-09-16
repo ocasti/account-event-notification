@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -118,9 +119,7 @@ public class DeliveryAttemptRepositoryAdapter implements DeliveryAttemptReposito
     }
 
     @Override
-    public Map<co.cobre.notifications.domain.EventId, Integer> countByEvents(
-        java.util.Collection<co.cobre.notifications.domain.EventId> eventIds
-    ) {
+    public Map<EventId, Integer> countByEvents(Collection<EventId> eventIds) {
         if (eventIds.isEmpty()) {
             return Map.of();
         }
@@ -130,13 +129,13 @@ public class DeliveryAttemptRepositoryAdapter implements DeliveryAttemptReposito
             .toList();
 
         var results = jpaRepository.countByEventIds(eventIdValues);
-        Map<co.cobre.notifications.domain.EventId, Integer> counts = new HashMap<>();
+        Map<EventId, Integer> counts = new HashMap<>();
 
         for (Object[] row : results) {
             String eventId = (String) row[0];
             Long count = (Long) row[1];
             counts.put(
-                new co.cobre.notifications.domain.EventId(eventId),
+                new EventId(eventId),
                 count.intValue()
             );
         }
