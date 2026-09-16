@@ -67,3 +67,9 @@ management:
     distribution:
       percentiles-histogram:
         "notifications.webhook.latency": true
+
+logging:
+  pattern:
+    # Plain text with the SLF4J key-value pairs after the message, so the per-attempt line stays useful
+    # without the json profile (which switches the console to ECS).
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %5p --- [%15.15t] %-40.40logger{39} : %m %kvp%n%wEx"
