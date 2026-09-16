@@ -67,7 +67,7 @@ Nota sobre `/actuator/prometheus`: queda público a propósito (necesario para q
 ## 4. Medidas transversales presentes en el diseño
 
 - **TLS por defecto hacia webhooks.** `WebhookUrlValidator` exige HTTPS salvo que el host esté en `WEBHOOK_ALLOWLIST` con `requireHttps=false` (solo perfil `local`) (RFC §9, §16). Cubre A02:2021 Cryptographic Failures.
-- **Firma HMAC del webhook.** `WebhookSigner` calcula `event-signature = HMAC-SHA256(clave, event-timestamp + "." + cuerpo)`; la ventana de tolerancia de 5 minutos sobre el timestamp es documentada para el receptor. La clave nunca se devuelve completa por la API; cifrado en reposo y rotación son evoluciones (RFC §16).
+- **Firma HMAC del webhook.** `WebhookSigner` calcula `event-signature = HMAC-SHA256(clave, event-timestamp + "." + cuerpo)`; la ventana de tolerancia de 5 minutos sobre el timestamp es documentada para el receptor. La clave nunca se devuelve completa por la API; cifrado en reposo y rotación son evoluciones (RFC §16). Contrato completo (cabeceras, cuerpo, verificación, reintentos, replay): [`docs/api/webhook-contract.md`](api/webhook-contract.md).
 - **Secretos fuera del repositorio.** `.env` y `deploy/local/keys/*.pem` ignorados por git (`.gitignore`); en AWS, clave pública y claves de firma en SSM (RFC §10, §12).
 - **Contenedores sin root.** `docker/notifications.Dockerfile` y `docker/simulator.Dockerfile`: imagen final `eclipse-temurin:21-jre-alpine` con usuario `app` no root (RFC §12).
 - **Dependencias gestionadas por el BOM de Spring Boot** (`spring-boot-starter-parent`, RFC §16).
