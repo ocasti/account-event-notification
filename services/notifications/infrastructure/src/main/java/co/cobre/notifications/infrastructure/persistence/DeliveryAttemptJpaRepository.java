@@ -12,7 +12,6 @@ import org.springframework.data.repository.query.Param;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 public interface DeliveryAttemptJpaRepository extends JpaRepository<DeliveryAttemptEntity, UUID> {
@@ -23,7 +22,8 @@ public interface DeliveryAttemptJpaRepository extends JpaRepository<DeliveryAtte
                    "AND d.next_attempt_at <= now() " +
                    "AND (d.claimed_at IS NULL OR d.claimed_at < now() - make_interval(secs => :leaseSeconds)) " +
                    "ORDER BY d.next_attempt_at ASC " +
-                   "LIMIT :limit", nativeQuery = true)
+                   "LIMIT :limit " +
+                   "FOR UPDATE OF d SKIP LOCKED", nativeQuery = true)
     List<Map<String, Object>> claimDueAttempts(
         @Param("leaseSeconds") long leaseSeconds,
         @Param("limit") int limit
@@ -31,10 +31,10 @@ public interface DeliveryAttemptJpaRepository extends JpaRepository<DeliveryAtte
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = "UPDATE delivery_attempts SET claimed_at = now(), claimed_by = :workerId " +
-                   "WHERE id IN (SELECT CAST(id AS uuid) FROM (VALUES :ids) AS t(id))",
+                   "WHERE id IN (:ids)",
            nativeQuery = true)
-    void updateClaimedBatch(
-        @Param("ids") Set<UUID> ids,
+    int updateClaimedBatch(
+        @Param("ids") List<UUID> ids,
         @Param("workerId") String workerId
     );
 
