@@ -31,7 +31,7 @@
 # .percentiles-histogram."http.server.requests") only insofar as it needs the *_count series, which
 # was already emitted before that change; it does not use histogram_quantile.
 #
-# 2026-09-16 (segunda tanda, junto con la fila "Carga de Postgres"): añadida PostgresActiveTimeHigh
+# 2026-09-16 (segunda tanda, junto con la fila "Carga de Postgres"): añadida PostgresBusyBackendsAboveCores (antes PostgresActiveTimeHigh con umbral 0,8, incorrecto: la métrica suma sesiones y supera 1 con carga normal)
 # (job postgres, ya cargado con datos reales).
 #
 # 2026-09-16 (tercera tanda, tras descartar cAdvisor): se probó cAdvisor para métricas por
@@ -159,14 +159,16 @@ groups:
       # 11. La base de datos notifications está activamente ejecutando consultas casi todo el
       #     tiempo (rate del contador acumulado de tiempo activo, sección 16-bis "Carga de
       #     Postgres" del tablero). Con >0.8 sostenido durante 5 minutos, Postgres está saturado.
-      - alert: PostgresActiveTimeHigh
-        expr: rate(pg_stat_database_active_time_seconds_total{datname="notifications"}[5m]) > 0.8
+      - alert: PostgresBusyBackendsAboveCores
+        # rate(active_time) = segundos de ejecución de SQL por segundo sumados sobre todas las
+        # sesiones = número medio de sesiones ocupadas. Saturación real cuando supera los cores de la VM.
+        expr: rate(pg_stat_database_active_time_seconds_total{datname="notifications"}[5m]) > scalar(count(node_cpu_seconds_total{mode="idle"}))
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "Postgres (notifications) tiene actividad activa el {{ $value | humanizePercentage }} del tiempo durante 5 minutos"
-          runbook: "La base está saturada de consultas; revisar el panel 'Carga de Postgres' (scans por tabla, tuplas por segundo, backends por estado) y considerar índices o bajar la concurrencia del worker."
+          summary: "Postgres (notifications) mantiene {{ $value | printf \"%.1f\" }} sesiones ejecutando SQL en promedio durante 5 minutos, más que los cores de la VM"
+          runbook: "La base está saturada de consultas; revisar el panel 'Carga de Postgres' (scans por tabla, tuplas por segundo, backends por estado) y los índices de delivery_attempts, o bajar batch-size / réplicas del worker."
 
       # 12. La VM de Docker se está quedando sin memoria disponible (node_exporter, fila
       #     "Recursos del entorno (VM de Docker)"). No es por servicio (eso no es observable bajo

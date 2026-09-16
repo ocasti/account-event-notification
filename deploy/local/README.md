@@ -147,7 +147,7 @@ Todo lo que responde "¿qué tan cargada está la base ahora mismo?", junto en u
 | Bloques leídos: disco vs. caché por segundo | `rate(pg_stat_database_blks_read[5m])` / `rate(pg_stat_database_blks_hit[5m])` | Cuántos bloques de 8 KB se piden por segundo, separados por si vinieron de disco o del buffer cache. |
 | Cache hit ratio | `blks_hit / (blks_hit + blks_read)` | Movido desde la fila `Base de datos` (no duplicado). |
 | Tiempo de E/S (lectura/escritura) | `rate(pg_stat_database_blk_read_time[5m])` / `rate(pg_stat_database_blk_write_time[5m])` | ms de E/S por segundo de reloj. **Sin datos en este stack:** `track_io_timing` está apagado (`pg_settings_track_io_timing = 0`); el panel lo dice en su descripción. |
-| Tiempo activo (carga de la base) | `rate(pg_stat_database_active_time_seconds_total[5m])` | Fracción de segundo de reloj con al menos una sesión ejecutando, por segundo (puede superar 1 con varios backends activos a la vez). Alimenta `PostgresActiveTimeHigh`. |
+| Sesiones ocupadas en promedio (carga de la base) | `rate(pg_stat_database_active_time_seconds_total[5m])` | Número medio de sesiones ejecutando SQL (segundos de ejecución por segundo, sumados sobre sesiones). 1 = una sesión ocupada todo el tiempo; por encima de los cores de la VM, saturación. |
 | Transacción más larga en curso | `pg_stat_activity_max_tx_duration{datname="notifications"}` | Segundos de la transacción abierta más vieja; una transacción larga retiene locks y bloquea el autovacuum. |
 | Temp files/bytes por segundo | `rate(pg_stat_database_temp_bytes[5m])` / `rate(pg_stat_database_temp_files[5m])` | Cuánto ordenamiento/hash se derrama a disco por no caber en `work_mem`. |
 | Checkpoints por segundo | `rate(pg_stat_bgwriter_checkpoints_timed_total[5m])` (por tiempo) vs. `rate(pg_stat_bgwriter_checkpoints_req_total[5m])` (forzados) | Muchos checkpoints "req" sostenidos indica `max_wal_size` chico para la tasa de escritura. |
@@ -313,7 +313,7 @@ contenedores), once en total:
 | `NotificationsDbPoolExhausted` | `hikaricp_connections_pending > 0` durante 2 min | Revisar el panel Base de datos y `pg_stat_activity`; considerar subir `maximum-pool-size` |
 | `PostgresDown` | `pg_up == 0` durante 1 min | Revisar el contenedor `postgres` |
 | `NotificationsOldestPendingTooOld` | `cobre_oldest_pending_age_seconds > 120` durante 5 min | Igual que `NotificationsAttemptsDueBacklog`, pero mirando Postgres en vez del gauge en memoria |
-| `PostgresActiveTimeHigh` | `rate(pg_stat_database_active_time_seconds_total{datname="notifications"}[5m]) > 0.8` durante 5 min | La base está saturada; revisar el panel `Carga de Postgres` (scans por tabla, tuplas por segundo, backends por estado), consultas e índices |
+| `PostgresBusyBackendsAboveCores` | `rate(pg_stat_database_active_time_seconds_total{datname="notifications"}[5m]) > cores de la VM` durante 5 min | La base está saturada; revisar scans por tabla, tuplas por segundo, backends por estado e índices de `delivery_attempts`, o bajar `batch-size` / réplicas del worker |
 | `HostMemoryLow` | `node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.10` durante 5 min | La VM de Docker se queda sin memoria; subir el límite de memoria de la VM (OrbStack/Docker Desktop) o bajar la carga |
 | `HostCpuSaturated` | CPU idle de la VM `< 10 %` durante 5 min | La VM está saturada de CPU; reducir carga o asignarle más CPU a la VM |
 
@@ -323,7 +323,7 @@ pero nunca dispara porque `notifications_leases_expired_total` no se emite (ver 
 instrumentado"). `NotificationsDbPoolExhausted` y `PostgresDown` necesitan `postgres-exporter`
 arriba (perfil `observability`); `NotificationsOldestPendingTooOld` necesita además
 `postgres-exporter/queries.yaml`; `NotificationsApiServerErrors` no necesita los buckets HTTP del
-punto 1 porque usa `_count`, no `histogram_quantile`. `PostgresActiveTimeHigh` tiene datos reales
+punto 1 porque usa `_count`, no `histogram_quantile`. `PostgresBusyBackendsAboveCores` tiene datos reales
 hoy (mismo job `postgres` que el resto de la fila `Carga de Postgres`). `HostMemoryLow` y
 `HostCpuSaturated` necesitan `node-exporter` arriba (perfil `observability`, job `node`); a
 diferencia de la descartada `ContainerMemoryNearLimit` (cAdvisor), estas sí tienen datos reales en

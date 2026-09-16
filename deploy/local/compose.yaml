@@ -89,7 +89,9 @@ services:
   wiremock:
     image: wiremock/wiremock:3.13.1
     profiles: [infra]
-    command: ["--port", "8080", "--disable-banner", "--max-request-journal-entries", "5000"]
+    # The request journal is what the load test compares against; 120000 entries hold a 50k-event run
+    # with 5 % failures (~62k POST). Each entry costs ~1.5 KB of heap.
+    command: ["--port", "8080", "--disable-banner", "--max-request-journal-entries", "${WIREMOCK_JOURNAL_ENTRIES:-120000}"]
     volumes:
       - ./wiremock/mappings:/home/wiremock/mappings:ro
     ports:
@@ -103,7 +105,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 320M
+          memory: 768M
     networks: [notifications]
 
   # ------------------------------------------------------------------- app
