@@ -1,7 +1,6 @@
 package co.cobre.notifications.infrastructure.worker;
 
 import co.cobre.notifications.application.usecase.ProcessDueDeliveries;
-import co.cobre.notifications.infrastructure.worker.DeliveryMetrics;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;

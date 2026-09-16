@@ -14,6 +14,7 @@ import co.cobre.notifications.domain.Subscription;
 import co.cobre.notifications.domain.RetryPolicy;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -76,7 +77,7 @@ public final class ProcessDueDeliveries {
         var subscription = resolveSubscription(notificationEvent);
         var outcome = subscription
             .map(sub -> sender.send(sub, notificationEvent, attempt))
-            .orElseGet(() -> new DeliveryOutcome.PermanentFailure(0, "subscription unavailable", java.time.Duration.ZERO));
+            .orElseGet(() -> new DeliveryOutcome.PermanentFailure(0, "subscription unavailable", Duration.ZERO));
 
         var result = DeliveryResult.of(outcome);
         var executed = attempt.executed(now, settings.workerId(), result);
@@ -97,7 +98,7 @@ public final class ProcessDueDeliveries {
             .filter(Subscription::active);
     }
 
-    private void handleOutcome(NotificationEvent event, DeliveryAttempt attempt, DeliveryOutcome outcome, java.time.Instant now) {
+    private void handleOutcome(NotificationEvent event, DeliveryAttempt attempt, DeliveryOutcome outcome, Instant now) {
         switch (outcome) {
             case DeliveryOutcome.Success s -> event.complete(now);
             case DeliveryOutcome.TransientFailure tf -> {

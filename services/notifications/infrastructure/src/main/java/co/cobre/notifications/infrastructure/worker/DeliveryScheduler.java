@@ -1,7 +1,6 @@
 package co.cobre.notifications.infrastructure.worker;
 
 import co.cobre.notifications.application.usecase.ProcessDueDeliveries;
-import co.cobre.notifications.infrastructure.worker.DeliveryMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
@@ -19,7 +18,6 @@ public class DeliveryScheduler {
     private final ProcessDueDeliveries processDueDeliveries;
     private final DeliveryMetrics metrics;
 
-    
     public DeliveryScheduler(
         ProcessDueDeliveries processDueDeliveries,
         DeliveryMetrics metrics

@@ -86,7 +86,9 @@ class DeliveryAttemptClaimConcurrencyIT extends PersistenceTestSupport {
 
         for (int w = 0; w < numWorkers; w++) {
             final String workerId = "worker-" + w;
-            executor.submit(() -> {
+            // Collects any per-worker failure (checked or not) so it can be reported once every worker finishes.
+            @SuppressWarnings("PMD.AvoidCatchingGenericException")
+            Runnable task = () -> {
                 try {
                     barrier.await(); // Synchronize all workers at start
                     for (int round = 0; round < roundsPerWorker; round++) {
@@ -110,7 +112,8 @@ class DeliveryAttemptClaimConcurrencyIT extends PersistenceTestSupport {
                         exceptions.add(e);
                     }
                 }
-            });
+            };
+            executor.submit(task);
         }
 
         executor.shutdown();

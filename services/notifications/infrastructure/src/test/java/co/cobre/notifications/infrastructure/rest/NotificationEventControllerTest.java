@@ -9,7 +9,6 @@ import co.cobre.notifications.domain.IllegalStateTransitionException;
 import co.cobre.notifications.domain.NotificationEventNotFoundException;
 import co.cobre.notifications.domain.ReplayNotAllowedException;
 import co.cobre.notifications.domain.*;
-import co.cobre.notifications.infrastructure.rest.NotificationEventResponseMapper;
 import co.cobre.notifications.infrastructure.security.AuthenticatedClientArgumentResolver;
 import co.cobre.notifications.infrastructure.security.ClientIdResolver;
 import co.cobre.notifications.infrastructure.security.JwtProperties;
@@ -30,7 +29,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static co.cobre.notifications.infrastructure.security.RestTestSecurityConfig.token;
-import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -157,7 +155,6 @@ class NotificationEventControllerTest {
 
     @Test
     void list_withoutLimit_defaultsTo20() throws Exception {
-        ClientId clientId = new ClientId("CLIENT002");
         when(listNotificationEvents.list(any()))
             .thenReturn(new NotificationEventSummaryPage(
                 List.of(),
@@ -240,7 +237,6 @@ class NotificationEventControllerTest {
 
     @Test
     void replay_withValidToken_returns202() throws Exception {
-        ClientId clientId = new ClientId("CLIENT002");
         EventId eventId = new EventId("EVT003");
 
         when(replayNotificationEvent.replay(any(), any()))

@@ -1,11 +1,5 @@
 package co.cobre.notifications.infrastructure.persistence;
 
-import co.cobre.notifications.infrastructure.persistence.AttemptOriginEntity;
-import co.cobre.notifications.infrastructure.persistence.DeliveryAttemptEntity;
-import co.cobre.notifications.infrastructure.persistence.DeliveryStatusEntity;
-import co.cobre.notifications.infrastructure.persistence.NotificationEventEntity;
-import co.cobre.notifications.infrastructure.persistence.DeliveryAttemptJpaRepository;
-import co.cobre.notifications.infrastructure.persistence.NotificationEventJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 

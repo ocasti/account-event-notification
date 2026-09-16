@@ -1,6 +1,5 @@
 package co.cobre.notifications.infrastructure.persistence;
 
-import co.cobre.notifications.infrastructure.persistence.DeliveryAttemptEntity;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;

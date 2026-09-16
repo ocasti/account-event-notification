@@ -4,8 +4,6 @@ import co.cobre.notifications.application.port.DeliveryClaim;
 import co.cobre.notifications.application.port.DeliveryAttemptRepository;
 import co.cobre.notifications.domain.DeliveryAttempt;
 import co.cobre.notifications.domain.EventId;
-import co.cobre.notifications.infrastructure.persistence.DeliveryAttemptJpaRepository;
-import co.cobre.notifications.infrastructure.persistence.DeliveryAttemptEntityMapper;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;

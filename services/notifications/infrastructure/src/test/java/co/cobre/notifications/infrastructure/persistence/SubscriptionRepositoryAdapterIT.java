@@ -2,9 +2,6 @@ package co.cobre.notifications.infrastructure.persistence;
 
 import co.cobre.notifications.domain.ClientId;
 import co.cobre.notifications.domain.EventKey;
-import co.cobre.notifications.infrastructure.persistence.PersistenceTestSupport;
-import co.cobre.notifications.infrastructure.persistence.SubscriptionEntity;
-import co.cobre.notifications.infrastructure.persistence.SubscriptionJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -24,9 +21,9 @@ class SubscriptionRepositoryAdapterIT extends PersistenceTestSupport {
 
     @Test
     void testFindActiveReturnsSubscriptionsForClient() {
-        var sub1 = createAndSave("sub_client001", "CLIENT001", new String[]{"credit_deposit", "payment_received"}, true);
-        var sub2 = createAndSave("sub_client001_alt", "CLIENT001", new String[]{"*"}, true);
-        var sub3 = createAndSave("sub_other", "OTHER_CLIENT", new String[]{"credit_deposit"}, true);
+        createAndSave("sub_client001", "CLIENT001", new String[]{"credit_deposit", "payment_received"}, true);
+        createAndSave("sub_client001_alt", "CLIENT001", new String[]{"*"}, true);
+        createAndSave("sub_other", "OTHER_CLIENT", new String[]{"credit_deposit"}, true);
 
         var result = adapter.findActive(new ClientId("CLIENT001"), new EventKey("credit_deposit"));
 

@@ -4,7 +4,6 @@ import co.cobre.notifications.domain.ClientId;
 import co.cobre.notifications.domain.EventKey;
 import co.cobre.notifications.domain.Subscription;
 import co.cobre.notifications.domain.WebhookUrl;
-import co.cobre.notifications.infrastructure.persistence.SubscriptionEntity;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;

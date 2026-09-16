@@ -7,6 +7,7 @@ import org.springframework.web.client.RestClient;
 
 import java.net.InetAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -279,7 +280,7 @@ class HttpWebhookSenderTest {
             host -> {
                 try {
                     return List.of(InetAddress.getByName("10.0.0.5"));
-                } catch (Exception e) {
+                } catch (UnknownHostException e) {
                     throw new RuntimeException(e);
                 }
             }
@@ -315,7 +316,7 @@ class HttpWebhookSenderTest {
         var validator = new WebhookUrlValidator(props, host -> {
             try {
                 return List.of(InetAddress.getByName("93.184.216.34"));
-            } catch (Exception e) {
+            } catch (UnknownHostException e) {
                 throw new RuntimeException(e);
             }
         });

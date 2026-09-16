@@ -2,7 +2,6 @@ package co.cobre.notifications.application.usecase;
 
 import co.cobre.notifications.application.port.DeliveryAttemptRepository;
 import co.cobre.notifications.application.port.NotificationEventRepository;
-import co.cobre.notifications.application.usecase.ReplayResult;
 import co.cobre.notifications.domain.NotificationEventNotFoundException;
 import co.cobre.notifications.domain.ReplayNotAllowedException;
 import co.cobre.notifications.domain.AttemptOrigin;

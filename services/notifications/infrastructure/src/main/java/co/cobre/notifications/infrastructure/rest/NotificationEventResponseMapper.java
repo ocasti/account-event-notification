@@ -4,10 +4,6 @@ import co.cobre.notifications.application.usecase.NotificationEventDetail;
 import co.cobre.notifications.application.usecase.NotificationEventSummaryPage;
 import co.cobre.notifications.domain.DeliveryAttempt;
 import co.cobre.notifications.domain.NotificationEvent;
-import co.cobre.notifications.infrastructure.rest.DeliveryAttemptResponse;
-import co.cobre.notifications.infrastructure.rest.NotificationEventDetailResponse;
-import co.cobre.notifications.infrastructure.rest.NotificationEventPageResponse;
-import co.cobre.notifications.infrastructure.rest.NotificationEventResponse;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -16,7 +12,6 @@ import java.util.Optional;
 @Component
 public class NotificationEventResponseMapper {
 
-    
     public NotificationEventResponse toResponse(NotificationEvent event, int attemptsCount) {
         return new NotificationEventResponse(
             event.eventId().value(),
@@ -30,7 +25,6 @@ public class NotificationEventResponseMapper {
         );
     }
 
-    
     public NotificationEventDetailResponse toDetail(NotificationEventDetail detail) {
         var event = detail.event();
         var attempts = detail.attempts();
@@ -54,7 +48,6 @@ public class NotificationEventResponseMapper {
         );
     }
 
-    
     public NotificationEventPageResponse toPage(NotificationEventSummaryPage page) {
         return new NotificationEventPageResponse(
             page.items().stream()

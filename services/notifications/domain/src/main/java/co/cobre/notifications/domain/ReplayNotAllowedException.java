@@ -1,8 +1,5 @@
 package co.cobre.notifications.domain;
 
-import co.cobre.notifications.domain.DeliveryStatus;
-import co.cobre.notifications.domain.EventId;
-
 public class ReplayNotAllowedException extends RuntimeException {
 
     public ReplayNotAllowedException(EventId eventId, DeliveryStatus current) {

@@ -2,7 +2,6 @@ package co.cobre.notifications.infrastructure.worker;
 
 import co.cobre.notifications.application.usecase.RegistrationResult;
 import co.cobre.notifications.application.usecase.RegisterNotificationEvent;
-import co.cobre.notifications.infrastructure.worker.DeliveryMetrics;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;

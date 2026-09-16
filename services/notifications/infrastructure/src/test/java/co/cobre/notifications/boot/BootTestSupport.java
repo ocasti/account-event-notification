@@ -6,6 +6,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import software.amazon.awssdk.services.sqs.SqsAsyncClient;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyPair;
@@ -13,6 +14,7 @@ import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.util.Base64;
+import java.util.concurrent.ExecutionException;
 
 /**
  * Base class for boot tests with singleton Testcontainers: PostgreSQL and ElasticMQ.
@@ -38,7 +40,7 @@ public abstract class BootTestSupport {
             ELASTICMQ.start();
             publicKeyPath = generateRsaPublicKeyFile();
             createSqsQueue();
-        } catch (Exception e) {
+        } catch (IOException | NoSuchAlgorithmException e) {
             throw new RuntimeException("Failed to initialize boot test containers", e);
         }
     }
@@ -89,7 +91,10 @@ public abstract class BootTestSupport {
 
             sqs.createQueue(req -> req.queueName("account-events-boot")).get();
             sqs.close();
-        } catch (Exception e) {
+        } catch (URISyntaxException | ExecutionException e) {
+            throw new RuntimeException("Failed to create SQS queue in ElasticMQ", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new RuntimeException("Failed to create SQS queue in ElasticMQ", e);
         }
     }

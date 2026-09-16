@@ -84,7 +84,6 @@ class ProcessDueDeliveriesTest {
         ProcessDueDeliveries useCase = createUseCase(clock, random, (Runnable::run));
 
         EventId eventId = new EventId("evt-123");
-        ClientId clientId = new ClientId("client-1");
         DeliveryAttempt attempt = new DeliveryAttempt(
             java.util.UUID.randomUUID(),
             eventId,

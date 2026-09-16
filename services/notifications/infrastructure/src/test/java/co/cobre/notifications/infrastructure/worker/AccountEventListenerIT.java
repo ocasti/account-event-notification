@@ -1,7 +1,6 @@
 package co.cobre.notifications.infrastructure.worker;
 
 import co.cobre.notifications.application.usecase.RegisterNotificationEvent;
-import co.cobre.notifications.infrastructure.worker.DeliveryMetrics;
 import io.awspring.cloud.sqs.operations.SqsTemplate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -6,7 +6,6 @@ import co.cobre.notifications.application.usecase.RegisterNotificationEvent;
 import co.cobre.notifications.domain.ClientId;
 import co.cobre.notifications.domain.EventId;
 import co.cobre.notifications.domain.EventKey;
-import co.cobre.notifications.infrastructure.worker.DeliveryMetrics;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;

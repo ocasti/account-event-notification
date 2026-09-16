@@ -36,19 +36,6 @@ class MeteredNotificationEventRepositoryTest {
 
     @Test
     void transitionToCompletedRecordsMetric() {
-        var originalEvent = new NotificationEvent(
-            eventId,
-            clientId,
-            eventKey,
-            "content",
-            Instant.parse("2025-01-01T10:00:00Z"),
-            Instant.parse("2025-01-01T10:00:00Z"),
-            DeliveryStatus.PENDING,
-            Optional.of("SUB001"),
-            0,
-            Optional.empty()
-        );
-
         var completedEvent = new NotificationEvent(
             eventId,
             clientId,
@@ -74,19 +61,6 @@ class MeteredNotificationEventRepositoryTest {
 
     @Test
     void transitionToRetryingRecordsMetric() {
-        var originalEvent = new NotificationEvent(
-            eventId,
-            clientId,
-            eventKey,
-            "content",
-            Instant.parse("2025-01-01T10:00:00Z"),
-            Instant.parse("2025-01-01T10:00:00Z"),
-            DeliveryStatus.PENDING,
-            Optional.of("SUB001"),
-            0,
-            Optional.empty()
-        );
-
         var retryingEvent = new NotificationEvent(
             eventId,
             clientId,
@@ -112,19 +86,6 @@ class MeteredNotificationEventRepositoryTest {
 
     @Test
     void transitionToFailedRecordsMetric() {
-        var originalEvent = new NotificationEvent(
-            eventId,
-            clientId,
-            eventKey,
-            "content",
-            Instant.parse("2025-01-01T10:00:00Z"),
-            Instant.parse("2025-01-01T10:00:00Z"),
-            DeliveryStatus.PENDING,
-            Optional.of("SUB001"),
-            0,
-            Optional.empty()
-        );
-
         var failedEvent = new NotificationEvent(
             eventId,
             clientId,
@@ -150,19 +111,6 @@ class MeteredNotificationEventRepositoryTest {
 
     @Test
     void transitionToPendingDoesNotRecordMetric() {
-        var originalEvent = new NotificationEvent(
-            eventId,
-            clientId,
-            eventKey,
-            "content",
-            Instant.parse("2025-01-01T10:00:00Z"),
-            Instant.parse("2025-01-01T10:00:00Z"),
-            DeliveryStatus.FAILED,
-            Optional.of("SUB001"),
-            0,
-            Optional.empty()
-        );
-
         var pendingEvent = new NotificationEvent(
             eventId,
             clientId,
