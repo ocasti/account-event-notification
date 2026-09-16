@@ -28,7 +28,7 @@ Content-Type: application/json
 x-cobre-event-id: EVT001
 x-cobre-attempt: 1
 event-timestamp: 2024-03-15T09:30:22.418601Z
-event-signature: da3842608093960435aa3e74f689bf1226ba07a26e6601874baf2938ffb305e5
+event-signature: aec47d71ede011e6d51ca2aee9422406e25018ffadd8c9159c17902d7bf82192
 ```
 
 - `x-cobre-event-id` — the event's `event_id`, same value as `id` in the body. Stable across every
@@ -50,7 +50,7 @@ JSON, `Content-Type: application/json`. Shape (`WebhookPayload`, field order as 
 record, Jackson 3 default field ordering):
 
 ```json
-{"id":"EVT001","event_key":"credit_card_payment","client_id":"CLIENT001","created_at":"2024-03-15T09:30:22Z","content":"Credit card payment received for $150.00"}
+{"id":"EVT001","event_key":"credit_card_payment","client_id":"CLIENT001","created_at":null,"content":"Credit card payment received for $150.00"}
 ```
 
 Pretty-printed for readability (the wire body is compact, no extra whitespace):
@@ -60,7 +60,7 @@ Pretty-printed for readability (the wire body is compact, no extra whitespace):
   "id": "EVT001",
   "event_key": "credit_card_payment",
   "client_id": "CLIENT001",
-  "created_at": "2024-03-15T09:30:22Z",
+  "created_at": null,
   "content": "Credit card payment received for $150.00"
 }
 ```
@@ -75,6 +75,8 @@ Pretty-printed for readability (the wire body is compact, no extra whitespace):
 
 The body is byte-for-byte identical on every attempt and on every replay of the same event: it is
 computed once per delivery cycle from data that never changes after registration.
+
+The signature above is real: HMAC-SHA256 with the local demo key of CLIENT001 (`local-signing-key-client001`, from `V2__initial_subscriptions.sql`) over `event-timestamp + "." + body`, the body being the compact form shown first. Re-computing it is the quickest way to validate a receiver implementation.
 
 ## Verifying the signature
 
