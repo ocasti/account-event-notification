@@ -10,7 +10,7 @@ API_RPS ?= 20
 API_CLIENTS ?= 4
 MAX_REPLAYS ?= 200
 
-.PHONY: help preflight keys infra up up-all down logs ps build test token emit replay clean load openapi
+.PHONY: tc-clean help preflight keys infra up up-all down logs ps build test token emit replay clean load openapi
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -49,6 +49,9 @@ build: ## Build both services without running tests
 test: ## Run the full test suite of both services
 	cd services/notifications && ./mvnw verify
 	cd services/event-simulator && ./mvnw verify
+
+tc-clean: ## Remove containers left behind by Testcontainers (Ryuk is disabled under OrbStack)
+	@docker rm -f $$(docker ps -aq --filter label=org.testcontainers=true) 2>/dev/null || true
 
 token: ## Issue a demo JWT: make token CLIENT=CLIENT001
 	@scripts/token.sh $(CLIENT)
