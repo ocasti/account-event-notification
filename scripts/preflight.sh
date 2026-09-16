@@ -21,6 +21,17 @@ mem_bytes=$(docker info --format '{{.MemTotal}}' 2>/dev/null || echo 0)
 mem_gb=$(( mem_bytes / 1024 / 1024 / 1024 ))
 if [ "$mem_gb" -lt 4 ]; then warn "docker has ${mem_gb} GB; 4 GB recommended"; else ok "docker memory ${mem_gb} GB"; fi
 
+# The delivery engine schedules and claims attempts with the database clock (now()), so the
+# Docker VM must agree with the host. OrbStack and Docker Desktop can drift by hours after sleep.
+host_epoch=$(date +%s)
+vm_epoch=$(docker run --rm alpine:3.20 date +%s 2>/dev/null || echo "$host_epoch")
+skew=$(( host_epoch - vm_epoch )); skew=${skew#-}
+if [ "$skew" -gt 5 ]; then
+  fail "docker VM clock is ${skew}s off the host; restart the VM (OrbStack: orbctl stop && orbctl start)"
+else
+  ok "docker clock in sync (${skew}s)"
+fi
+
 if [ ! -f .env ]; then
   cp .env.example .env
   warn ".env created from .env.example; edit WEBHOOK_URL to point at a real receiver"
