@@ -1,15 +1,15 @@
-# Consultas de negocio para prometheus-community/postgres_exporter (v0.20.1), montadas vía
-# PG_EXPORTER_EXTEND_QUERY_PATH (ver compose.yaml, servicio postgres-exporter).
+# Business queries for prometheus-community/postgres_exporter (v0.20.1), mounted via
+# PG_EXPORTER_EXTEND_QUERY_PATH (see compose.yaml, postgres-exporter service).
 #
-# El formato "queries.yaml" clásico está marcado DEPRECATED en el binario (sigue funcionando en
-# v0.20.1; el exportador sólo lo avisa por log al arrancar). Se eligió sobre el mecanismo de
-# collector custom más nuevo (--collector.<name>.query-file) porque produce nombres de métrica
-# predecibles con una sola sintaxis, y el proyecto no publica todavía una guía estable de
-# reemplazo para queries.yaml en 0.20.x.
+# The classic "queries.yaml" format is marked DEPRECATED in the binary (still works in
+# v0.20.1; the exporter only warns about it via log on startup). It was chosen over the newer
+# custom-collector mechanism (--collector.<name>.query-file) because it produces predictable
+# metric names with a single syntax, and the project does not yet publish a stable replacement
+# guide for queries.yaml in 0.20.x.
 #
-# El nombre final de cada métrica es "<clave de primer nivel>_<clave de la columna>" (verificado
-# corriendo el exportador contra el Postgres del stack): por eso las claves de abajo están
-# partidas a propósito para que la concatenación dé exactamente el nombre pedido, p. ej.
+# The final name of each metric is "<top-level key>_<column key>" (verified by running the
+# exporter against this stack's Postgres): that's why the keys below are deliberately split so
+# that the concatenation gives exactly the requested name, e.g.
 # "cobre_attempts" + "_due" = cobre_attempts_due.
 
 cobre_events:
@@ -17,35 +17,35 @@ cobre_events:
   metrics:
     - status:
         usage: "LABEL"
-        description: "Estado del evento (notification_events.status)"
+        description: "Event status (notification_events.status)"
     - by_status:
         usage: "GAUGE"
-        description: "Cantidad de eventos de notification_events agrupados por estado"
+        description: "Count of notification_events grouped by status"
 
 cobre_attempts:
   query: "SELECT count(*)::float AS due FROM delivery_attempts WHERE executed_at IS NULL AND next_attempt_at <= now()"
   metrics:
     - due:
         usage: "GAUGE"
-        description: "Intentos de entrega vencidos (next_attempt_at <= now()) que ningún worker ha ejecutado todavía"
+        description: "Due delivery attempts (next_attempt_at <= now()) that no worker has executed yet"
 
 cobre_attempts_claimed:
   query: "SELECT count(*)::float AS unfinished FROM delivery_attempts WHERE claimed_at IS NOT NULL AND executed_at IS NULL"
   metrics:
     - unfinished:
         usage: "GAUGE"
-        description: "Intentos de entrega reclamados por un worker (claimed_at) que aún no terminaron (executed_at nulo); si crece sostenido, un worker murió con el lease tomado"
+        description: "Delivery attempts claimed by a worker (claimed_at) that haven't finished yet (executed_at null); if this grows steadily, a worker died holding the lease"
 
 cobre_attempts_executed:
   query: "SELECT count(*)::float AS total FROM delivery_attempts WHERE executed_at IS NOT NULL"
   metrics:
     - total:
         usage: "GAUGE"
-        description: "Total acumulado de intentos de entrega ya ejecutados; contador de negocio expuesto como gauge porque la consulta recalcula el total en cada scrape"
+        description: "Cumulative total of delivery attempts already executed; a business counter exposed as a gauge because the query recomputes the total on every scrape"
 
 cobre_oldest_pending_age:
   query: "SELECT COALESCE(extract(epoch FROM now() - min(next_attempt_at)), 0)::float AS seconds FROM delivery_attempts WHERE executed_at IS NULL AND next_attempt_at <= now()"
   metrics:
     - seconds:
         usage: "GAUGE"
-        description: "Antigüedad en segundos del intento vencido no ejecutado más viejo; 0 si no hay ninguno pendiente"
+        description: "Age in seconds of the oldest due, unexecuted attempt; 0 if none is pending"
