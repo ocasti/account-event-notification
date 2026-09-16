@@ -2,6 +2,8 @@ package co.cobre.notifications.infrastructure.rest;
 
 import co.cobre.notifications.application.usecase.NotificationEventDetail;
 import co.cobre.notifications.application.usecase.NotificationEventPage;
+import co.cobre.notifications.application.usecase.NotificationEventSummary;
+import co.cobre.notifications.application.usecase.NotificationEventSummaryPage;
 import co.cobre.notifications.domain.DeliveryAttempt;
 import co.cobre.notifications.domain.NotificationEvent;
 import co.cobre.notifications.infrastructure.rest.DeliveryAttemptResponse;
@@ -63,12 +65,12 @@ public class NotificationEventResponseMapper {
     }
 
     /**
-     * Maps a notification event page to a response DTO.
+     * Maps a notification event summary page to a response DTO.
      */
-    public NotificationEventPageResponse toPage(NotificationEventPage page) {
+    public NotificationEventPageResponse toPage(NotificationEventSummaryPage page) {
         return new NotificationEventPageResponse(
             page.items().stream()
-                .map(event -> toResponse(event, 0))
+                .map(summary -> toResponse(summary.event(), summary.attemptsCount()))
                 .toList(),
             page.nextCursor()
         );

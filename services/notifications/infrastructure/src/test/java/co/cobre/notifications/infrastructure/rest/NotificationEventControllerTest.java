@@ -2,6 +2,8 @@ package co.cobre.notifications.infrastructure.rest;
 
 import co.cobre.notifications.application.usecase.GetNotificationEvent;
 import co.cobre.notifications.application.usecase.ListNotificationEvents;
+import co.cobre.notifications.application.usecase.NotificationEventSummary;
+import co.cobre.notifications.application.usecase.NotificationEventSummaryPage;
 import co.cobre.notifications.application.usecase.ReplayNotificationEvent;
 import co.cobre.notifications.domain.IllegalStateTransitionException;
 import co.cobre.notifications.domain.NotificationEventNotFoundException;
@@ -75,8 +77,9 @@ class NotificationEventControllerTest {
     @Test
     void list_withValidToken_returnsEvents() throws Exception {
         ClientId clientId = new ClientId("CLIENT002");
+        EventId eventId = new EventId("EVT001");
         NotificationEvent event = new NotificationEvent(
-            new EventId("EVT001"),
+            eventId,
             clientId,
             new EventKey("user.created"),
             "test content",
@@ -89,8 +92,8 @@ class NotificationEventControllerTest {
         );
 
         when(listNotificationEvents.list(any()))
-            .thenReturn(new co.cobre.notifications.application.usecase.NotificationEventPage(
-                List.of(event),
+            .thenReturn(new NotificationEventSummaryPage(
+                List.of(new NotificationEventSummary(event, 5)),
                 Optional.of("cursor123")
             ));
 
@@ -110,6 +113,7 @@ class NotificationEventControllerTest {
             .andExpect(jsonPath("$.items[0].client_id").value("CLIENT002"))
             .andExpect(jsonPath("$.items[0].content").value("test content"))
             .andExpect(jsonPath("$.items[0].delivery_status").value("failed"))
+            .andExpect(jsonPath("$.items[0].attempts_count").value(5))
             .andExpect(jsonPath("$.next_cursor").value("cursor123"));
 
         verify(listNotificationEvents).list(argThat(query ->
@@ -157,7 +161,7 @@ class NotificationEventControllerTest {
     void list_withoutLimit_defaultsTo20() throws Exception {
         ClientId clientId = new ClientId("CLIENT002");
         when(listNotificationEvents.list(any()))
-            .thenReturn(new co.cobre.notifications.application.usecase.NotificationEventPage(
+            .thenReturn(new NotificationEventSummaryPage(
                 List.of(),
                 Optional.empty()
             ));

@@ -116,4 +116,11 @@ public class DeliveryAttemptRepositoryAdapter implements DeliveryAttemptReposito
         );
         return rows == 1;
     }
+
+    @Override
+    public Map<co.cobre.notifications.domain.EventId, Integer> countByEvents(
+        java.util.Collection<co.cobre.notifications.domain.EventId> eventIds
+    ) {
+        return Map.of();
+    }
 }
