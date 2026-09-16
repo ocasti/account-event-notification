@@ -271,8 +271,9 @@ services:
       - --storage.tsdb.retention.time=6h
       - --web.enable-lifecycle
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      # Directory mount, not two file mounts: a single-file bind mount goes stale when git or an
+      # editor replaces the file (new inode), and a reload then loads an empty rule set.
+      - ./prometheus:/etc/prometheus:ro
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     healthcheck:
