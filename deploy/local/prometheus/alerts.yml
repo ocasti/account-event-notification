@@ -1,0 +1,86 @@
+# Alerting rules for the local stack, one per alarm in section 16 ("Observabilidad") of
+# docs/01-system-design.html. Loaded by prometheus.yml via `rule_files`.
+#
+# Status of each rule against the metrics actually exposed by /actuator/prometheus today
+# (verified 2026-09-15 against a running `make up-all` stack):
+#   notifications_attempts_due            -> emitted (DueAttemptsGaugeUpdater). Rules 1 and 3: LIVE.
+#   notifications_deliveries_total        -> NEVER emitted: DeliveryMetrics.delivered(...) is only
+#                                             called from the unit test (DeliveryMetricsTest), never
+#                                             from ProcessDueDeliveries.process(). Rules 2 and 4b will
+#                                             load but never fire until that wiring is added (Java
+#                                             change, out of this agent's write area: deploy/local/**).
+#   notifications_leases_expired_total    -> same gap: DeliveryMetrics.leaseExpired() has no caller
+#                                             outside the test. Rule 5: BLOCKED for the same reason.
+#   DLQ depth (account-events-dlq)        -> no Prometheus metric exists yet for ElasticMQ's DLQ.
+#                                             Rule 4 references notifications_dlq_messages_visible as
+#                                             a placeholder for a gauge that still needs to be added
+#                                             (either an app-side Micrometer gauge reading SQS
+#                                             GetQueueAttributes ApproximateNumberOfMessages on the
+#                                             DLQ, or a dedicated exporter sidecar). Also out of scope
+#                                             here. The rule loads and is inert until that metric exists.
+groups:
+  - name: notifications.rules
+    rules:
+      # 1. "Intentos vencidos por encima de 30 segundos de trabajo del worker durante 5 minutos".
+      #    Each worker claims batches of 50 attempts per 1 s tick (paralelismo HTTP fijado en 50,
+      #    section 9/16 of the RFC). 30 s of a single worker's claim capacity is used here as the
+      #    threshold: 50 attempts/tick * 30 ticks = 1500. notifications_attempts_due is a gauge
+      #    published by every worker replica and aggregated with max (never summed).
+      - alert: NotificationsAttemptsDueBacklog
+        expr: max(notifications_attempts_due) > 1500
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backlog of due delivery attempts sustained for 5 minutes ({{ $value }} due)"
+          runbook: "Escalar réplicas de notifications-worker o revisar la salud/carga de Postgres."
+
+      # 2. "Tasa de fallo de un cliente por encima del 20% con al menos 50 entregas en 10 minutos".
+      #    BLOCKED today: see header (notifications_deliveries_total is never populated).
+      - alert: NotificationsClientFailureRateHigh
+        expr: |
+          (
+            sum by (client_id) (increase(notifications_deliveries_total{status="failed"}[10m]))
+            /
+            sum by (client_id) (increase(notifications_deliveries_total[10m]))
+          ) > 0.20
+          and
+          sum by (client_id) (increase(notifications_deliveries_total[10m])) >= 50
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Client {{ $labels.client_id }} has a >20% webhook failure rate over 10 minutes"
+          runbook: "Avisar al cliente {{ $labels.client_id }}: su endpoint webhook está degradado."
+
+      # 3. "Métrica de intentos vencidos ausente durante 2 minutos".
+      - alert: NotificationsAttemptsDueMetricMissing
+        expr: absent(notifications_attempts_due) == 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "notifications_attempts_due has not been scraped for 2 minutes"
+          runbook: "No queda ningún worker vivo; reiniciar notifications-worker."
+
+      # 4. "Mensajes en la DLQ mayores que cero". BLOCKED today: no exporter publishes DLQ depth
+      #    (see header). notifications_dlq_messages_visible is the placeholder gauge name.
+      - alert: NotificationsDlqNotEmpty
+        expr: max(notifications_dlq_messages_visible) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "account-events-dlq has {{ $value }} message(s)"
+          runbook: "Un evento no se pudo registrar; revisar el mensaje en la DLQ y redrenar a mano."
+
+      # 5. "Arrendamientos vencidos por encima de 10 por minuto". BLOCKED today: see header
+      #    (notifications_leases_expired_total is never populated).
+      - alert: NotificationsLeaseExpirationsHigh
+        expr: increase(notifications_leases_expired_total[1m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 10 lease expirations per minute, sustained for 5 minutes"
+          runbook: "Los POST duran más que el arrendamiento; revisar timeouts del webhook."
