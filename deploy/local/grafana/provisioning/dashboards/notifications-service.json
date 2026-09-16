@@ -67,7 +67,7 @@
           "value": "$__all"
         },
         "sort": 1,
-        "description": "Instancia (réplica) de notifications-worker."
+        "description": "Instance (replica) of notifications-worker."
       }
     ]
   },
@@ -79,7 +79,7 @@
     {
       "id": 9,
       "type": "row",
-      "title": "Resumen (rango de tiempo seleccionado)",
+      "title": "Summary (selected time range)",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -92,8 +92,8 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "Entregas completadas (rango)",
-      "description": "Intentos de entrega que terminaron en estado completed en la última hora (notifications_deliveries_total). Calculado sobre el rango de tiempo seleccionado en Grafana ($__range) y el filtro de cliente; al cambiar el rango o el cliente se recalcula.",
+      "title": "Completed deliveries (range)",
+      "description": "Delivery attempts that ended in completed status in the last hour (notifications_deliveries_total). Computed over the time range selected in Grafana ($__range) and the client filter; recalculated when the range or client changes.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -151,8 +151,8 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "Entregas fallidas (rango)",
-      "description": "Intentos de entrega que terminaron en estado failed en la última hora (notifications_deliveries_total). Calculado sobre el rango de tiempo seleccionado en Grafana ($__range) y el filtro de cliente; al cambiar el rango o el cliente se recalcula.",
+      "title": "Failed deliveries (range)",
+      "description": "Delivery attempts that ended in failed status in the last hour (notifications_deliveries_total). Computed over the time range selected in Grafana ($__range) and the client filter; recalculated when the range or client changes.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -218,8 +218,8 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Tasa de éxito (rango)",
-      "description": "Proporción de intentos de entrega completed sobre el total de intentos con resultado (completed+failed+retrying) en la última hora. Calculado sobre el rango de tiempo seleccionado en Grafana ($__range) y el filtro de cliente; al cambiar el rango o el cliente se recalcula.",
+      "title": "Success rate (range)",
+      "description": "Proportion of completed delivery attempts over the total attempts with a result (completed+failed+retrying) in the last hour. Computed over the time range selected in Grafana ($__range) and the client filter; recalculated when the range or client changes.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -285,8 +285,8 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "p95 latencia webhook (rango)",
-      "description": "Percentil 95 de la duración del POST al webhook del cliente en la última hora, sobre todos los clientes (notifications_webhook_latency_seconds). Calculado sobre el rango de tiempo seleccionado en Grafana ($__range) y el filtro de cliente; al cambiar el rango o el cliente se recalcula.",
+      "title": "Webhook latency p95 (range)",
+      "description": "95th percentile of the client webhook POST duration in the last hour, across all clients (notifications_webhook_latency_seconds). Computed over the time range selected in Grafana ($__range) and the client filter; recalculated when the range or client changes.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -348,8 +348,8 @@
     {
       "id": 5,
       "type": "stat",
-      "title": "Backlog vencido (worker)",
-      "description": "Valor actual del gauge; no depende del rango de tiempo.",
+      "title": "Overdue backlog (worker)",
+      "description": "Current value of the gauge; does not depend on the time range.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -416,8 +416,8 @@
     {
       "id": 6,
       "type": "stat",
-      "title": "Eventos por estado (Postgres)",
-      "description": "Estado actual de la tabla notification_events según postgres_exporter. Es una foto del momento, no depende del rango de tiempo ni del filtro de cliente.",
+      "title": "Events by status (Postgres)",
+      "description": "Current state of the notification_events table according to postgres_exporter. It is a point-in-time snapshot; it does not depend on the time range or the client filter.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -477,8 +477,8 @@
     {
       "id": 7,
       "type": "stat",
-      "title": "Duplicados (rango)",
-      "description": "Eventos recibidos que ya existían (misma clave de idempotencia) en la última hora (notifications_duplicates_total). Calculado sobre el rango de tiempo seleccionado en Grafana ($__range) y el filtro de cliente; al cambiar el rango o el cliente se recalcula.",
+      "title": "Duplicates (range)",
+      "description": "Received events that already existed (same idempotency key) in the last hour (notifications_duplicates_total). Computed over the time range selected in Grafana ($__range) and the client filter; recalculated when the range or client changes.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -536,8 +536,8 @@
     {
       "id": 8,
       "type": "stat",
-      "title": "Saltados (rango)",
-      "description": "Eventos recibidos que el servicio decidió no registrar en la última hora (notifications_skipped_total): p. ej. sin suscripción activa para el event_key. Calculado sobre el rango de tiempo seleccionado en Grafana ($__range) y el filtro de cliente; al cambiar el rango o el cliente se recalcula.",
+      "title": "Skipped (range)",
+      "description": "Received events that the service decided not to record in the last hour (notifications_skipped_total): e.g. no active subscription for the event_key. Computed over the time range selected in Grafana ($__range) and the client filter; recalculated when the range or client changes.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -595,7 +595,7 @@
     {
       "id": 52,
       "type": "row",
-      "title": "Carga de Postgres",
+      "title": "Postgres load",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -608,8 +608,8 @@
     {
       "id": 53,
       "type": "timeseries",
-      "title": "Backends por estado",
-      "description": "pg_stat_activity_count{datname=\"notifications\"} por state (active, idle, idle in transaction, ...). Sesiones abiertas por estado; muchas 'idle in transaction' sostenidas indica clientes que abren transacciones y no las cierran.",
+      "title": "Backends by state",
+      "description": "pg_stat_activity_count{datname=\"notifications\"} by state (active, idle, idle in transaction, ...). Open sessions by state; many sustained 'idle in transaction' sessions indicate clients that open transactions and never close them.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -667,8 +667,8 @@
     {
       "id": 43,
       "type": "timeseries",
-      "title": "Commits y rollbacks por segundo",
-      "description": "rate(pg_stat_database_xact_commit[5m]) y rate(pg_stat_database_xact_rollback[5m]) de la base notifications.",
+      "title": "Transactions per second",
+      "description": "rate(pg_stat_database_xact_commit[5m]) and rate(pg_stat_database_xact_rollback[5m]) for the notifications database.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -736,8 +736,8 @@
     {
       "id": 54,
       "type": "timeseries",
-      "title": "Tuplas por segundo",
-      "description": "rate(pg_stat_database_tup_returned|tup_fetched|tup_inserted|tup_updated|tup_deleted[5m]) de la base notifications: cuántas filas procesa Postgres por segundo, la señal más directa de carga de trabajo.",
+      "title": "Tuples per second",
+      "description": "rate(pg_stat_database_tup_returned|tup_fetched|tup_inserted|tup_updated|tup_deleted[5m]) for the notifications database: how many rows Postgres processes per second, the most direct signal of workload.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -835,8 +835,8 @@
     {
       "id": 55,
       "type": "timeseries",
-      "title": "Bloques leídos: disco vs. caché por segundo",
-      "description": "rate(pg_stat_database_blks_read[5m]) (disco) y rate(pg_stat_database_blks_hit[5m]) (buffer cache) de la base notifications. Ver también 'Cache hit ratio' en esta fila para la proporción.",
+      "title": "Blocks read: disk vs. cache per second",
+      "description": "rate(pg_stat_database_blks_read[5m]) (disk) and rate(pg_stat_database_blks_hit[5m]) (buffer cache) for the notifications database. See also 'Cache hit ratio' in this row for the proportion.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -856,7 +856,7 @@
           },
           "expr": "rate(pg_stat_database_blks_read{datname=\"notifications\"}[5m])",
           "range": true,
-          "legendFormat": "disco (blks_read)"
+          "legendFormat": "disk (blks_read)"
         },
         {
           "refId": "B",
@@ -866,7 +866,7 @@
           },
           "expr": "rate(pg_stat_database_blks_hit{datname=\"notifications\"}[5m])",
           "range": true,
-          "legendFormat": "caché (blks_hit)"
+          "legendFormat": "cache (blks_hit)"
         }
       ],
       "fieldConfig": {
@@ -905,7 +905,7 @@
       "id": 45,
       "type": "timeseries",
       "title": "Cache hit ratio",
-      "description": "Proporción de bloques servidos desde el buffer cache de Postgres sobre el total leído (pg_stat_database_blks_hit / (blks_hit + blks_read)) de la base notifications.",
+      "description": "Proportion of blocks served from Postgres's buffer cache over the total read (pg_stat_database_blks_hit / (blks_hit + blks_read)) for the notifications database.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -962,8 +962,8 @@
     {
       "id": 56,
       "type": "timeseries",
-      "title": "Tiempo de E/S (lectura/escritura)",
-      "description": "rate(pg_stat_database_blk_read_time[5m]) y rate(pg_stat_database_blk_write_time[5m]) de la base notifications, en ms de E/S por segundo de reloj. Requiere track_io_timing=on en Postgres; en este stack track_io_timing está APAGADO (pg_settings_track_io_timing=0), así que ambas series quedan en 0 aunque haya E/S real — el panel no mide nada hasta que se active ese parámetro.",
+      "title": "I/O time (read/write)",
+      "description": "rate(pg_stat_database_blk_read_time[5m]) and rate(pg_stat_database_blk_write_time[5m]) for the notifications database, in ms of I/O per wall-clock second. Requires track_io_timing=on in Postgres; in this stack track_io_timing is OFF (pg_settings_track_io_timing=0), so both series stay at 0 even when there is real I/O — the panel measures nothing until that setting is enabled.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -983,7 +983,7 @@
           },
           "expr": "rate(pg_stat_database_blk_read_time{datname=\"notifications\"}[5m])",
           "range": true,
-          "legendFormat": "lectura"
+          "legendFormat": "read"
         },
         {
           "refId": "B",
@@ -993,7 +993,7 @@
           },
           "expr": "rate(pg_stat_database_blk_write_time{datname=\"notifications\"}[5m])",
           "range": true,
-          "legendFormat": "escritura"
+          "legendFormat": "write"
         }
       ],
       "fieldConfig": {
@@ -1031,8 +1031,8 @@
     {
       "id": 57,
       "type": "timeseries",
-      "title": "Sesiones ocupadas en promedio (carga de la base)",
-      "description": "rate(pg_stat_database_active_time_seconds_total[5m]): segundos de ejecución de SQL por segundo sumados sobre todas las sesiones, es decir, el número medio de sesiones ejecutando consultas. 1 = una sesión ocupada todo el tiempo; por encima del número de cores de la VM la base está saturada (alarma PostgresBusyBackendsAboveCores).",
+      "title": "Average busy sessions (database load)",
+      "description": "rate(pg_stat_database_active_time_seconds_total[5m]): seconds of SQL execution per second summed across all sessions, i.e. the average number of sessions running queries. 1 = one session busy the whole time; above the VM's number of cores, the database is saturated (PostgresBusyBackendsAboveCores alert).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1091,8 +1091,8 @@
     {
       "id": 58,
       "type": "timeseries",
-      "title": "Transacción más larga en curso",
-      "description": "pg_stat_activity_max_tx_duration{datname=\"notifications\"}: duración en segundos de la transacción abierta más vieja ahora mismo. Una transacción larga retiene locks y bloquea el autovacuum.",
+      "title": "Longest running transaction",
+      "description": "pg_stat_activity_max_tx_duration{datname=\"notifications\"}: duration in seconds of the oldest currently open transaction. A long transaction holds locks and blocks autovacuum.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1150,8 +1150,8 @@
     {
       "id": 59,
       "type": "timeseries",
-      "title": "Temp files/bytes por segundo",
-      "description": "rate(pg_stat_database_temp_bytes[5m]) (bytes/s) y rate(pg_stat_database_temp_files[5m]) (archivos/s) de la base notifications: cuánto ordenamiento/hash se está derramando a disco por no caber en work_mem. Dos unidades distintas en el mismo panel (bytes/s y archivos/s), identificadas en la leyenda; si crecen juntas, subir work_mem o revisar el plan de la consulta.",
+      "title": "Temp files/bytes per second",
+      "description": "rate(pg_stat_database_temp_bytes[5m]) (bytes/s) and rate(pg_stat_database_temp_files[5m]) (files/s) for the notifications database: how much sorting/hashing is spilling to disk because it doesn't fit in work_mem. Two different units on the same panel (bytes/s and files/s), identified in the legend; if they grow together, raise work_mem or review the query plan.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1181,7 +1181,7 @@
           },
           "expr": "rate(pg_stat_database_temp_files{datname=\"notifications\"}[5m])",
           "range": true,
-          "legendFormat": "temp_files (archivos/s)"
+          "legendFormat": "temp_files (files/s)"
         }
       ],
       "fieldConfig": {
@@ -1219,8 +1219,8 @@
     {
       "id": 60,
       "type": "timeseries",
-      "title": "Checkpoints por segundo",
-      "description": "rate(pg_stat_bgwriter_checkpoints_timed_total[5m]) (por tiempo, checkpoint_timeout) vs. rate(pg_stat_bgwriter_checkpoints_req_total[5m]) (forzados, ej. por max_wal_size). Muchos checkpoints 'req' sostenidos indica que max_wal_size es chico para la tasa de escritura.",
+      "title": "Checkpoints per second",
+      "description": "rate(pg_stat_bgwriter_checkpoints_timed_total[5m]) (time-based, checkpoint_timeout) vs. rate(pg_stat_bgwriter_checkpoints_req_total[5m]) (forced, e.g. by max_wal_size). Many sustained 'req' checkpoints indicate max_wal_size is too small for the write rate.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1288,8 +1288,8 @@
     {
       "id": 61,
       "type": "timeseries",
-      "title": "Buffers escritos: backend vs. checkpointer",
-      "description": "rate(pg_stat_bgwriter_buffers_backend_total[5m]) (un backend tuvo que escribir su propio buffer sucio, señal de que el checkpointer/bgwriter no da abasto) vs. rate(pg_stat_bgwriter_buffers_checkpoint_total[5m]) (escritos ordenadamente por el checkpointer).",
+      "title": "Buffers written: backend vs. checkpointer",
+      "description": "rate(pg_stat_bgwriter_buffers_backend_total[5m]) (a backend had to write its own dirty buffer, a sign the checkpointer/bgwriter can't keep up) vs. rate(pg_stat_bgwriter_buffers_checkpoint_total[5m]) (written in an orderly way by the checkpointer).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1357,8 +1357,8 @@
     {
       "id": 62,
       "type": "timeseries",
-      "title": "Tamaño de la base",
-      "description": "pg_database_size_bytes{datname=\"notifications\"}: tamaño total en disco de la base notifications.",
+      "title": "Database size",
+      "description": "pg_database_size_bytes{datname=\"notifications\"}: total on-disk size of the notifications database.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1416,8 +1416,8 @@
     {
       "id": 63,
       "type": "timeseries",
-      "title": "Scans por tabla: índice vs. secuencial",
-      "description": "rate(pg_stat_user_tables_idx_scan[5m]) vs. rate(pg_stat_user_tables_seq_scan[5m]) para notification_events y delivery_attempts. Un seq_scan alto y sostenido en delivery_attempts indica que el índice parcial de intentos vencidos no se está usando (revisar el plan con EXPLAIN).",
+      "title": "Scans per table: index vs. sequential",
+      "description": "rate(pg_stat_user_tables_idx_scan[5m]) vs. rate(pg_stat_user_tables_seq_scan[5m]) for notification_events and delivery_attempts. A high, sustained seq_scan on delivery_attempts indicates the partial index on due attempts is not being used (check the plan with EXPLAIN).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1485,7 +1485,7 @@
     {
       "id": 17,
       "type": "row",
-      "title": "Entregas",
+      "title": "Deliveries",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -1498,8 +1498,8 @@
     {
       "id": 10,
       "type": "timeseries",
-      "title": "Tasa de entregas por status",
-      "description": "Intentos de entrega por segundo, agrupados por status final (notifications_deliveries_total). Filtrable por client_id.",
+      "title": "Delivery rate by status",
+      "description": "Delivery attempts per second, grouped by final status (notifications_deliveries_total). Filterable by client_id.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1557,8 +1557,8 @@
     {
       "id": 11,
       "type": "timeseries",
-      "title": "Latencia webhook p50/p95/p99 por cliente",
-      "description": "Percentiles de la duración del POST al webhook, por cliente (notifications_webhook_latency_seconds).",
+      "title": "Webhook latency p50/p95/p99 by client",
+      "description": "Percentiles of the webhook POST duration, by client (notifications_webhook_latency_seconds).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1636,8 +1636,8 @@
     {
       "id": 12,
       "type": "timeseries",
-      "title": "Fallos por cliente",
-      "description": "Tasa de intentos de entrega en estado failed, por cliente (notifications_deliveries_total).",
+      "title": "Failures by client",
+      "description": "Rate of delivery attempts in failed status, by client (notifications_deliveries_total).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1695,8 +1695,8 @@
     {
       "id": 13,
       "type": "timeseries",
-      "title": "Backlog de intentos vencidos: worker vs. Postgres",
-      "description": "Compara el gauge en memoria de cada worker (max(notifications_attempts_due)) con el conteo directo en Postgres (cobre_attempts_due, punto 2 del encargo); si divergen mucho, el gauge del worker está desactualizado.",
+      "title": "Worker backlog vs. Postgres",
+      "description": "Compares each worker's in-memory gauge (max(notifications_attempts_due)) with the direct count in Postgres (cobre_attempts_due, item 2 of the brief); if they diverge a lot, the worker's gauge is stale.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1764,8 +1764,8 @@
     {
       "id": 14,
       "type": "timeseries",
-      "title": "Antigüedad del intento pendiente más viejo",
-      "description": "Segundos transcurridos desde next_attempt_at del intento vencido no ejecutado más antiguo (cobre_oldest_pending_age_seconds); 0 si no hay ninguno pendiente.",
+      "title": "Age of oldest pending item",
+      "description": "Seconds elapsed since next_attempt_at of the oldest due, unexecuted attempt (cobre_oldest_pending_age_seconds); 0 if none is pending.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1835,8 +1835,8 @@
     {
       "id": 15,
       "type": "timeseries",
-      "title": "Tasa de batches del worker",
-      "description": "Ticks de scheduling procesados por segundo por el worker (notifications_batches_total); cada batch reclama hasta 50 intentos.",
+      "title": "Worker batch rate",
+      "description": "Scheduling ticks processed per second by the worker (notifications_batches_total); each batch claims up to 50 attempts.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1893,8 +1893,8 @@
     {
       "id": 16,
       "type": "timeseries",
-      "title": "Intentos reclamados sin terminar",
-      "description": "Intentos con claimed_at pero sin executed_at en Postgres (cobre_attempts_claimed_unfinished); si crece sostenido, un worker murió con el lease tomado.",
+      "title": "Claimed unfinished attempts",
+      "description": "Attempts with claimed_at but no executed_at in Postgres (cobre_attempts_claimed_unfinished); if it grows steadily, a worker died holding the lease.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1951,7 +1951,7 @@
     {
       "id": 22,
       "type": "row",
-      "title": "Ingesta",
+      "title": "Ingestion",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -1964,8 +1964,8 @@
     {
       "id": 18,
       "type": "timeseries",
-      "title": "Tasa de registro de eventos",
-      "description": "Eventos nuevos registrados por segundo, por cliente (notifications_registered_total).",
+      "title": "Event registration rate",
+      "description": "New events recorded per second, by client (notifications_registered_total).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2023,8 +2023,8 @@
     {
       "id": 19,
       "type": "timeseries",
-      "title": "Eventos saltados",
-      "description": "Eventos recibidos que el servicio decidió no registrar (notifications_skipped_total), tal cual expone el contador (sin agregación de ventana).",
+      "title": "Skipped events",
+      "description": "Received events that the service decided not to record (notifications_skipped_total), exactly as the counter exposes it (no window aggregation).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2081,8 +2081,8 @@
     {
       "id": 20,
       "type": "timeseries",
-      "title": "Duplicados (rango)",
-      "description": "Eventos con clave de idempotencia repetida en el rango de tiempo seleccionado (increase sobre $__range); son reentregas de la cola que se descartan sin tocar la base.",
+      "title": "Duplicates (range)",
+      "description": "Events with a repeated idempotency key in the selected time range (increase over $__range); these are queue redeliveries that are discarded without touching the database.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2139,8 +2139,8 @@
     {
       "id": 21,
       "type": "text",
-      "title": "Profundidad de cola no instrumentada",
-      "description": "Nota sobre la limitación de observabilidad de ElasticMQ descrita en el encargo (punto 3) y en el README.",
+      "title": "(note)",
+      "description": "Note on the ElasticMQ observability limitation described in the brief (item 3) and in the README.",
       "gridPos": {
         "h": 3,
         "w": 24,
@@ -2149,13 +2149,13 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**La profundidad de la cola `account-events` en ElasticMQ no está instrumentada.** ElasticMQ no expone un endpoint Prometheus propio. Como proxy se usa la tasa de `notifications_registered_total` (panel de la izquierda): un registro que no crece con la carga sugiere que los mensajes se están acumulando en la cola antes de llegar al worker. Ver `deploy/local/README.md`, sección \"Qué no está instrumentado\", para la alternativa evaluada y no aplicada."
+        "content": "**ElasticMQ queue depth for `account-events` is not instrumented.** ElasticMQ does not expose its own Prometheus endpoint. As a proxy, the rate of `notifications_registered_total` is used (panel on the left): a registration rate that doesn't grow with load suggests messages are piling up in the queue before reaching the worker. See `deploy/local/README.md`, section \"What isn't instrumented\", for the alternative that was evaluated and not applied."
       }
     },
     {
       "id": 29,
       "type": "row",
-      "title": "Errores",
+      "title": "Errors",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -2168,8 +2168,8 @@
     {
       "id": 23,
       "type": "timeseries",
-      "title": "Tasa de logs de error por job",
-      "description": "rate(logback_events_total{level=\"error\"}[5m]) agrupado por job (api/worker). Alarma NotificationsErrorLogRateHigh dispara sobre esta misma señal por encima de 0.5/s durante 5 minutos.",
+      "title": "Error log rate by job",
+      "description": "rate(logback_events_total{level=\"error\"}[5m]) grouped by job (api/worker). The NotificationsErrorLogRateHigh alert fires on this same signal above 0.5/s over 5 minutes.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2227,8 +2227,8 @@
     {
       "id": 24,
       "type": "timeseries",
-      "title": "Tasa de logs de warning por job",
-      "description": "rate(logback_events_total{level=\"warn\"}[5m]) agrupado por job; no dispara ninguna alarma, es señal de contexto.",
+      "title": "Warning log rate by job",
+      "description": "rate(logback_events_total{level=\"warn\"}[5m]) grouped by job; it does not trigger any alert, it is context signal.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2286,8 +2286,8 @@
     {
       "id": 25,
       "type": "timeseries",
-      "title": "Errores del scheduler del worker",
-      "description": "increase(notifications_scheduler_errors_total[5m]): fallos al reclamar o programar un batch de intentos, distintos de un fallo de entrega individual.",
+      "title": "Worker scheduler errors",
+      "description": "increase(notifications_scheduler_errors_total[5m]): failures claiming or scheduling a batch of attempts, distinct from an individual delivery failure.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2344,8 +2344,8 @@
     {
       "id": 26,
       "type": "timeseries",
-      "title": "Respuestas 5xx de la API por uri",
-      "description": "rate(http_server_requests_seconds_count{status=~\"5..\"}[5m]) agrupado por uri; alimenta la alarma NotificationsApiServerErrors (>1% de las peticiones durante 5 minutos).",
+      "title": "API 5xx responses by uri",
+      "description": "rate(http_server_requests_seconds_count{status=~\"5..\"}[5m]) grouped by uri; feeds the NotificationsApiServerErrors alert (>1% of requests over 5 minutes).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2403,8 +2403,8 @@
     {
       "id": 27,
       "type": "timeseries",
-      "title": "Timeouts del pool HikariCP",
-      "description": "increase(hikaricp_connections_timeout_total[5m]) por job: peticiones que no consiguieron una conexión del pool a tiempo.",
+      "title": "HikariCP pool timeouts",
+      "description": "increase(hikaricp_connections_timeout_total[5m]) by job: requests that failed to get a pool connection in time.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2462,8 +2462,8 @@
     {
       "id": 28,
       "type": "timeseries",
-      "title": "Pausas de GC más largas",
-      "description": "jvm_gc_pause_seconds_max por job/instance: la pausa de garbage collection más larga observada desde el último reinicio del proceso.",
+      "title": "Longest GC pauses",
+      "description": "jvm_gc_pause_seconds_max by job/instance: the longest garbage collection pause observed since the process last restarted.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2521,7 +2521,7 @@
     {
       "id": 34,
       "type": "row",
-      "title": "API HTTP",
+      "title": "HTTP API",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -2534,8 +2534,8 @@
     {
       "id": 30,
       "type": "timeseries",
-      "title": "RPS por uri y status",
-      "description": "sum by (uri, status) (rate(http_server_requests_seconds_count[1m])) de notifications-api.",
+      "title": "RPS by uri and status",
+      "description": "sum by (uri, status) (rate(http_server_requests_seconds_count[1m])) for notifications-api.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2593,8 +2593,8 @@
     {
       "id": 31,
       "type": "timeseries",
-      "title": "p95 de latencia por uri",
-      "description": "histogram_quantile(0.95, ...) sobre http_server_requests_seconds_bucket. Necesita los buckets activados en application.yaml (management.metrics.distribution.percentiles-histogram, punto 1 del encargo); sin reiniciar el servicio con ese cambio, esta serie no tiene datos porque http_server_requests_seconds_bucket todavía no existe.",
+      "title": "p95 by uri",
+      "description": "histogram_quantile(0.95, ...) over http_server_requests_seconds_bucket. Needs the buckets enabled in application.yaml (management.metrics.distribution.percentiles-histogram, item 1 of the brief); without restarting the service with that change, this series has no data because http_server_requests_seconds_bucket does not exist yet.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2653,7 +2653,7 @@
       "id": 32,
       "type": "timeseries",
       "title": "4xx vs 5xx",
-      "description": "Tasa de respuestas de error de cliente (4xx) vs. de servidor (5xx) de notifications-api.",
+      "description": "Rate of client errors (4xx) vs. server errors (5xx) from notifications-api.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2721,8 +2721,8 @@
     {
       "id": 33,
       "type": "timeseries",
-      "title": "Peticiones activas",
-      "description": "sum(http_server_requests_active_seconds_count): número de peticiones HTTP en curso en notifications-api en este momento.",
+      "title": "Active requests",
+      "description": "sum(http_server_requests_active_seconds_count): number of HTTP requests currently in flight in notifications-api.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2779,7 +2779,7 @@
     {
       "id": 39,
       "type": "row",
-      "title": "JVM y proceso",
+      "title": "JVM and process",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -2792,8 +2792,8 @@
     {
       "id": 35,
       "type": "timeseries",
-      "title": "Heap usado vs. máximo, por área y job",
-      "description": "jvm_memory_used_bytes{area=\"heap\"} y jvm_memory_max_bytes{area=\"heap\"} por job/id de pool de memoria (Eden, Survivor, Tenured).",
+      "title": "Heap used vs. max",
+      "description": "jvm_memory_used_bytes{area=\"heap\"} and jvm_memory_max_bytes{area=\"heap\"} by job/memory pool id (Eden, Survivor, Tenured).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2813,7 +2813,7 @@
           },
           "expr": "jvm_memory_used_bytes{area=\"heap\",instance=~\"$instance\"}",
           "range": true,
-          "legendFormat": "usado {{job}} {{id}}"
+          "legendFormat": "used {{job}} {{id}}"
         },
         {
           "refId": "B",
@@ -2823,7 +2823,7 @@
           },
           "expr": "jvm_memory_max_bytes{area=\"heap\",instance=~\"$instance\"}",
           "range": true,
-          "legendFormat": "máximo {{job}} {{id}}"
+          "legendFormat": "max {{job}} {{id}}"
         }
       ],
       "fieldConfig": {
@@ -2861,8 +2861,8 @@
     {
       "id": 36,
       "type": "timeseries",
-      "title": "Pausas de GC: tasa y máximo",
-      "description": "rate(jvm_gc_pause_seconds_sum[5m]) (tiempo en pausa por segundo de reloj) y jvm_gc_pause_seconds_max, por job.",
+      "title": "GC pauses: rate and max",
+      "description": "rate(jvm_gc_pause_seconds_sum[5m]) (time paused per wall-clock second) and jvm_gc_pause_seconds_max, by job.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2882,7 +2882,7 @@
           },
           "expr": "sum by (job) (rate(jvm_gc_pause_seconds_sum{instance=~\"$instance\"}[5m]))",
           "range": true,
-          "legendFormat": "{{job}} tasa"
+          "legendFormat": "{{job}} rate"
         },
         {
           "refId": "B",
@@ -2892,7 +2892,7 @@
           },
           "expr": "jvm_gc_pause_seconds_max{instance=~\"$instance\"}",
           "range": true,
-          "legendFormat": "{{job}} {{instance}} máximo"
+          "legendFormat": "{{job}} {{instance}} max"
         }
       ],
       "fieldConfig": {
@@ -2930,8 +2930,8 @@
     {
       "id": 37,
       "type": "timeseries",
-      "title": "Hilos vivos",
-      "description": "jvm_threads_live_threads por job/instance.",
+      "title": "Live threads",
+      "description": "jvm_threads_live_threads by job/instance.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2989,8 +2989,8 @@
     {
       "id": 38,
       "type": "timeseries",
-      "title": "CPU de proceso y de sistema",
-      "description": "process_cpu_usage (fracción de CPU usada por la JVM) y system_cpu_usage (fracción de CPU usada por todo el sistema del contenedor), por job.",
+      "title": "Process and system CPU",
+      "description": "process_cpu_usage (fraction of CPU used by the JVM) and system_cpu_usage (fraction of CPU used by the whole container system), by job.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3010,7 +3010,7 @@
           },
           "expr": "process_cpu_usage{instance=~\"$instance\"}",
           "range": true,
-          "legendFormat": "{{job}} proceso"
+          "legendFormat": "{{job}} process"
         },
         {
           "refId": "B",
@@ -3020,7 +3020,7 @@
           },
           "expr": "system_cpu_usage{instance=~\"$instance\"}",
           "range": true,
-          "legendFormat": "{{job}} sistema"
+          "legendFormat": "{{job}} system"
         }
       ],
       "fieldConfig": {
@@ -3058,7 +3058,7 @@
     {
       "id": 51,
       "type": "row",
-      "title": "Base de datos",
+      "title": "Database",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -3071,8 +3071,8 @@
     {
       "id": 40,
       "type": "timeseries",
-      "title": "HikariCP: conexiones activas/idle/pending/max",
-      "description": "hikaricp_connections_{active,idle,pending,max}, por job/instance. pending>0 sostenido dispara NotificationsDbPoolExhausted.",
+      "title": "HikariCP active/idle/pending/max",
+      "description": "hikaricp_connections_{active,idle,pending,max}, by job/instance. Sustained pending>0 triggers NotificationsDbPoolExhausted.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3092,7 +3092,7 @@
           },
           "expr": "hikaricp_connections_active{instance=~\"$instance\"}",
           "range": true,
-          "legendFormat": "{{job}} activas"
+          "legendFormat": "{{job}} active"
         },
         {
           "refId": "B",
@@ -3160,8 +3160,8 @@
     {
       "id": 41,
       "type": "timeseries",
-      "title": "Tiempo de adquisición de conexión (máximo)",
-      "description": "hikaricp_connections_acquire_seconds_max, por job/instance. El endpoint no publica buckets de este histograma hoy, así que se usa el máximo en vez de un percentil.",
+      "title": "Acquisition time (max)",
+      "description": "hikaricp_connections_acquire_seconds_max, by job/instance. The endpoint does not publish buckets for this histogram today, so the max is used instead of a percentile.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3219,8 +3219,8 @@
     {
       "id": 42,
       "type": "timeseries",
-      "title": "Conexiones activas en Postgres",
-      "description": "pg_stat_database_numbackends de la base notifications, vía postgres-exporter.",
+      "title": "Active connections in Postgres",
+      "description": "pg_stat_database_numbackends for the notifications database, via postgres-exporter.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3278,7 +3278,7 @@
       "id": 44,
       "type": "timeseries",
       "title": "Deadlocks",
-      "description": "pg_stat_database_deadlocks de la base notifications; debería ser 0 siempre.",
+      "description": "pg_stat_database_deadlocks for the notifications database; should always be 0.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3348,8 +3348,8 @@
     {
       "id": 46,
       "type": "timeseries",
-      "title": "Locks por modo",
-      "description": "pg_locks_count de la base notifications, agrupado por modo de lock.",
+      "title": "Locks by mode",
+      "description": "pg_locks_count for the notifications database, grouped by lock mode.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3408,7 +3408,7 @@
       "id": 47,
       "type": "timeseries",
       "title": "pg_up",
-      "description": "pg_up: 1 si el postgres-exporter logró conectarse a Postgres en el último scrape, 0 si no. Alimenta la alarma PostgresDown.",
+      "description": "pg_up: 1 if postgres-exporter successfully connected to Postgres on the last scrape, 0 otherwise. Feeds the PostgresDown alert.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3478,8 +3478,8 @@
     {
       "id": 48,
       "type": "timeseries",
-      "title": "Inserts y updates por tabla",
-      "description": "rate(pg_stat_user_tables_n_tup_ins[5m]) y rate(pg_stat_user_tables_n_tup_upd[5m]) para notification_events y delivery_attempts.",
+      "title": "Inserts/updates by table",
+      "description": "rate(pg_stat_user_tables_n_tup_ins[5m]) and rate(pg_stat_user_tables_n_tup_upd[5m]) for notification_events and delivery_attempts.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3547,8 +3547,8 @@
     {
       "id": 49,
       "type": "timeseries",
-      "title": "Tuplas muertas (dead tuples)",
-      "description": "pg_stat_user_tables_n_dead_tup para notification_events y delivery_attempts; si crece sin que autovacuum lo baje, indica que el autovacuum no da abasto.",
+      "title": "Dead tuples",
+      "description": "pg_stat_user_tables_n_dead_tup for notification_events and delivery_attempts; if it grows without autovacuum bringing it down, it indicates autovacuum can't keep up.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3606,8 +3606,8 @@
     {
       "id": 50,
       "type": "timeseries",
-      "title": "Tamaño de tabla en disco",
-      "description": "pg_stat_user_tables_table_size_bytes para notification_events y delivery_attempts.",
+      "title": "Table size on disk",
+      "description": "pg_stat_user_tables_table_size_bytes for notification_events and delivery_attempts.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3665,7 +3665,7 @@
     {
       "id": 70,
       "type": "row",
-      "title": "Recursos del entorno (VM de Docker)",
+      "title": "Environment resources (Docker VM)",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -3678,8 +3678,8 @@
     {
       "id": 71,
       "type": "timeseries",
-      "title": "CPU total por modo (%)",
-      "description": "sum by (mode) (rate(node_cpu_seconds_total[5m])) / scalar(count(node_cpu_seconds_total{mode=\"idle\"})): fracción de la capacidad total de CPU de la VM (todos los núcleos) usada en cada modo (user, system, iowait, idle, ...) por segundo (el scalar() es necesario porque count() sin 'by' produce una serie sin labels, que si no, no matchea con las series por mode). Alimenta HostCpuSaturated (idle < 10%). La carga interna de Postgres (tiempo activo, backends por estado, transacciones/tuplas por segundo, E/S de bloque) se lee en la fila 'Carga de Postgres', no aquí: node_exporter no distingue procesos, solo la VM completa. La CPU/memoria del contenedor de Postgres en particular no es observable desde dentro de este stack: bajo OrbStack ningún contenedor puede alcanzar el socket de Docker (ni root, ni privilegiado, ni montando /var/run: 'permission denied'), y cAdvisor (que no necesita el socket) tampoco funciona aquí porque este daemon usa el snapshotter de containerd, que su v0.52.1 no soporta para resolver el layer de un contenedor. Para ver CPU/memoria por contenedor (incluido postgres), usar `docker stats --no-stream` en el host.",
+      "title": "Total CPU by mode (%)",
+      "description": "sum by (mode) (rate(node_cpu_seconds_total[5m])) / scalar(count(node_cpu_seconds_total{mode=\"idle\"})): fraction of the VM's total CPU capacity (all cores) used in each mode (user, system, iowait, idle, ...) per second (the scalar() is needed because count() without 'by' produces a series with no labels, which otherwise wouldn't match the per-mode series). Feeds HostCpuSaturated (idle < 10%). Postgres's internal load (active time, backends by state, transactions/tuples per second, block I/O) is read in the 'Postgres load' row, not here: node_exporter does not distinguish processes, only the whole VM. CPU/memory for the Postgres container specifically is not observable from inside this stack: under OrbStack no container can reach the Docker socket (not root, not privileged, not even mounting /var/run: 'permission denied'), and cAdvisor (which doesn't need the socket) doesn't work here either because this daemon uses the containerd snapshotter, which its v0.52.1 doesn't support for resolving a container's layer. To see per-container CPU/memory (including postgres), use `docker stats --no-stream` on the host.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3737,8 +3737,8 @@
     {
       "id": 72,
       "type": "timeseries",
-      "title": "Load average vs. núcleos disponibles",
-      "description": "node_load1/5/15 de la VM, superpuestos con count(node_cpu_seconds_total{mode=\"idle\"}) (número de núcleos) como referencia: si el load sostenido supera el número de núcleos, hay más trabajo listo para correr que CPU para atenderlo.",
+      "title": "Load average vs. available cores",
+      "description": "node_load1/5/15 for the VM, overlaid with count(node_cpu_seconds_total{mode=\"idle\"}) (number of cores) as a reference: if sustained load exceeds the number of cores, there is more work ready to run than CPU to handle it.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3788,7 +3788,7 @@
           },
           "expr": "count(node_cpu_seconds_total{mode=\"idle\"})",
           "range": true,
-          "legendFormat": "núcleos"
+          "legendFormat": "cores"
         }
       ],
       "fieldConfig": {
@@ -3826,8 +3826,8 @@
     {
       "id": 73,
       "type": "timeseries",
-      "title": "Memoria usada vs. total (VM)",
-      "description": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes (usada, incluye caché de página reclamable) frente a node_memory_MemTotal_bytes (total asignado a la VM de Docker). Alimenta HostMemoryLow (disponible < 10%).",
+      "title": "Memory used vs. total (VM)",
+      "description": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes (used, includes reclaimable page cache) against node_memory_MemTotal_bytes (total assigned to the Docker VM). Feeds HostMemoryLow (available < 10%).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3895,8 +3895,8 @@
     {
       "id": 74,
       "type": "timeseries",
-      "title": "E/S de disco: bytes leídos/escritos por dispositivo",
-      "description": "rate(node_disk_read_bytes_total[5m]) y rate(node_disk_written_bytes_total[5m]), por dispositivo (vda/vdb son los discos reales de la VM en este host; nbd* son dispositivos network-block sin uso, normalmente en 0).",
+      "title": "Disk I/O: bytes read/written by device",
+      "description": "rate(node_disk_read_bytes_total[5m]) and rate(node_disk_written_bytes_total[5m]), by device (vda/vdb are the VM's real disks on this host; nbd* are unused network-block devices, normally at 0).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3964,8 +3964,8 @@
     {
       "id": 75,
       "type": "timeseries",
-      "title": "E/S de disco: io_time por dispositivo",
-      "description": "rate(node_disk_io_time_seconds_total[5m]): fracción de cada segundo en que el dispositivo tuvo al menos una operación de E/S en curso (0 a 1, puede acercarse a 1 con colas profundas incluso sin mucho throughput). Complementa el panel de bytes leídos/escritos.",
+      "title": "Disk I/O: io_time by device",
+      "description": "rate(node_disk_io_time_seconds_total[5m]): fraction of each second the device had at least one I/O operation in flight (0 to 1, can approach 1 with deep queues even without much throughput). Complements the bytes-read/written panel.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -4023,8 +4023,8 @@
     {
       "id": 76,
       "type": "timeseries",
-      "title": "Red por interfaz",
-      "description": "rate(node_network_receive_bytes_total[5m]) y rate(node_network_transmit_bytes_total[5m]), por interfaz de red de la VM.",
+      "title": "Network by interface",
+      "description": "rate(node_network_receive_bytes_total[5m]) and rate(node_network_transmit_bytes_total[5m]), by the VM's network interface.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -4092,8 +4092,8 @@
     {
       "id": 77,
       "type": "timeseries",
-      "title": "Espacio en disco (VM)",
-      "description": "node_filesystem_avail_bytes y node_filesystem_size_bytes. El mountpoint \"/\" de la VM no aparece en node_exporter: su fstype real cae en la lista de tipos excluidos por defecto del collector filesystem (típicamente 'overlay' en el rootfs de una VM de OrbStack). Se usa /var/lib/docker como proxy — mismo dispositivo físico (/dev/vdb1) que el resto del disco de datos de la VM — para tener una señal real de espacio libre.",
+      "title": "Disk space (VM)",
+      "description": "node_filesystem_avail_bytes and node_filesystem_size_bytes. The VM's \"/\" mountpoint does not show up in node_exporter: its real fstype falls in the filesystem collector's default exclusion list (typically 'overlay' on an OrbStack VM's rootfs). /var/lib/docker is used as a proxy — the same physical device (/dev/vdb1) as the rest of the VM's data disk — to get a real free-space signal.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -4113,7 +4113,7 @@
           },
           "expr": "node_filesystem_avail_bytes{mountpoint=\"/var/lib/docker\"}",
           "range": true,
-          "legendFormat": "disponible"
+          "legendFormat": "available"
         },
         {
           "refId": "B",
@@ -4161,8 +4161,8 @@
     {
       "id": 78,
       "type": "timeseries",
-      "title": "CPU de los procesos JVM",
-      "description": "process_cpu_usage{job=~\"notifications-api|notifications-worker\"}: fracción de CPU usada por cada proceso JVM (api, worker), por instance. A diferencia de la CPU de la VM de arriba, esta sí es por proceso — Micrometer la reporta desde dentro de cada JVM, sin depender de cAdvisor ni del socket de Docker.",
+      "title": "JVM process CPU",
+      "description": "process_cpu_usage{job=~\"notifications-api|notifications-worker\"}: fraction of CPU used by each JVM process (api, worker), by instance. Unlike the VM CPU above, this one is per process — Micrometer reports it from inside each JVM, without depending on cAdvisor or the Docker socket.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -4220,8 +4220,8 @@
     {
       "id": 79,
       "type": "timeseries",
-      "title": "Memoria RSS aproximada JVM",
-      "description": "sum by (job) (jvm_memory_used_bytes{job=~\"notifications-api|notifications-worker\"}): suma de todas las áreas de memoria de la JVM (heap + non-heap) reportadas por Micrometer, por job. Es una aproximación del RSS real del proceso (el RSS del SO incluye además memoria nativa fuera de la contabilidad de la JVM: stacks de hilos nativos, mmap de librerías, buffers directos no siempre incluidos), pero es la señal por-proceso más cercana disponible sin acceso a /proc del proceso desde dentro de este stack.",
+      "title": "Approximate JVM RSS memory",
+      "description": "sum by (job) (jvm_memory_used_bytes{job=~\"notifications-api|notifications-worker\"}): sum of all JVM memory areas (heap + non-heap) reported by Micrometer, by job. It is an approximation of the process's real RSS (the OS's RSS also includes native memory outside the JVM's accounting: native thread stacks, library mmaps, direct buffers not always included), but it is the closest per-process signal available without access to the process's /proc from inside this stack.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
