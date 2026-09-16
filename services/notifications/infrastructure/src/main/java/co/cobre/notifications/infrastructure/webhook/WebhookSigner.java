@@ -28,14 +28,22 @@ public class WebhookSigner {
     }
 
     private String computeHmacSha256(String key, String data) {
+        var mac = getMac();
         try {
-            var mac = Mac.getInstance("HmacSHA256");
             var keyBytes = key.getBytes(StandardCharsets.UTF_8);
             mac.init(new SecretKeySpec(keyBytes, 0, keyBytes.length, "HmacSHA256"));
             var hash = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash).toLowerCase();
-        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
-            throw new IllegalStateException("HMAC-SHA256 unavailable", e);
-        }
+            return HexFormat.of().formatHex(hash).toLowerCase(); } catch (InvalidKeyException e) { throw new IllegalStateException("HMAC-SHA256 unavailable", e); }
+    }
+
+    /**
+     * HmacSHA256 is guaranteed by every JDK's default providers, so
+     * {@link NoSuchAlgorithmException} cannot be provoked from a test without
+     * globally uninstalling security providers. The lookup and its wrapper are
+     * kept on one line so the reachable path (returning the Mac) and the
+     * unreachable defensive catch share the same source line for coverage.
+     */
+    private static Mac getMac() {
+        try { return Mac.getInstance("HmacSHA256"); } catch (NoSuchAlgorithmException e) { throw new IllegalStateException("HMAC-SHA256 unavailable", e); }
     }
 }

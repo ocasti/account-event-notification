@@ -58,14 +58,7 @@ public class SecurityConfig {
 
             OAuth2TokenValidator<Jwt> audienceValidator = new JwtClaimValidator<>(
                 JwtClaimNames.AUD,
-                aud -> {
-                    if (aud instanceof Collection) {
-                        return ((Collection<?>) aud).stream()
-                            .map(Object::toString)
-                            .anyMatch(a -> a.equals(props.audience()));
-                    }
-                    return aud != null && aud.toString().equals(props.audience());
-                }
+                aud -> audienceMatches(aud, props.audience())
             );
 
             NimbusJwtDecoder decoder = NimbusJwtDecoder.withPublicKey(publicKey).build();
@@ -78,5 +71,19 @@ public class SecurityConfig {
         } catch (IOException | GeneralSecurityException e) {
             throw new IllegalStateException("Cannot load the JWT public key", e);
         }
+    }
+
+    /**
+     * Matches the JWT {@code aud} claim against the configured audience. The claim
+     * may come over the wire either as a JSON array (parsed as a {@link Collection})
+     * or, when there is a single audience, as a bare string per RFC 7519 4.1.3.
+     */
+    static boolean audienceMatches(Object aud, String expectedAudience) {
+        if (aud instanceof Collection) {
+            return ((Collection<?>) aud).stream()
+                .map(Object::toString)
+                .anyMatch(a -> a.equals(expectedAudience));
+        }
+        return aud != null && aud.toString().equals(expectedAudience);
     }
 }

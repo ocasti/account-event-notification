@@ -264,6 +264,52 @@ class HttpWebhookSenderTest {
     }
 
     @Test
+    void shouldReturnTransientFailureOnConnectionError() throws Exception {
+        var builder = RestClient.builder();
+        var mockServer = MockRestServiceServer.bindTo(builder).build();
+        var restClient = builder.build();
+        var sender = createSender(restClient);
+
+        var subscription = createSubscription("https://api.example.com/hook", "secret-key");
+        var event = createEvent();
+        var attempt = createAttempt();
+
+        mockServer.expect(requestTo("https://api.example.com/hook"))
+            .andRespond(request -> {
+                throw new java.io.IOException("connection refused");
+            });
+
+        var outcome = sender.send(subscription, event, attempt);
+
+        assertThat(outcome).isInstanceOf(DeliveryOutcome.TransientFailure.class);
+        var failure = (DeliveryOutcome.TransientFailure) outcome;
+        assertThat(failure.responseStatus()).isEmpty();
+        assertThat(failure.reason()).isNotBlank();
+    }
+
+    @Test
+    void shouldReturnTransientFailureForUnclassifiedStatus() throws Exception {
+        var builder = RestClient.builder();
+        var mockServer = MockRestServiceServer.bindTo(builder).build();
+        var restClient = builder.build();
+        var sender = createSender(restClient);
+
+        var subscription = createSubscription("https://api.example.com/hook", "secret-key");
+        var event = createEvent();
+        var attempt = createAttempt();
+
+        mockServer.expect(requestTo("https://api.example.com/hook"))
+            .andRespond(withStatus(org.springframework.http.HttpStatusCode.valueOf(100)));
+
+        var outcome = sender.send(subscription, event, attempt);
+
+        assertThat(outcome).isInstanceOf(DeliveryOutcome.TransientFailure.class);
+        var failure = (DeliveryOutcome.TransientFailure) outcome;
+        assertThat(failure.responseStatus()).contains(100);
+        assertThat(failure.reason()).isEqualTo("unexpected: 100");
+    }
+
+    @Test
     void shouldReturnPermanentFailureWhenUrlValidationFails() throws Exception {
         var builder = RestClient.builder();
         var mockServer = MockRestServiceServer.bindTo(builder).build();

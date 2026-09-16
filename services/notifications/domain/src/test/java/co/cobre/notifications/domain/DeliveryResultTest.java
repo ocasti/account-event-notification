@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DeliveryResultTest {
@@ -18,6 +19,7 @@ class DeliveryResultTest {
         assertEquals(Optional.of(200), result.responseStatus());
         assertTrue(result.failureReason().isEmpty());
         assertEquals(Optional.of(Duration.ofMillis(100)), result.latency());
+        assertFalse(outcome.isRetryable());
     }
 
     @Test
@@ -32,6 +34,7 @@ class DeliveryResultTest {
         assertEquals(Optional.of(503), result.responseStatus());
         assertEquals(Optional.of("service unavailable"), result.failureReason());
         assertEquals(Optional.of(Duration.ofMillis(50)), result.latency());
+        assertTrue(outcome.isRetryable());
     }
 
     @Test
@@ -46,5 +49,6 @@ class DeliveryResultTest {
         assertEquals(Optional.of(410), result.responseStatus());
         assertEquals(Optional.of("gone"), result.failureReason());
         assertEquals(Optional.of(Duration.ofMillis(75)), result.latency());
+        assertFalse(outcome.isRetryable());
     }
 }

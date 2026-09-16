@@ -65,6 +65,28 @@ class AuthenticatedClientArgumentResolverTest {
         }
     }
 
+    @Test
+    void resolveArgument_withoutJwtAuthentication_throwsIllegalStateException() throws NoSuchMethodException {
+        var clientIdResolver = mock(ClientIdResolver.class);
+        var resolver = new AuthenticatedClientArgumentResolver(clientIdResolver);
+
+        var context = SecurityContextHolder.createEmptyContext();
+        SecurityContextHolder.setContext(context);
+
+        try {
+            var method = TestController.class.getMethod("testMethod", ClientId.class);
+            var parameter = new MethodParameter(method, 0);
+            var webRequest = mock(NativeWebRequest.class);
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> resolver.resolveArgument(parameter, null, webRequest, null)
+            ).isInstanceOf(IllegalStateException.class)
+                .hasMessage("JWT not found in security context");
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
     private Jwt createJwt(String clientId) {
         return new Jwt(
             "token",
