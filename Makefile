@@ -9,7 +9,7 @@ WIREMOCK_JOURNAL_LIMIT ?= 5000
 API_RPS ?= 20
 API_CLIENTS ?= 4
 
-.PHONY: help preflight keys infra up up-all down logs ps build test token emit replay clean load
+.PHONY: help preflight keys infra up up-all down logs ps build test token emit replay clean load openapi
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -64,6 +64,11 @@ replay: ## Replay a failed notification: make replay ID=EVT003 CLIENT=CLIENT002
 clean: ## Remove build output of both services
 	cd services/notifications && ./mvnw -q clean
 	cd services/event-simulator && ./mvnw -q clean
+
+openapi: ## Export the OpenAPI spec from the running API to docs/api/openapi.json
+	@curl -sS "http://localhost:$${API_PORT:-8080}/v3/api-docs" \
+	  -H "Authorization: Bearer $$(scripts/token.sh CLIENT001)" \
+	  | python3 -m json.tool > docs/api/openapi.json
 
 load: ## Load test against the running stack: make load EVENTS=2000 FAIL_RATIO=0.10 CONCURRENCY=8 TIMEOUT=300 WIREMOCK_JOURNAL_LIMIT=5000 API_RPS=20 API_CLIENTS=4
 	@TOKEN_CLIENT001=$$(scripts/token.sh CLIENT001) && \
