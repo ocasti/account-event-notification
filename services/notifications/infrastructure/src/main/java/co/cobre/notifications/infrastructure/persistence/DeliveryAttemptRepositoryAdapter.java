@@ -81,12 +81,24 @@ public class DeliveryAttemptRepositoryAdapter implements DeliveryAttemptReposito
 
         var ids = limitedResults.stream()
             .map(row -> (UUID) row.get("id"))
-            .collect(Collectors.toSet());
+            .toList();
 
-        jpaRepository.updateClaimedBatch(ids, claim.workerId());
+        int rowsUpdated = jpaRepository.updateClaimedBatch(ids, claim.workerId());
 
-        return jpaRepository.findAllById(ids)
-            .stream()
+        if (rowsUpdated == 0) {
+            return List.of();
+        }
+
+        // If not all rows were updated, filter to only those that were actually updated
+        if (rowsUpdated < ids.size()) {
+            return jpaRepository.findAllById(ids).stream()
+                .filter(entity -> claim.workerId().equals(entity.getClaimedBy()) && entity.getExecutedAt() == null)
+                .map(mapper::toDomain)
+                .toList();
+        }
+
+        // All ids were updated, so reload them as-is
+        return jpaRepository.findAllById(ids).stream()
             .map(mapper::toDomain)
             .toList();
     }
