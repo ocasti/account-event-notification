@@ -67,17 +67,23 @@ worker adds 512 MB.
 | **Attempts due** | `max(notifications_attempts_due)` | Intentos vencidos aún no reclamados por ningún worker (gauge publicado por cada réplica, agregado con `max`, nunca sumado). Si sube, los workers no dan abasto: escalar réplicas o revisar Postgres. |
 | **Failures by client (last hour)** | `sum by (client_id) (increase(notifications_deliveries_total{status="failed"}[1h]))` | Tabla con el conteo de fallos por cliente en la última hora. Responde directamente "¿qué cliente está teniendo problemas?" sin tocar la tabla de intentos. |
 
-**Estado real verificado en este stack (2026-09-15, `make up-all`, `SIMULATOR_EMIT_INTERVAL=2s`):**
-`notifications_attempts_due` se publica y el panel "Attempts due" muestra datos reales de inmediato.
-Los otros tres paneles (`Delivery rate by status`, `Webhook latency p95 by client`, `Failures by client`)
-dependen de `notifications_deliveries_total` / `notifications_webhook_latency_seconds_bucket`, que
-**Micrometer nunca publica hoy**: `DeliveryMetrics.delivered(...)` y `DeliveryMetrics.webhookLatency(...)`
-(`services/notifications/infrastructure/.../worker/DeliveryMetrics.java`) solo se invocan desde el test
-unitario `DeliveryMetricsTest`, nunca desde `ProcessDueDeliveries.process()` en producción — a pesar de
-que las entregas sí ocurren (confirmado: los diez eventos de referencia llegan a `completed`/`failed`
-correctamente vía la API y WireMock recibe los POST). Esos tres paneles cargan y consultan bien, pero
-muestran "No data" hasta que se corrija esa falta de instrumentación en el código Java (fuera del área
-de este cambio, que es solo `deploy/local/**`).
+**Qué publica el código hoy.** `notifications_attempts_due` lo publica cada réplica del worker
+(`DueAttemptsGaugeUpdater`). `notifications_deliveries_total` y `notifications_webhook_latency_seconds`
+las emiten los decoradores de puerto `MeteredNotificationEventRepository` y `MeteredWebhookSender`
+(`services/notifications/infrastructure/.../worker/`), que envuelven al repositorio y al emisor de
+webhooks en el proceso worker; `WorkerProfileBootIT` comprueba que son los beans efectivos. Con
+`make up-all` los cuatro paneles muestran datos en cuanto el simulador emite eventos.
+`notifications_leases_expired_total` sigue sin emitirse: el reclamo con `SKIP LOCKED` no distingue un
+arrendamiento vencido de un intento nuevo, así que ese contador queda como evolución.
+
+### Logs
+
+Cada intento de entrega deja una línea `webhook delivery attempt` en el worker con pares clave-valor:
+`event_id`, `client_id`, `cycle`, `attempt_number`, `outcome` (`success`, `transient_failure`,
+`permanent_failure`), `response_status`, `latency_ms` y `reason` en los fallos. Nunca incluye el cuerpo
+ni la firma. Para salida JSON (formato ECS) añade el perfil `json`:
+`SPRING_PROFILES_ACTIVE=worker,local,json`. Correlaciona con Grafana filtrando por `client_id` o con la
+API por `event_id`.
 
 ### Alarmas (`deploy/local/prometheus/alerts.yml`)
 
@@ -92,14 +98,12 @@ localhost:9090/api/v1/rules`):
 | `NotificationsDlqNotEmpty` | Mensajes visibles en `account-events-dlq` > 0 | Un evento no se pudo registrar; revisar y redrenar a mano |
 | `NotificationsLeaseExpirationsHigh` | Arrendamientos vencidos > 10/min durante 5 min | Los POST duran más que el arrendamiento; revisar timeouts |
 
-Igual que con los paneles: `NotificationsAttemptsDueBacklog` y `NotificationsAttemptsDueMetricMissing`
-tienen datos reales hoy. `NotificationsClientFailureRateHigh` y `NotificationsLeaseExpirationsHigh`
-cargan pero nunca disparan por el mismo hueco de instrumentación descrito arriba
-(`notifications_deliveries_total` / `notifications_leases_expired_total` nunca se publican).
+`NotificationsAttemptsDueBacklog`, `NotificationsAttemptsDueMetricMissing` y
+`NotificationsClientFailureRateHigh` tienen datos reales hoy. `NotificationsLeaseExpirationsHigh` carga
+pero nunca dispara porque `notifications_leases_expired_total` no se emite (ver arriba).
 `NotificationsDlqNotEmpty` referencia `notifications_dlq_messages_visible`, una métrica que todavía no
 existe: ElasticMQ no expone su profundidad de DLQ en formato Prometheus; hace falta un gauge de
-Micrometer que lea `ApproximateNumberOfMessages` de `account-events-dlq` (cambio de código Java) o un
-exportador dedicado — ambos fuera del alcance de este cambio.
+Micrometer que lea `ApproximateNumberOfMessages` de `account-events-dlq` o un exportador dedicado.
 
 ## Demostración con un receptor externo
 

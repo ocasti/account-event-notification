@@ -1,6 +1,5 @@
 package co.cobre.notifications.acceptance;
 
-import co.cobre.notifications.boot.BootTestSupport;
 import co.cobre.notifications.infrastructure.persistence.AttemptOriginEntity;
 import co.cobre.notifications.infrastructure.persistence.DeliveryAttemptEntity;
 import co.cobre.notifications.infrastructure.persistence.DeliveryAttemptJpaRepository;
@@ -24,8 +23,13 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.MountableFile;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.sqs.SqsAsyncClient;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
@@ -64,28 +68,40 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * them (nor SecurityConfig/NotificationEventController) excludes "api" when "worker" is also
  * active.
  *
- * <p>Containers: PostgreSQL and ElasticMQ are the singletons from {@link BootTestSupport}
- * (same pattern as WorkerProfileBootIT/ApiProfileBootIT, including the "account-events-boot"
- * queue created in its static initializer). WireMock is this test's own singleton container,
- * seeded with the mappings under deploy/local/wiremock/mappings — resolved to an absolute path
- * by walking up from {@code user.dir} so it works regardless of which module directory the
- * surefire-forked JVM starts from.
+ * <p>Containers: PostgreSQL and ElasticMQ are owned by this test (static singletons);
+ * the queue "account-events-acceptance" is created in its static initializer.
+ * WireMock is this test's own singleton container, seeded with the mappings under
+ * deploy/local/wiremock/mappings — resolved to an absolute path by walking up from
+ * {@code user.dir} so it works regardless of which module directory the surefire-forked
+ * JVM starts from.
  *
- * <p>JWT signing reuses {@link RestTestSecurityConfig} (same package, same test sources)
- * instead of duplicating BootTestSupport's key generation: BootTestSupport only exposes a
- * public key file (enough for WorkerProfileBootIT/ApiProfileBootIT, which never call the API
- * as an authenticated client), while this test needs to sign tokens for CLIENT001/CLIENT002,
- * which only RestTestSecurityConfig's RSA key pair can do.
+ * <p>JWT signing reuses {@link RestTestSecurityConfig} (same package, same test sources):
+ * this test needs to sign tokens for CLIENT001/CLIENT002, which only RestTestSecurityConfig's
+ * RSA key pair can do.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
 @ActiveProfiles({"api", "worker", "local"})
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-class ReferenceDatasetAcceptanceIT extends BootTestSupport {
+class ReferenceDatasetAcceptanceIT {
 
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
     private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
-    private static final String QUEUE_NAME = "account-events-boot";
+    private static final String QUEUE_NAME = "account-events-acceptance";
+
+    /**
+     * Singleton PostgreSQL container, isolated from other boot tests.
+     */
+    private static final PostgreSQLContainer<?> POSTGRES =
+        new PostgreSQLContainer<>("postgres:16-alpine")
+            .withReuse(false);
+
+    /**
+     * Singleton ElasticMQ container, isolated from other boot tests.
+     */
+    private static final GenericContainer<?> ELASTICMQ =
+        new GenericContainer<>("softwaremill/elasticmq-native:1.6.12")
+            .withExposedPorts(9324);
 
     /**
      * Singleton WireMock container seeded with the repo's real mappings, so the three
@@ -100,7 +116,36 @@ class ReferenceDatasetAcceptanceIT extends BootTestSupport {
         .waitingFor(Wait.forHttp("/__admin/health").forStatusCode(200));
 
     static {
-        WIREMOCK.start();
+        try {
+            POSTGRES.start();
+            ELASTICMQ.start();
+            WIREMOCK.start();
+            createSqsQueue();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to initialize acceptance test containers", e);
+        }
+    }
+
+    /**
+     * Create SQS queue in ElasticMQ before starting the Spring context.
+     * This ensures the AccountEventListener (in worker profile) can find the queue.
+     */
+    private static void createSqsQueue() {
+        try {
+            String elasticMQEndpoint = String.format("http://localhost:%d", ELASTICMQ.getMappedPort(9324));
+            SqsAsyncClient sqs = SqsAsyncClient.builder()
+                .endpointOverride(new URI(elasticMQEndpoint))
+                .region(Region.US_EAST_1)
+                .credentialsProvider(StaticCredentialsProvider.create(
+                    AwsBasicCredentials.create("local", "local")
+                ))
+                .build();
+
+            sqs.createQueue(req -> req.queueName(QUEUE_NAME)).get();
+            sqs.close();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create SQS queue in ElasticMQ", e);
+        }
     }
 
     @Autowired
@@ -117,7 +162,11 @@ class ReferenceDatasetAcceptanceIT extends BootTestSupport {
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
-        String elasticMQEndpoint = String.format("http://localhost:%d", BootTestSupport.ELASTICMQ.getMappedPort(9324));
+        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES::getUsername);
+        registry.add("spring.datasource.password", POSTGRES::getPassword);
+
+        String elasticMQEndpoint = String.format("http://localhost:%d", ELASTICMQ.getMappedPort(9324));
         registry.add("spring.cloud.aws.sqs.endpoint", () -> elasticMQEndpoint);
         registry.add("spring.cloud.aws.region.static", () -> "us-east-1");
         registry.add("spring.cloud.aws.credentials.access-key", () -> "local");
