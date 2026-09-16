@@ -7,8 +7,6 @@ import co.cobre.notifications.domain.EventId;
 import co.cobre.notifications.domain.EventKey;
 import co.cobre.notifications.domain.NotificationEvent;
 import co.cobre.notifications.infrastructure.persistence.PersistenceTestSupport;
-import co.cobre.notifications.infrastructure.persistence.DeliveryStatusEntity;
-import co.cobre.notifications.infrastructure.persistence.NotificationEventEntity;
 import co.cobre.notifications.infrastructure.persistence.NotificationEventJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

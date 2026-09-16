@@ -6,18 +6,15 @@ import co.cobre.notifications.domain.DeliveryAttempt;
 import co.cobre.notifications.domain.EventId;
 import co.cobre.notifications.infrastructure.persistence.DeliveryAttemptJpaRepository;
 import co.cobre.notifications.infrastructure.persistence.DeliveryAttemptEntityMapper;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Repository
 public class DeliveryAttemptRepositoryAdapter implements DeliveryAttemptRepository {

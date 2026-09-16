@@ -1,6 +1,5 @@
 package co.cobre.notifications.architecture;
 
-import co.cobre.notifications.application.UseCase;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;

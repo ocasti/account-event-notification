@@ -6,7 +6,6 @@ import co.cobre.notifications.domain.DeliveryAttempt;
 import co.cobre.notifications.domain.DeliveryResult;
 import co.cobre.notifications.domain.EventId;
 import co.cobre.notifications.infrastructure.persistence.PersistenceTestSupport;
-import co.cobre.notifications.infrastructure.persistence.DeliveryAttemptEntity;
 import co.cobre.notifications.infrastructure.persistence.NotificationEventEntity;
 import co.cobre.notifications.infrastructure.persistence.DeliveryStatusEntity;
 import co.cobre.notifications.infrastructure.persistence.DeliveryAttemptJpaRepository;

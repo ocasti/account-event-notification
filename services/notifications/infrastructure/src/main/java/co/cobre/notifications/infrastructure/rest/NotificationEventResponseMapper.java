@@ -1,8 +1,6 @@
 package co.cobre.notifications.infrastructure.rest;
 
 import co.cobre.notifications.application.usecase.NotificationEventDetail;
-import co.cobre.notifications.application.usecase.NotificationEventPage;
-import co.cobre.notifications.application.usecase.NotificationEventSummary;
 import co.cobre.notifications.application.usecase.NotificationEventSummaryPage;
 import co.cobre.notifications.domain.DeliveryAttempt;
 import co.cobre.notifications.domain.NotificationEvent;
@@ -13,7 +11,6 @@ import co.cobre.notifications.infrastructure.rest.NotificationEventResponse;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 
 @Component

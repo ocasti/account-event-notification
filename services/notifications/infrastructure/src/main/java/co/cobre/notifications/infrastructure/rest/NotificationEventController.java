@@ -3,10 +3,8 @@ package co.cobre.notifications.infrastructure.rest;
 import co.cobre.notifications.application.usecase.ListNotificationEventsQuery;
 import co.cobre.notifications.application.usecase.GetNotificationEvent;
 import co.cobre.notifications.application.usecase.ListNotificationEvents;
-import co.cobre.notifications.application.usecase.NotificationEventSummaryPage;
 import co.cobre.notifications.application.usecase.ReplayNotificationEvent;
 import co.cobre.notifications.domain.ClientId;
-import co.cobre.notifications.domain.DeliveryStatus;
 import co.cobre.notifications.domain.EventId;
 import co.cobre.notifications.infrastructure.rest.ListRequest;
 import co.cobre.notifications.infrastructure.rest.NotificationEventDetailResponse;
@@ -30,7 +28,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/notification_events")

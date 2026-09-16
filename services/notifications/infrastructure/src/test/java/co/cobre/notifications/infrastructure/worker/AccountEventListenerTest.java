@@ -9,7 +9,6 @@ import co.cobre.notifications.domain.EventKey;
 import co.cobre.notifications.infrastructure.worker.DeliveryMetrics;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;

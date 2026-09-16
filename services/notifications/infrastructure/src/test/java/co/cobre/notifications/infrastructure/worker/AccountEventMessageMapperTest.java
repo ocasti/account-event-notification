@@ -1,9 +1,5 @@
 package co.cobre.notifications.infrastructure.worker;
 
-import co.cobre.notifications.application.usecase.RegisterEventCommand;
-import co.cobre.notifications.domain.ClientId;
-import co.cobre.notifications.domain.EventId;
-import co.cobre.notifications.domain.EventKey;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;

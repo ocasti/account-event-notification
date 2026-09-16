@@ -9,7 +9,6 @@ import co.cobre.notifications.application.port.WebhookSender;
 import co.cobre.notifications.domain.DeliveryAttempt;
 import co.cobre.notifications.domain.DeliveryOutcome;
 import co.cobre.notifications.domain.DeliveryResult;
-import co.cobre.notifications.domain.DeliveryStatus;
 import co.cobre.notifications.domain.NotificationEvent;
 import co.cobre.notifications.domain.Subscription;
 import co.cobre.notifications.domain.RetryPolicy;

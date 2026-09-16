@@ -2,8 +2,6 @@ package co.cobre.notifications.infrastructure.persistence;
 
 import co.cobre.notifications.domain.ClientId;
 import co.cobre.notifications.domain.EventKey;
-import co.cobre.notifications.domain.Subscription;
-import co.cobre.notifications.domain.WebhookUrl;
 import co.cobre.notifications.infrastructure.persistence.PersistenceTestSupport;
 import co.cobre.notifications.infrastructure.persistence.SubscriptionEntity;
 import co.cobre.notifications.infrastructure.persistence.SubscriptionJpaRepository;
@@ -11,8 +9,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.Instant;
-import java.util.Optional;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

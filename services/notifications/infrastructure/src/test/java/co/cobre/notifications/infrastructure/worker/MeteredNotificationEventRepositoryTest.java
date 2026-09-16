@@ -1,8 +1,5 @@
 package co.cobre.notifications.infrastructure.worker;
 
-import co.cobre.notifications.application.port.NotificationEventRepository;
-import co.cobre.notifications.application.usecase.ListNotificationEventsQuery;
-import co.cobre.notifications.application.usecase.NotificationEventPage;
 import co.cobre.notifications.domain.ClientId;
 import co.cobre.notifications.domain.DeliveryStatus;
 import co.cobre.notifications.domain.EventId;
@@ -16,7 +13,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;

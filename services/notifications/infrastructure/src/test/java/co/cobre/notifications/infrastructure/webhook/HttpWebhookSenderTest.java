@@ -4,7 +4,6 @@ import co.cobre.notifications.domain.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.ResourceAccessException;
 
 import java.net.InetAddress;
 import java.net.URI;
@@ -14,7 +13,6 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Function;
 import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
