@@ -131,13 +131,26 @@ A restart is required, not just a config reload: the seeded subscriptions' URL i
 make test   # ./mvnw verify in services/notifications and services/event-simulator
 ```
 
-Both modules use Testcontainers for integration tests, which needs a working Docker socket. On macOS with OrbStack (not Docker Desktop), Testcontainers may not auto-detect the socket; if `make test` fails to reach Docker, run:
+`verify` also runs PMD (`pmd-ruleset.xml` in each service): unused imports, unused private members, empty or generic catch blocks and lost stack traces fail the build, locally and in CI.
+
+Both modules use Testcontainers for the integration tests (`*IT`), so they need a Docker socket. On
+macOS with OrbStack, Testcontainers does not find the socket by itself (it looks for
+`/var/run/docker.sock`, which OrbStack does not create): the integration tests then error out and the
+IDE reports the rest of the class as ignored. Configure it once, user-wide, and both Maven and the IDE
+pick it up:
 
 ```bash
-DOCKER_HOST=unix://$HOME/.orbstack/run/docker.sock TESTCONTAINERS_RYUK_DISABLED=true make test
+cat > ~/.testcontainers.properties <<'EOF'
+docker.host=unix:///Users/<you>/.orbstack/run/docker.sock
+ryuk.disabled=true
+EOF
 ```
 
-This is only needed on macOS with OrbStack; it is not required by `make up`, which uses Compose directly.
+`ryuk.disabled=true` is required under OrbStack (the Ryuk reaper needs the Docker socket from inside a
+container, which OrbStack does not allow), so Testcontainers cannot remove its containers after a run;
+`make tc-clean` removes them. The environment-variable form
+(`DOCKER_HOST=unix://$HOME/.orbstack/run/docker.sock TESTCONTAINERS_RYUK_DISABLED=true make test`)
+still works for a one-off run. Neither is needed by `make up`, which uses Compose directly.
 
 The delivery engine schedules and claims attempts with the database clock, so the Docker VM clock must match the host. After a laptop sleep, OrbStack or Docker Desktop can drift by hours; the symptom is a worker that claims nothing and time-based integration tests that hang or fail. `make preflight` checks the skew; if it reports one, restart the VM (`orbctl stop && orbctl start` on OrbStack).
 

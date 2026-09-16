@@ -125,6 +125,30 @@ class NotificationEventTest {
     }
 
     @Test
+    void shouldThrowWhenSchedulingRetryFromCompletedStatus() {
+        var subscription = createSubscription();
+        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
+        var event = NotificationEvent.register(data, receivedAt, subscription);
+        var completedAt = Instant.parse("2024-01-01T00:01:00Z");
+        event.complete(completedAt);
+
+        assertThatThrownBy(event::scheduleRetry)
+            .isInstanceOf(IllegalStateTransitionException.class);
+    }
+
+    @Test
+    void shouldThrowWhenFailingFromCompletedStatus() {
+        var subscription = createSubscription();
+        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
+        var event = NotificationEvent.register(data, receivedAt, subscription);
+        var completedAt = Instant.parse("2024-01-01T00:01:00Z");
+        event.complete(completedAt);
+
+        assertThatThrownBy(event::fail)
+            .isInstanceOf(IllegalStateTransitionException.class);
+    }
+
+    @Test
     void shouldReplayEventFromFailedStatus() {
         var subscription = createSubscription();
         var data = new EventData(eventId, clientId, eventKey, content, createdAt);
@@ -191,6 +215,32 @@ class NotificationEventTest {
         var event2 = NotificationEvent.register(data2, receivedAt, subscription);
 
         assertThat(event1).isEqualTo(event2);
+    }
+
+    @Test
+    void shouldHaveSameHashCodeWhenEqualByEventId() {
+        var subscription = createSubscription();
+        var data1 = new EventData(eventId, clientId, eventKey, content, createdAt);
+        var event1 = NotificationEvent.register(data1, receivedAt, subscription);
+        var data2 = new EventData(eventId, new ClientId("client-2"), new EventKey("order.created"),
+            "different content", createdAt);
+        var event2 = NotificationEvent.register(data2, receivedAt, subscription);
+
+        assertThat(event1).hasSameHashCodeAs(event2);
+    }
+
+    @Test
+    void shouldExposeRegisteredFields() {
+        var subscription = createSubscription();
+        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
+        var event = NotificationEvent.register(data, receivedAt, subscription);
+
+        assertThat(event.eventId()).isEqualTo(eventId);
+        assertThat(event.clientId()).isEqualTo(clientId);
+        assertThat(event.eventKey()).isEqualTo(eventKey);
+        assertThat(event.content()).isEqualTo(content);
+        assertThat(event.createdAt()).isEqualTo(createdAt);
+        assertThat(event.receivedAt()).isEqualTo(receivedAt);
     }
 
     private Subscription createSubscription() {

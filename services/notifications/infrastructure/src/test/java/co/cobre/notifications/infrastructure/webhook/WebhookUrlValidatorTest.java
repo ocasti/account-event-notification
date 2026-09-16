@@ -306,6 +306,114 @@ class WebhookUrlValidatorTest {
         assertThat(ip.getHostAddress()).contains("2001:db8");
     }
 
+    @Test
+    void shouldRejectUriWithoutHost() throws Exception {
+        var props = new WebhookProperties(
+            Duration.ofSeconds(5),
+            Duration.ofSeconds(10),
+            true,
+            List.of(),
+            Duration.ofSeconds(30)
+        );
+        var resolver = createMockResolver("93.184.216.34");
+        var validator = new WebhookUrlValidator(props, resolver);
+
+        var uriWithoutHost = java.net.URI.create("mailto:test@example.com");
+
+        assertThatThrownBy(() -> validator.validate(uriWithoutHost))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Webhook URL must have a valid host");
+    }
+
+    @Test
+    void shouldRejectHttpWhenHttpsIsRequired() throws Exception {
+        var props = new WebhookProperties(
+            Duration.ofSeconds(5),
+            Duration.ofSeconds(10),
+            true,
+            List.of(),
+            Duration.ofSeconds(30)
+        );
+        var resolver = createMockResolver("93.184.216.34");
+        var validator = new WebhookUrlValidator(props, resolver);
+
+        var uri = java.net.URI.create("http://example.com/hook");
+
+        assertThatThrownBy(() -> validator.validate(uri))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("HTTPS is required for webhook URLs");
+    }
+
+    @Test
+    void shouldRejectHttpHostNotInAllowlistWhenHttpsNotRequired() throws Exception {
+        var props = new WebhookProperties(
+            Duration.ofSeconds(5),
+            Duration.ofSeconds(10),
+            false,
+            List.of(),
+            Duration.ofSeconds(30)
+        );
+        var resolver = createMockResolver("93.184.216.34");
+        var validator = new WebhookUrlValidator(props, resolver);
+
+        var uri = java.net.URI.create("http://example.com/hook");
+
+        assertThatThrownBy(() -> validator.validate(uri))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("HTTP scheme requires host to be in allowlist");
+    }
+
+    @Test
+    void shouldRejectNullHostInValidateHost() throws Exception {
+        var props = new WebhookProperties(
+            Duration.ofSeconds(5),
+            Duration.ofSeconds(10),
+            true,
+            List.of(),
+            Duration.ofSeconds(30)
+        );
+        var resolver = createMockResolver("93.184.216.34");
+        var validator = new WebhookUrlValidator(props, resolver);
+
+        assertThatThrownBy(() -> validator.validateHost(null))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Host must not be null or empty");
+    }
+
+    @Test
+    void shouldRejectEmptyHostInValidateHost() throws Exception {
+        var props = new WebhookProperties(
+            Duration.ofSeconds(5),
+            Duration.ofSeconds(10),
+            true,
+            List.of(),
+            Duration.ofSeconds(30)
+        );
+        var resolver = createMockResolver("93.184.216.34");
+        var validator = new WebhookUrlValidator(props, resolver);
+
+        assertThatThrownBy(() -> validator.validateHost(""))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Host must not be null or empty");
+    }
+
+    @Test
+    void shouldRejectHostWhenResolverReturnsNoAddresses() {
+        var props = new WebhookProperties(
+            Duration.ofSeconds(5),
+            Duration.ofSeconds(10),
+            true,
+            List.of(),
+            Duration.ofSeconds(30)
+        );
+        java.util.function.Function<String, List<InetAddress>> emptyResolver = host -> List.of();
+        var validator = new WebhookUrlValidator(props, emptyResolver);
+
+        assertThatThrownBy(() -> validator.validateHost("example.com"))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Unable to resolve host: example.com");
+    }
+
     private java.util.function.Function<String, List<InetAddress>> createMockResolver(String ipAddress) throws Exception {
         return host -> {
             try {
