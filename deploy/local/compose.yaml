@@ -2,7 +2,7 @@
 # Profiles (see Makefile):
 #   infra          postgres, elasticmq, wiremock
 #   app            notifications-api, notifications-worker, event-simulator
-#   observability  prometheus, grafana
+#   observability  prometheus, grafana, postgres-exporter, node-exporter
 # All variables come from .env at the repository root (copy .env.example). One network, no
 # persistent volume for Postgres. Build contexts point at the repository root so .dockerignore
 # applies; everything else in this file is relative to deploy/local.
@@ -189,6 +189,72 @@ services:
     networks: [notifications]
 
   # --------------------------------------------------------- observability
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.20.1
+    profiles: [observability]
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-notifications}:${POSTGRES_PASSWORD:-notifications}@postgres:5432/${POSTGRES_DB:-notifications}?sslmode=disable
+      PG_EXPORTER_EXTEND_QUERY_PATH: /queries.yaml
+    volumes:
+      - ./postgres-exporter/queries.yaml:/queries.yaml:ro
+    # No published ports: Prometheus scrapes it inside the notifications network.
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9187/metrics >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    networks: [notifications]
+
+  # node_exporter exposes host/VM-level metrics on /metrics (Prometheus format): CPU by mode,
+  # load average, memory, per-device disk I/O and filesystem usage, per-interface network. It
+  # reads /proc and /sys read-only and needs --pid host to see the VM's real process/mount
+  # namespaces from inside its own container (standard node_exporter deployment).
+  #
+  # WHY NOT cAdvisor / per-container metrics: verified that under this OrbStack VM no container
+  # can reach the Docker socket at all (root or privileged, `/var/run/docker.sock` or the whole
+  # `/var/run` mounted: `permission denied`), so neither cAdvisor's Docker integration nor
+  # Telegraf's inputs.docker can enumerate containers from inside a container here. cAdvisor was
+  # tried anyway (its container/cgroup-walking path doesn't need the socket) and hit a second,
+  # independent problem: this Docker daemon's storage driver is overlayfs with
+  # driver-type io.containerd.snapshotter.v1 (the containerd snapshotter), and cAdvisor v0.52.1's
+  # Docker handler only resolves a container's read-write layer through the classic overlay2
+  # graphdriver layout, so it never creates a per-container handler here either — see git history
+  # of this file for that first attempt. node_exporter needs neither the Docker socket nor
+  # cAdvisor's graphdriver assumptions (it reads cgroups/proc directly), so it is the metric
+  # source that actually works under OrbStack. It reports the VM as a whole, not per container:
+  # see deploy/local/README.md, section "node_exporter", for what that means for Postgres and for
+  # per-container numbers (docker stats on the host).
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:v1.8.2
+    profiles: [observability]
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    # No published ports: only reachable inside the notifications network.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9100/metrics"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    mem_limit: 128m
+    networks: [notifications]
+
   prometheus:
     image: prom/prometheus:latest
     profiles: [observability]

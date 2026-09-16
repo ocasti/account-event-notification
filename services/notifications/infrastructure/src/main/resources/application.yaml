@@ -67,6 +67,9 @@ management:
     distribution:
       percentiles-histogram:
         "notifications.webhook.latency": true
+        "http.server.requests": true
+      slo:
+        "http.server.requests": 50ms,200ms,500ms,1s
 
 logging:
   pattern:

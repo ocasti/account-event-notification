@@ -1,0 +1,51 @@
+# Consultas de negocio para prometheus-community/postgres_exporter (v0.20.1), montadas vía
+# PG_EXPORTER_EXTEND_QUERY_PATH (ver compose.yaml, servicio postgres-exporter).
+#
+# El formato "queries.yaml" clásico está marcado DEPRECATED en el binario (sigue funcionando en
+# v0.20.1; el exportador sólo lo avisa por log al arrancar). Se eligió sobre el mecanismo de
+# collector custom más nuevo (--collector.<name>.query-file) porque produce nombres de métrica
+# predecibles con una sola sintaxis, y el proyecto no publica todavía una guía estable de
+# reemplazo para queries.yaml en 0.20.x.
+#
+# El nombre final de cada métrica es "<clave de primer nivel>_<clave de la columna>" (verificado
+# corriendo el exportador contra el Postgres del stack): por eso las claves de abajo están
+# partidas a propósito para que la concatenación dé exactamente el nombre pedido, p. ej.
+# "cobre_attempts" + "_due" = cobre_attempts_due.
+
+cobre_events:
+  query: "SELECT status, count(*)::float AS by_status FROM notification_events GROUP BY status"
+  metrics:
+    - status:
+        usage: "LABEL"
+        description: "Estado del evento (notification_events.status)"
+    - by_status:
+        usage: "GAUGE"
+        description: "Cantidad de eventos de notification_events agrupados por estado"
+
+cobre_attempts:
+  query: "SELECT count(*)::float AS due FROM delivery_attempts WHERE executed_at IS NULL AND next_attempt_at <= now()"
+  metrics:
+    - due:
+        usage: "GAUGE"
+        description: "Intentos de entrega vencidos (next_attempt_at <= now()) que ningún worker ha ejecutado todavía"
+
+cobre_attempts_claimed:
+  query: "SELECT count(*)::float AS unfinished FROM delivery_attempts WHERE claimed_at IS NOT NULL AND executed_at IS NULL"
+  metrics:
+    - unfinished:
+        usage: "GAUGE"
+        description: "Intentos de entrega reclamados por un worker (claimed_at) que aún no terminaron (executed_at nulo); si crece sostenido, un worker murió con el lease tomado"
+
+cobre_attempts_executed:
+  query: "SELECT count(*)::float AS total FROM delivery_attempts WHERE executed_at IS NOT NULL"
+  metrics:
+    - total:
+        usage: "GAUGE"
+        description: "Total acumulado de intentos de entrega ya ejecutados; contador de negocio expuesto como gauge porque la consulta recalcula el total en cada scrape"
+
+cobre_oldest_pending_age:
+  query: "SELECT COALESCE(extract(epoch FROM now() - min(next_attempt_at)), 0)::float AS seconds FROM delivery_attempts WHERE executed_at IS NULL AND next_attempt_at <= now()"
+  metrics:
+    - seconds:
+        usage: "GAUGE"
+        description: "Antigüedad en segundos del intento vencido no ejecutado más viejo; 0 si no hay ninguno pendiente"

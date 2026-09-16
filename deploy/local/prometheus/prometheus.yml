@@ -29,3 +29,22 @@ scrape_configs:
     relabel_configs:
       - target_label: role
         replacement: worker
+
+  # prometheus-community/postgres_exporter (deploy/local/postgres-exporter), one static target,
+  # no ports published on the exporter itself (only reachable inside the notifications network).
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+        labels:
+          role: postgres
+
+  # quay.io/prometheus/node-exporter (deploy/local, profile observability), port 9100. Host/VM
+  # metrics (CPU, load, memory, disk, network), not per-container: see compose.yaml and
+  # deploy/local/README.md ("node_exporter") for why cAdvisor/per-container metrics don't work
+  # under this OrbStack VM (no container can reach the Docker socket here).
+  - job_name: node
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          role: node
