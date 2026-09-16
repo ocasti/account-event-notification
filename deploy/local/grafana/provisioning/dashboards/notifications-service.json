@@ -2081,7 +2081,7 @@
       "id": 20,
       "type": "timeseries",
       "title": "Duplicados (rango)",
-      "description": "Eventos con clave de idempotencia repetida detectados en la última hora, en ventana móvil (increase(notifications_duplicates_total[1h])). Calculado sobre el rango de tiempo seleccionado en Grafana ($__range) y el filtro de cliente; al cambiar el rango o el cliente se recalcula.",
+      "description": "Eventos con clave de idempotencia repetida en el rango de tiempo seleccionado (increase sobre $__range); son reentregas de la cola que se descartan sin tocar la base.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
