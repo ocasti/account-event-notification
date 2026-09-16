@@ -11,18 +11,12 @@ import org.junit.jupiter.api.Test;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
-/**
- * Hexagonal architecture tests.
- */
 public class HexagonalArchitectureTest {
 
     private static final JavaClasses classes = new ClassFileImporter()
         .withImportOption(new ImportOption.DoNotIncludeTests())
         .importPackages("co.cobre.notifications");
 
-    /**
-     * Tests that domain does not depend on application, infrastructure, or framework.
-     */
     @Test
     void domain_should_not_depend_on_application_or_infrastructure() {
         ArchRule rule = noClasses()
@@ -41,9 +35,6 @@ public class HexagonalArchitectureTest {
         rule.check(classes);
     }
 
-    /**
-     * Tests that application does not depend on infrastructure or framework.
-     */
     @Test
     void application_should_not_depend_on_infrastructure_or_framework() {
         ArchRule rule = noClasses()
@@ -61,10 +52,6 @@ public class HexagonalArchitectureTest {
         rule.check(classes);
     }
 
-
-    /**
-     * Tests that JPA entities reside in the infrastructure.persistence package.
-     */
     @Test
     void entities_should_reside_in_persistence_entity() {
         ArchRule rule = classes()
@@ -75,9 +62,6 @@ public class HexagonalArchitectureTest {
         rule.check(classes);
     }
 
-    /**
-     * Tests that infrastructure.rest does not depend on infrastructure.persistence.
-     */
     @Test
     void infrastructure_rest_should_not_depend_on_infrastructure_persistence() {
         ArchRule rule = noClasses()
