@@ -108,6 +108,8 @@ DOCKER_HOST=unix://$HOME/.orbstack/run/docker.sock TESTCONTAINERS_RYUK_DISABLED=
 
 This is only needed on macOS with OrbStack; it is not required by `make up`, which uses Compose directly.
 
+The delivery engine schedules and claims attempts with the database clock, so the Docker VM clock must match the host. After a laptop sleep, OrbStack or Docker Desktop can drift by hours; the symptom is a worker that claims nothing and time-based integration tests that hang or fail. `make preflight` checks the skew; if it reports one, restart the VM (`orbctl stop && orbctl start` on OrbStack).
+
 ## Repository structure
 
 ```
