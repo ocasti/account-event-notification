@@ -279,7 +279,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M
     networks: [notifications]
 
   grafana:
@@ -311,7 +311,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M
     networks: [notifications]
 
 networks:

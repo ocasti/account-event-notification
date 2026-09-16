@@ -9,7 +9,7 @@
   "timezone": "browser",
   "editable": true,
   "graphTooltip": 1,
-  "refresh": "30s",
+  "refresh": "1m",
   "schemaVersion": 39,
   "version": 3,
   "time": {
