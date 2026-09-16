@@ -1,7 +1,12 @@
 SHELL := /bin/bash
 COMPOSE := docker compose -f deploy/local/compose.yaml --env-file .env
 
-.PHONY: help preflight keys infra up up-all down logs ps build test token emit replay clean
+EVENTS ?= 2000
+FAIL_RATIO ?= 0.10
+CONCURRENCY ?= 8
+TIMEOUT ?= 300
+
+.PHONY: help preflight keys infra up up-all down logs ps build test token emit replay clean load
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -56,3 +61,15 @@ replay: ## Replay a failed notification: make replay ID=EVT003 CLIENT=CLIENT002
 clean: ## Remove build output of both services
 	cd services/notifications && ./mvnw -q clean
 	cd services/event-simulator && ./mvnw -q clean
+
+load: ## Load test against the running stack: make load EVENTS=2000 FAIL_RATIO=0.10 CONCURRENCY=8 TIMEOUT=300
+	@TOKEN_CLIENT001=$$(scripts/token.sh CLIENT001) && \
+	TOKEN_CLIENT002=$$(scripts/token.sh CLIENT002) && \
+	TOKEN_CLIENT003=$$(scripts/token.sh CLIENT003) && \
+	docker run --rm --network account-event-notification \
+	  -v "$$(pwd)/scripts:/scripts:ro" \
+	  -e TOKEN_CLIENT001="$$TOKEN_CLIENT001" \
+	  -e TOKEN_CLIENT002="$$TOKEN_CLIENT002" \
+	  -e TOKEN_CLIENT003="$$TOKEN_CLIENT003" \
+	  python:3.12-alpine python /scripts/load_test.py \
+	    --events $(EVENTS) --fail-ratio $(FAIL_RATIO) --concurrency $(CONCURRENCY) --timeout $(TIMEOUT)

@@ -107,6 +107,84 @@ pero nunca dispara porque `notifications_leases_expired_total` no se emite (ver 
 existe: ElasticMQ no expone su profundidad de DLQ en formato Prometheus; hace falta un gauge de
 Micrometer que lea `ApproximateNumberOfMessages` de `account-events-dlq` o un exportador dedicado.
 
+## Prueba de carga
+
+`scripts/load_test.py` (Python 3 estándar, sin dependencias) publica un lote de eventos
+directamente en la cola SQS (ElasticMQ) y verifica extremo a extremo que ninguno se pierda y que
+la monitorización refleje lo ocurrido. Corre dentro de un contenedor `python:3.12-alpine` en la
+red `account-event-notification`, así que habla con los hostnames internos del stack
+(`elasticmq:9324`, `http://notifications-api:8080`, `http://wiremock:8080`,
+`http://prometheus:9090`), no con los puertos publicados en el host.
+
+**Qué hace:**
+
+1. Toma una foto inicial de Prometheus (`notifications_registered_total`,
+   `notifications_duplicates_total`, `notifications_deliveries_total` por status), limpia el
+   journal de peticiones de WireMock y registra un stub temporal de prioridad 1 que devuelve 503
+   para los eventos marcados como fallidos de esta corrida.
+2. Publica `--events` eventos (`LOAD-<run>-<n>` los que deben completar, `LOAD-<run>-F-<n>` los
+   que deben fallar; `--fail-ratio` fija la proporción), repartiendo cliente (`CLIENT001..3`) y
+   tipo (`credit_deposit`, `debit_purchase`, `credit_transfer`) round-robin, en lotes de 10
+   (`SendMessageBatch`) con `--concurrency` hilos publicando en paralelo.
+3. Consulta `GET /notification_events/{id}` (con el token del cliente correspondiente) hasta que
+   todos los eventos llegan a un estado terminal (`completed`/`failed`) o se agota `--timeout`,
+   paralelizando las consultas e imprimiendo el progreso cada ronda.
+4. Al terminar, borra el stub de fallo (también si la corrida falla o se interrumpe) y compara:
+   eventos publicados vs. registrados vs. perdidos (404 tras el timeout); completed/failed
+   esperados vs. obtenidos (los `-F-` deben terminar `failed` con `attempts_count = 5` y ningún
+   otro evento debe fallar); la suma de `attempts_count` de la API contra el conteo de `POST
+   /webhook` que WireMock recibió para esta corrida (filtrado por el tag `LOAD-<run>-`, para no
+   mezclar el tráfico del simulador de eventos que sigue corriendo en paralelo); los deltas de
+   Prometheus; el p95 de `notifications_webhook_latency_seconds` y el máximo de
+   `notifications_attempts_due` en la ventana de la corrida.
+
+**Cómo se ejecuta** (con el stack ya arriba, `make up` o `make up-all`):
+
+```bash
+make load                                          # 2000 eventos, 10% de fallo
+make load EVENTS=200 FAIL_RATIO=0.20 TIMEOUT=120    # parámetros explícitos
+make load CONCURRENCY=16                            # más hilos de publicación
+```
+
+El target genera los tres tokens de demo con `scripts/token.sh` en el host y los pasa al
+contenedor por variable de entorno (`TOKEN_CLIENT001`, `TOKEN_CLIENT002`, `TOKEN_CLIENT003`); si
+se invoca `scripts/load_test.py` a mano fuera del target, hay que exportarlas primero.
+
+**Qué significa `RESULT: PASS`.** Los cinco criterios deben cumplirse a la vez: cero eventos
+perdidos, `completed` y `failed` obtenidos igual a los esperados (con los ids `-F-` exactos y 5
+intentos cada uno), la suma de intentos de la API igual al conteo de POST en WireMock, y el delta
+de `notifications_duplicates_total` en cero. Cualquier otra cosa (incluido no alcanzar estado
+terminal antes del timeout) es `RESULT: FAIL` y código de salida 1. Los deltas de Prometheus y las
+métricas de latencia/backlog se imprimen siempre, mismo con `PASS`, mismo con `FAIL` (son
+informativos, no gatean el resultado, porque el simulador de eventos sigue emitiendo en paralelo y
+los mueve).
+
+**Límites de la herramienta:**
+
+- El journal de peticiones de WireMock guarda como máximo 5000 entradas (`--max-request-journal-
+  entries 5000` en `compose.yaml`); con los valores por defecto (2000 eventos, 10% de fallo) la
+  corrida genera como máximo ~2800 POST propios, y el simulador de referencia añade tráfico de
+  fondo constante — no hay margen ilimitado. Con `EVENTS` mucho mayor, resetear el journal antes
+  no evita que se llene durante la corrida; conviene bajar `EVENTS` o `--fail-ratio` (cada evento
+  fallido cuesta 5 POST en vez de 1) si el conteo final de la comparación intentos-API-vs-WireMock
+  se ve truncado.
+- Por defecto solo hay una réplica de `notifications-worker`, con `batch-size: 50` por ciclo de
+  1 s: el techo de entrega ronda 50 eventos/s. Para subirlo, escalar antes de lanzar la carga:
+  `docker compose -f deploy/local/compose.yaml --env-file .env --profile infra --profile app up -d
+  --scale notifications-worker=3` (sin tocar `make down`/`up` mientras la carga corre).
+- El reset del journal de WireMock usa `DELETE /__admin/requests` (el endpoint real de WireMock
+  3.13.1 para esta versión; `POST /__admin/requests/reset` no existe en esta imagen y devuelve
+  404).
+
+**Qué mirar en Grafana durante la corrida.** Con `make up-all` corriendo, `open
+http://localhost:3001` y observar, mientras la carga avanza: **Delivery rate by status** debe
+mostrar el pico de `completed` seguido del goteo de `failed` unos ~30 s más tarde (backoff de
+reintentos); **Attempts due** sube mientras el lote está pendiente y vuelve a 0 al terminar — si se
+queda alto, el worker no da abasto (ver "Límites" arriba, escalar réplicas); **Webhook latency p95
+by client** no debería moverse mucho salvo que se agregue latencia artificial; **Failures by client
+(last hour)** debe mostrar solo los eventos `LOAD-<run>-F-*` de la corrida (más lo que ya hubiera
+fallado antes).
+
 ## Demostración con un receptor externo
 
 Ensayo de entrega contra un receptor HTTPS público real (no WireMock), para probar el camino
