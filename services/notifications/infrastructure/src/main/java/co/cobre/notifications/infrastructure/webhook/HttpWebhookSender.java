@@ -21,6 +21,15 @@ import java.util.Optional;
  */
 @Component
 public class HttpWebhookSender implements WebhookSender {
+    private static final int HTTP_SUCCESS_MIN = 200;
+    private static final int HTTP_SUCCESS_MAX_EXCLUSIVE = 300;
+    private static final int HTTP_CLIENT_ERROR_MIN = 400;
+    private static final int HTTP_CLIENT_ERROR_MAX_EXCLUSIVE = 500;
+    private static final int HTTP_SERVER_ERROR_MIN = 500;
+    private static final int HTTP_SERVER_ERROR_MAX_EXCLUSIVE = 600;
+    private static final int HTTP_REQUEST_TIMEOUT = 408;
+    private static final int HTTP_TOO_MANY_REQUESTS = 429;
+
     private final RestClient webhookRestClient;
     private final WebhookSigner signer;
     private final WebhookPayloadMapper payloadMapper;
@@ -80,14 +89,29 @@ public class HttpWebhookSender implements WebhookSender {
     }
 
     private DeliveryOutcome classify(int status, Duration latency) {
-        if (status >= 200 && status < 300) {
+        if (isSuccess(status)) {
             return new DeliveryOutcome.Success(status, latency);
-        } else if ((status >= 500 && status < 600) || status == 408 || status == 429) {
-            return new DeliveryOutcome.TransientFailure(Optional.of(status), "HTTP " + status, latency);
-        } else if (status >= 400 && status < 500) {
-            return new DeliveryOutcome.PermanentFailure(status, "client rejected: " + status, latency);
-        } else {
-            return new DeliveryOutcome.TransientFailure(Optional.of(status), "unexpected: " + status, latency);
         }
+        if (isTransient(status)) {
+            return new DeliveryOutcome.TransientFailure(Optional.of(status), "HTTP " + status, latency);
+        }
+        if (isClientError(status)) {
+            return new DeliveryOutcome.PermanentFailure(status, "client rejected: " + status, latency);
+        }
+        return new DeliveryOutcome.TransientFailure(Optional.of(status), "unexpected: " + status, latency);
+    }
+
+    private boolean isSuccess(int status) {
+        return status >= HTTP_SUCCESS_MIN && status < HTTP_SUCCESS_MAX_EXCLUSIVE;
+    }
+
+    private boolean isTransient(int status) {
+        return (status >= HTTP_SERVER_ERROR_MIN && status < HTTP_SERVER_ERROR_MAX_EXCLUSIVE)
+            || status == HTTP_REQUEST_TIMEOUT
+            || status == HTTP_TOO_MANY_REQUESTS;
+    }
+
+    private boolean isClientError(int status) {
+        return status >= HTTP_CLIENT_ERROR_MIN && status < HTTP_CLIENT_ERROR_MAX_EXCLUSIVE;
     }
 }
