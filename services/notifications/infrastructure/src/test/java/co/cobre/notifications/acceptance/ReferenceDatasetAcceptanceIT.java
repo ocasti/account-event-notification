@@ -54,7 +54,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Acceptance test reproducing the RFC's main criterion (docs/01-system-design.html, section 19,
- * "Criterios de aceptación"): publish the ten reference-dataset events
+ * "Acceptance criteria"): publish the ten reference-dataset events
  * (docs/notification_events.json) on the queue and verify the system ends with exactly
  * EVT003, EVT005 and EVT009 in FAILED (WireMock answers 503 for those event ids, per
  * deploy/local/wiremock/mappings/webhook-503.json) and the other seven in COMPLETED, each
