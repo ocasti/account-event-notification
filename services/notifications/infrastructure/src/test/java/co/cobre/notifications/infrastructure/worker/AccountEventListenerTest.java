@@ -114,7 +114,8 @@ class AccountEventListenerTest {
         listener.onMessage(message);
 
         verify(registerNotificationEvent).register(command);
-        verifyNoInteractions(metrics);
+        verify(metrics).duplicate("CLIENT789", "account.created");
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test

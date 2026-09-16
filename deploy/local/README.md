@@ -73,6 +73,8 @@ las emiten los decoradores de puerto `MeteredNotificationEventRepository` y `Met
 (`services/notifications/infrastructure/.../worker/`), que envuelven al repositorio y al emisor de
 webhooks en el proceso worker; `WorkerProfileBootIT` comprueba que son los beans efectivos. Con
 `make up-all` los cuatro paneles muestran datos en cuanto el simulador emite eventos.
+`notifications_duplicates_total` cuenta las reentregas de la cola con un `event_id` ya registrado (idempotencia de
+ingesta); el worker las descarta y deja una línea DEBUG `duplicate account event ignored` con `event_id` y `client_id`.
 `notifications_leases_expired_total` sigue sin emitirse: el reclamo con `SKIP LOCKED` no distingue un
 arrendamiento vencido de un intento nuevo, así que ese contador queda como evolución.
 

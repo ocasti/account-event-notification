@@ -445,7 +445,7 @@ sequenceDiagram
   P->>Q: publica {event_id, event_type, client_id, content, occurred_at}
   S->>Q: long polling (recibe mensaje)
   S->>R: register(event)
-  Note over S,R: existsById(event_id) ya true → RegistrationResult.DUPLICATE, se confirma el mensaje y no se registra dos veces
+  Note over S,R: existsById(event_id) ya true → RegistrationResult.DUPLICATE: notifications.duplicates++, log DEBUG con event_id y client_id, se confirma el mensaje y no se registra dos veces
   R->>SR: findActive(client_id, event_type)
   alt sin suscripción activa
     SR-->>R: vacío
@@ -1055,6 +1055,7 @@ flowchart TB
     <tbody>
       <tr><td><code>notifications.registered</code></td><td>counter · <code>client_id</code>, <code>event_key</code></td><td><code>AccountEventListener</code>, al recibir <code>RegistrationResult.REGISTERED</code></td><td>Eventos registrados desde la cola</td></tr>
       <tr><td><code>notifications.skipped</code></td><td>counter · <code>client_id</code>, <code>event_key</code></td><td><code>AccountEventListener</code>, al recibir <code>RegistrationResult.SKIPPED</code></td><td>Eventos sin suscripción activa</td></tr>
+      <tr><td><code>notifications.duplicates</code></td><td>counter · <code>client_id</code>, <code>event_key</code></td><td><code>AccountEventListener</code>, al recibir <code>RegistrationResult.DUPLICATE</code></td><td>Reentregas de la cola con un <code>event_id</code> ya registrado; se descartan sin tocar la base</td></tr>
       <tr><td><code>notifications.batches</code></td><td>counter, incrementado en <code>processed</code></td><td><code>DeliveryScheduler</code>, en cada tick exitoso</td><td>Volumen de intentos procesados por el scheduler</td></tr>
       <tr><td><code>notifications.scheduler.errors</code></td><td>counter</td><td><code>DeliveryScheduler</code>, si <code>processBatch()</code> lanza una excepción</td><td>El tick del scheduler falló</td></tr>
       <tr><td><code>notifications.attempts.due</code></td><td>gauge, calculado sobre el índice parcial</td><td><code>DueAttemptsGaugeUpdater</code>, en su propio <code>@Scheduled</code> (<code>gauge-interval</code>, 5 s)</td><td>Intentos vencidos sin reclamar; si sube, el worker no da abasto</td></tr>
@@ -1198,7 +1199,7 @@ flowchart TB
       <tr><td>200 intentos vencidos y 8 workers concurrentes, 5 rondas cada uno: cada intento se reclama exactamente una vez, sin solapes entre workers</td><td><code>persistence/DeliveryAttemptClaimConcurrencyIT</code></td></tr>
       <tr><td>El mismo mensaje entregado dos veces por la cola se procesa dos veces por el listener, que delega en <code>RegisterNotificationEvent</code> la decisión de no duplicar el evento</td><td><code>worker/AccountEventListenerIT</code> (<code>listenDuplicateEventOnlyRegistersOnce</code>)</td></tr>
       <tr><td>El dominio no depende de <code>application</code>/<code>infrastructure</code>/Spring/JPA/Jackson; <code>application</code> no depende de <code>infrastructure</code>; las entidades JPA quedan en <code>infrastructure.persistence</code>; los procesos <code>api</code> y <code>worker</code> no se importan entre sí</td><td><code>architecture/HexagonalArchitectureTest</code></td></tr>
-      <tr><td><code>/actuator/prometheus</code> expone <code>notifications.registered</code>, <code>notifications.skipped</code>, <code>notifications.batches</code>, <code>notifications.scheduler.errors</code>, <code>notifications.attempts.due</code>, <code>notifications.deliveries</code> y <code>notifications.webhook.latency</code> con sus etiquetas</td><td>Test de contrato del endpoint; <code>notifications.leases.expired</code> queda definida y sin invocar (sección 16), así que este criterio no la cubre todavía</td></tr>
+      <tr><td><code>/actuator/prometheus</code> expone <code>notifications.registered</code>, <code>notifications.skipped</code>, <code>notifications.duplicates</code>, <code>notifications.batches</code>, <code>notifications.scheduler.errors</code>, <code>notifications.attempts.due</code>, <code>notifications.deliveries</code> y <code>notifications.webhook.latency</code> con sus etiquetas</td><td>Test de contrato del endpoint; <code>notifications.leases.expired</code> queda definida y sin invocar (sección 16), así que este criterio no la cubre todavía</td></tr>
     </tbody>
   </table>
   </div>

@@ -102,4 +102,15 @@ public class DeliveryMetrics {
             .register(registry)
             .increment();
     }
+
+    /**
+     * Records a message whose event id was already registered; the queue redelivered it.
+     */
+    public void duplicate(String clientId, String eventKey) {
+        io.micrometer.core.instrument.Counter.builder("notifications.duplicates")
+            .tag("client_id", clientId)
+            .tag("event_key", eventKey)
+            .register(registry)
+            .increment();
+    }
 }
