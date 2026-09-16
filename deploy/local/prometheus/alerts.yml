@@ -31,13 +31,19 @@
 # .percentiles-histogram."http.server.requests") only insofar as it needs the *_count series, which
 # was already emitted before that change; it does not use histogram_quantile.
 #
-# 2026-09-16 (segunda tanda, junto con la fila "Carga de Postgres" y cAdvisor): añadidas
-# PostgresActiveTimeHigh (job postgres, ya cargado) y ContainerMemoryNearLimit (job cadvisor).
-# ContainerMemoryNearLimit está sujeta a la misma limitación de cAdvisor bajo OrbStack documentada
-# en deploy/local/compose.yaml y deploy/local/README.md: hoy no hay ninguna serie con el label
-# container_label_com_docker_compose_service (cAdvisor no resuelve el layer de ningún contenedor
-# bajo el snapshotter de containerd), así que la regla carga pero no puede evaluar a true para
-# ningún servicio hasta correr en un host donde cAdvisor sí vea contenedores.
+# 2026-09-16 (segunda tanda, junto con la fila "Carga de Postgres"): añadida PostgresActiveTimeHigh
+# (job postgres, ya cargado con datos reales).
+#
+# 2026-09-16 (tercera tanda, tras descartar cAdvisor): se probó cAdvisor para métricas por
+# contenedor y se abandonó por dos motivos independientes verificados en este host bajo OrbStack:
+# (1) ningún contenedor puede alcanzar el socket de Docker aquí (root o privilegiado, montando
+# /var/run entero: "permission denied"), lo que también habría bloqueado a Telegraf
+# (inputs.docker); (2) además, el storage driver de este daemon usa el snapshotter de containerd
+# (io.containerd.snapshotter.v1), que cAdvisor v0.52.1 no sabe leer para resolver el layer de un
+# contenedor. Se reemplazó por node_exporter (métricas de la VM completa, sin depender del socket
+# de Docker ni del storage driver) y ContainerMemoryNearLimit por HostMemoryLow y
+# HostCpuSaturated (job node). Ver deploy/local/compose.yaml y deploy/local/README.md, sección
+# "node_exporter".
 groups:
   - name: notifications.rules
     rules:
@@ -162,17 +168,25 @@ groups:
           summary: "Postgres (notifications) tiene actividad activa el {{ $value | humanizePercentage }} del tiempo durante 5 minutos"
           runbook: "La base está saturada de consultas; revisar el panel 'Carga de Postgres' (scans por tabla, tuplas por segundo, backends por estado) y considerar índices o bajar la concurrencia del worker."
 
-      # 12. Un contenedor se acerca a su límite de memoria (cAdvisor, fila "Recursos de
-      #     contenedores"). Sujeta a la limitación de cAdvisor bajo OrbStack: ver cabecera de este
-      #     archivo y deploy/local/README.md.
-      - alert: ContainerMemoryNearLimit
-        expr: |
-          container_memory_working_set_bytes{container_label_com_docker_compose_service!=""}
-          / container_spec_memory_limit_bytes{container_label_com_docker_compose_service!=""}
-          > 0.9
+      # 12. La VM de Docker se está quedando sin memoria disponible (node_exporter, fila
+      #     "Recursos del entorno (VM de Docker)"). No es por servicio (eso no es observable bajo
+      #     OrbStack, ver cabecera de este archivo): es la VM completa.
+      - alert: HostMemoryLow
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.10
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "{{ $labels.container_label_com_docker_compose_service }} está al {{ $value | humanizePercentage }} de su límite de memoria durante 5 minutos"
-          runbook: "Revisar el panel 'Memoria: working set vs. límite por servicio'; subir el límite del servicio en compose.yaml o investigar una fuga/carga anómala antes de que el kernel mate el contenedor (OOM)."
+          summary: "La VM de Docker solo tiene el {{ $value | humanizePercentage }} de memoria disponible durante 5 minutos"
+          runbook: "Subir el límite de memoria asignado a la VM de Docker (OrbStack/Docker Desktop) o bajar la carga (menos réplicas de worker, EVENTS más chico en la prueba de carga)."
+
+      # 13. La VM de Docker está saturada de CPU (node_exporter). idle < 10% durante 5 minutos:
+      #     casi no queda capacidad de CPU libre.
+      - alert: HostCpuSaturated
+        expr: sum(rate(node_cpu_seconds_total{mode="idle"}[5m])) / count(node_cpu_seconds_total{mode="idle"}) < 0.10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "La VM de Docker tiene menos del 10% de CPU idle durante 5 minutos ({{ $value | humanizePercentage }} idle)"
+          runbook: "Revisar el panel 'CPU total por modo' y 'Load average vs. núcleos'; reducir la carga (menos réplicas, EVENTS más chico) o asignar más CPU a la VM."

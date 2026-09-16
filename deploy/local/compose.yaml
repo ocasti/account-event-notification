@@ -2,7 +2,7 @@
 # Profiles (see Makefile):
 #   infra          postgres, elasticmq, wiremock
 #   app            notifications-api, notifications-worker, event-simulator
-#   observability  prometheus, grafana, postgres-exporter, cadvisor
+#   observability  prometheus, grafana, postgres-exporter, node-exporter
 # All variables come from .env at the repository root (copy .env.example). One network, no
 # persistent volume for Postgres. Build contexts point at the repository root so .dockerignore
 # applies; everything else in this file is relative to deploy/local.
@@ -213,48 +213,46 @@ services:
           memory: 128M
     networks: [notifications]
 
-  # cAdvisor exposes per-container CPU/memory/fs/network metrics on /metrics (Prometheus format).
-  # Runs privileged and reads host paths read-only (standard cAdvisor deployment: it inspects
-  # cgroups and the Docker storage driver from outside every container). No ports published;
-  # Prometheus scrapes it inside the notifications network (job cadvisor in prometheus.yml).
+  # node_exporter exposes host/VM-level metrics on /metrics (Prometheus format): CPU by mode,
+  # load average, memory, per-device disk I/O and filesystem usage, per-interface network. It
+  # reads /proc and /sys read-only and needs --pid host to see the VM's real process/mount
+  # namespaces from inside its own container (standard node_exporter deployment).
   #
-  # KNOWN LIMITATION under OrbStack (verified running cadvisor:v0.52.1 as a temporary container
-  # against this same Docker daemon): `docker info` here reports storage driver overlayfs with
-  # driver-type io.containerd.snapshotter.v1 (the containerd snapshotter, not the classic overlay2
-  # graphdriver). cAdvisor v0.52.1's Docker handler only knows how to resolve a container's
-  # read-write layer through the classic graphdriver layout
-  # (/var/lib/docker/image/overlayfs/layerdb/mounts/<id>/mount-id); that path does not exist under
-  # the containerd snapshotter, so cAdvisor logs "failed to identify the read-write layer ID" for
-  # every container and never creates a per-container handler. Net effect: no container-scoped
-  # metric (cpu/memory/fs/network, and the container_label_com_docker_compose_service label) has
-  # any series under this stack today — only the root cgroup ("/") is exposed. See
-  # deploy/local/README.md, section "cAdvisor", for the full explanation; the dashboard panels are
-  # left in place (correct PromQL, will populate on a host where cAdvisor's Docker integration
-  # works, e.g. a classic overlay2 graphdriver) and documented as "sin datos" here on purpose,
-  # instead of removed.
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.52.1
+  # WHY NOT cAdvisor / per-container metrics: verified that under this OrbStack VM no container
+  # can reach the Docker socket at all (root or privileged, `/var/run/docker.sock` or the whole
+  # `/var/run` mounted: `permission denied`), so neither cAdvisor's Docker integration nor
+  # Telegraf's inputs.docker can enumerate containers from inside a container here. cAdvisor was
+  # tried anyway (its container/cgroup-walking path doesn't need the socket) and hit a second,
+  # independent problem: this Docker daemon's storage driver is overlayfs with
+  # driver-type io.containerd.snapshotter.v1 (the containerd snapshotter), and cAdvisor v0.52.1's
+  # Docker handler only resolves a container's read-write layer through the classic overlay2
+  # graphdriver layout, so it never creates a per-container handler here either — see git history
+  # of this file for that first attempt. node_exporter needs neither the Docker socket nor
+  # cAdvisor's graphdriver assumptions (it reads cgroups/proc directly), so it is the metric
+  # source that actually works under OrbStack. It reports the VM as a whole, not per container:
+  # see deploy/local/README.md, section "node_exporter", for what that means for Postgres and for
+  # per-container numbers (docker stats on the host).
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:v1.8.2
     profiles: [observability]
-    privileged: true
+    pid: host
     volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
       - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-      - /dev/disk/:/dev/disk:ro
     command:
-      - --docker_only=true
-      - --housekeeping_interval=10s
-      - --store_container_labels=false
-      - --whitelisted_container_labels=com.docker.compose.service
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
     # No published ports: only reachable inside the notifications network.
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:9100/metrics"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 15s
-    mem_limit: 192m
+      start_period: 10s
+    mem_limit: 128m
     networks: [notifications]
 
   prometheus:

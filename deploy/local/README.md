@@ -12,7 +12,7 @@ directory wires it together; the `Makefile` at the repository root wraps the usu
 | `../../docker/simulator.Dockerfile` | Multi-stage build of `services/event-simulator`. Bundles `docs/notification_events.json` as the reference data set. |
 | `elasticmq/custom.conf` | Queues declared on start: `account-events` (visibility 30 s, long polling 20 s) and its DLQ `account-events-dlq` (`maxReceiveCount = 5`). The image is pinned to `elasticmq-native:1.6.12`: 1.7.x removed the statistics/UI server on 9325. |
 | `wiremock/mappings/` | Webhook test double. `POST /webhook` returns 200, except when the body contains `"EVT003"`, `"EVT005"` or `"EVT009"` (503). `POST /webhook-slow` returns 200 after 10 s to exercise the read timeout. |
-| `prometheus/prometheus.yml` | Scrapes `/actuator/prometheus` every 5 s from `notifications-api` and from every `notifications-worker` replica (DNS service discovery), plus `postgres-exporter:9187` (job `postgres`) y `cadvisor:8080` (job `cadvisor`, ver "cAdvisor" abajo). Loads `prometheus/alerts.yml` via `rule_files`. |
+| `prometheus/prometheus.yml` | Scrapes `/actuator/prometheus` every 5 s from `notifications-api` and from every `notifications-worker` replica (DNS service discovery), plus `postgres-exporter:9187` (job `postgres`) y `node-exporter:9100` (job `node`, ver "node_exporter" abajo). Loads `prometheus/alerts.yml` via `rule_files`. |
 | `prometheus/alerts.yml` | Alarmas de la sección 16 del RFC más las añadidas para esta revisión de servicio y para la carga de Postgres/contenedores, como reglas de Prometheus (ver "Alarmas" abajo). |
 | `postgres-exporter/queries.yaml` | Consultas de negocio de `prometheuscommunity/postgres-exporter` (gauges `cobre_*`: eventos por estado, intentos vencidos/reclamados/ejecutados, antigüedad del más viejo). Montado en el exportador vía `PG_EXPORTER_EXTEND_QUERY_PATH`. |
 | `grafana/provisioning/` | Datasource de Prometheus (default) y dos dashboards: `Notifications` (delivery rate by status, webhook p95 by client, attempts due, failures by client) y `Notifications · Service review` (`notifications-service.json`, ver "Qué mirar en Grafana" abajo). Anonymous access as Admin. |
@@ -24,7 +24,7 @@ directory wires it together; the `Makefile` at the repository root wraps the usu
 |---|---|
 | `infra` | `postgres`, `elasticmq`, `wiremock` |
 | `app` | `notifications-api`, `notifications-worker`, `event-simulator` |
-| `observability` | `prometheus`, `grafana`, `postgres-exporter`, `cadvisor` |
+| `observability` | `prometheus`, `grafana`, `postgres-exporter`, `node-exporter` |
 
 Start order is enforced with `depends_on` + `condition: service_healthy`:
 postgres and elasticmq -> notifications-api (runs Flyway) -> notifications-worker -> event-simulator.
@@ -97,8 +97,8 @@ Deja el dashboard `Notifications` original sin tocar. Variables: `client_id` (mu
 `notifications-worker`, de `notifications_attempts_due`). Nueve filas, **todas expandidas**
 (`collapsed: false`, sin paneles anidados): al abrir el tablero se ve todo de una vez, sin tener
 que desplegar cada fila a mano. El orden es `Resumen` → `Carga de Postgres` → `Entregas` →
-`Ingesta` → `Errores` → `API HTTP` → `JVM y proceso` → `Base de datos` → `Recursos de
-contenedores`; `Carga de Postgres` va justo después de `Resumen` porque es lo primero que hay que
+`Ingesta` → `Errores` → `API HTTP` → `JVM y proceso` → `Base de datos` → `Recursos del entorno (VM
+de Docker)`; `Carga de Postgres` va justo después de `Resumen` porque es lo primero que hay que
 mirar para saber si la base está saturada.
 
 **Fuentes de datos nuevas que necesita este tablero:**
@@ -109,10 +109,11 @@ mirar para saber si la base está saturada.
   `deploy/local/postgres-exporter/queries.yaml` (`cobre_events_by_status`, `cobre_attempts_due`,
   `cobre_attempts_claimed_unfinished`, `cobre_attempts_executed_total`,
   `cobre_oldest_pending_age_seconds`). Job `postgres` en `prometheus.yml`.
-- **cAdvisor** (`deploy/local/compose.yaml`, perfil `observability`): expone en
-  `cadvisor:8080/metrics` las métricas `container_*` por contenedor (CPU, memoria, fs, red). Job
-  `cadvisor` en `prometheus.yml`. Ver "cAdvisor" abajo para una limitación importante bajo
-  OrbStack: hoy no hay ninguna serie por contenedor en este entorno.
+- **node_exporter** (`deploy/local/compose.yaml`, perfil `observability`): expone en
+  `node-exporter:9100/metrics` las métricas `node_*` de la VM de Docker completa (CPU, load,
+  memoria, disco, red) — no por contenedor. Job `node` en `prometheus.yml`. Ver "node_exporter"
+  abajo: se intentó cAdvisor primero para métricas por contenedor y no funciona bajo este
+  OrbStack.
 - **Buckets de latencia HTTP**: `management.metrics.distribution.percentiles-histogram."http.server.requests"`
   en `application.yaml` (con `slo` en 50 ms/200 ms/500 ms/1 s). Sin reiniciar api/worker con este
   cambio, `http_server_requests_seconds_bucket` no existe todavía y el panel de p95 por uri queda
@@ -220,72 +221,61 @@ ratio` que estaban aquí se movieron a `Carga de Postgres` (no están duplicados
 | Tuplas muertas | `pg_stat_user_tables_n_dead_tup{relname=~"notification_events\|delivery_attempts"}` | Si crece sin bajar, el autovacuum no da abasto. |
 | Tamaño de tabla en disco | `pg_stat_user_tables_table_size_bytes{relname=~"notification_events\|delivery_attempts"}` | Del exportador. |
 
-### Recursos de contenedores
+### Recursos del entorno (VM de Docker)
 
-Vía cAdvisor (job `cadvisor`). **Bajo OrbStack estos cinco paneles están sin datos hoy** (ver
-"cAdvisor" abajo): las consultas son válidas y correctas (verificado contra un cAdvisor real), pero
-ninguna serie trae el label `container_label_com_docker_compose_service` en este entorno.
+Vía node_exporter (job `node`). **Sin datos hasta que se levante el servicio** (perfil
+`observability`), pero las consultas se verificaron contra un `node_exporter` real (ver
+"node_exporter" abajo). A diferencia de la fila de cAdvisor que se descartó, estos paneles miran la
+VM completa, no un contenedor por separado — salvo los dos últimos (CPU y memoria JVM), que sí son
+por proceso porque los reporta Micrometer desde dentro de cada JVM.
 
 | Panel | Consulta | Qué significa |
 |---|---|---|
-| CPU por servicio (cores) | `sum by (container_label_com_docker_compose_service) (rate(container_cpu_usage_seconds_total{...}[5m]))` | Núcleos equivalentes usados por servicio de compose. |
-| Memoria: working set vs. límite por servicio | `container_memory_working_set_bytes` vs. `container_spec_memory_limit_bytes` | El working set es lo que cuenta el OOM killer del kernel; alimenta `ContainerMemoryNearLimit`. |
-| E/S de bloque por servicio | `rate(container_fs_reads_bytes_total[5m])` / `rate(container_fs_writes_bytes_total[5m])` | Bytes leídos/escritos a disco por segundo, por servicio. |
-| Red por servicio | `rate(container_network_receive_bytes_total[5m])` / `rate(container_network_transmit_bytes_total[5m])` | Bytes recibidos/transmitidos por segundo, por servicio. |
-| Tabla: Postgres (CPU, memoria, E/S) | Igual que arriba, filtrado a `container_label_com_docker_compose_service="postgres"` | Vista puntual del contenedor de Postgres específicamente, en formato tabla. |
+| CPU total por modo (%) | `sum by (mode) (rate(node_cpu_seconds_total[5m])) / scalar(count(node_cpu_seconds_total{mode="idle"}))` | Fracción de la capacidad total de CPU de la VM usada por modo (el `scalar()` evita que la falta de labels en `count()` impida el match). Alimenta `HostCpuSaturated`. La carga de Postgres y la CPU por contenedor NO están aquí — ver "node_exporter" abajo. |
+| Load average vs. núcleos disponibles | `node_load1/5/15` vs. `count(node_cpu_seconds_total{mode="idle"})` | Si el load sostenido supera el número de núcleos, hay más trabajo listo para correr que CPU. |
+| Memoria usada vs. total (VM) | `node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes` vs. `node_memory_MemTotal_bytes` | Alimenta `HostMemoryLow`. |
+| E/S de disco: bytes leídos/escritos por dispositivo | `rate(node_disk_read_bytes_total[5m])` / `rate(node_disk_written_bytes_total[5m])` | Por dispositivo (`vda`/`vdb` son los discos reales de la VM). |
+| E/S de disco: io_time por dispositivo | `rate(node_disk_io_time_seconds_total[5m])` | Fracción de cada segundo con al menos una operación de E/S en curso. |
+| Red por interfaz | `rate(node_network_receive_bytes_total[5m])` / `rate(node_network_transmit_bytes_total[5m])` | Por interfaz de red de la VM. |
+| Espacio en disco (VM) | `node_filesystem_avail_bytes{mountpoint="/var/lib/docker"}` / `node_filesystem_size_bytes{...}` | El mountpoint `/` no aparece en node_exporter bajo esta VM (su fstype cae en el filtro de tipos excluidos por defecto); se usa `/var/lib/docker` como proxy, mismo disco físico. |
+| CPU de los procesos JVM | `process_cpu_usage{job=~"notifications-api\|notifications-worker"}` | Esta sí es por proceso (Micrometer, no node_exporter): CPU de api y worker por separado. |
+| Memoria RSS aproximada JVM | `sum by (job) (jvm_memory_used_bytes{job=~"notifications-api\|notifications-worker"})` | Aproximación del RSS por proceso (heap + non-heap); no incluye toda la memoria nativa fuera de la JVM. |
 
-## cAdvisor
+## node_exporter
 
-**Qué es.** [`gcr.io/cadvisor/cadvisor`](https://github.com/google/cadvisor) (pinneado en
-`v0.52.1`, verificado multi-arch arm64: `docker pull` en un Mac Apple Silicon trae la imagen nativa,
-sin emulación) lee cgroups y el storage driver de Docker desde fuera de cada contenedor y expone
-CPU, memoria, E/S de disco y red por contenedor en `/metrics` (formato Prometheus). Se añadió al
-perfil `observability` de `compose.yaml`, sin puertos publicados (solo alcanzable dentro de la red
-`notifications`); Prometheus lo scrapea como job `cadvisor` (`prometheus.yml`).
+**Qué es.** [`quay.io/prometheus/node-exporter`](https://github.com/prometheus/node_exporter)
+(pinneado en `v1.8.2`) lee `/proc` y `/sys` y expone métricas de la VM completa — CPU por modo,
+load average, memoria, E/S de disco por dispositivo, red por interfaz, espacio en filesystems — en
+`/metrics` (formato Prometheus). Se añadió al perfil `observability` de `compose.yaml`, sin puertos
+publicados (solo alcanzable dentro de la red `notifications`); Prometheus lo scrapea como job `node`
+(`prometheus.yml`). Corre con `--pid host` y los tres volúmenes de host (`/proc`, `/sys`, `/`)
+montados `:ro`, para ver los namespaces de proceso y de montaje reales de la VM en vez de los del
+propio contenedor — es el despliegue estándar recomendado por el proyecto, sin `privileged: true` y
+sin tocar el socket de Docker.
 
-**Por qué corre `privileged: true`.** Es el modo de despliegue estándar de cAdvisor: necesita leer
-`/sys` (cgroups), el socket de Docker (`/var/run`) y el storage interno de Docker
-(`/var/lib/docker`) para todos los contenedores del host, no solo los suyos — eso no es posible
-desde un contenedor sin privilegios. Los cuatro volúmenes (`/rootfs`, `/var/run`, `/sys`,
-`/var/lib/docker`, `/dev/disk`) se montan `:ro` (nunca escribe en el host). El comando fija
-`--docker_only=true` (ignora cgroups que no sean de un contenedor Docker),
-`--housekeeping_interval=10s` (no necesita el 1 s por defecto para un tablero de 30 s de refresh),
-`--store_container_labels=false` junto con `--whitelisted_container_labels=com.docker.compose.service`
-(en vez de volcar todas las labels/env vars de cada contenedor como labels de Prometheus, solo
-conserva `com.docker.compose.service` como `container_label_com_docker_compose_service`, que es la
-que usa el tablero para agrupar por servicio).
+**Por qué no cAdvisor (ni Telegraf `inputs.docker`).** Se probaron ambos primero, para tener
+métricas por contenedor en vez de por VM completa, y ninguno funciona bajo este OrbStack: ningún
+contenedor puede alcanzar el socket de Docker aquí (root o privilegiado, montando `/var/run`
+entero: `permission denied`), lo que bloquea a cualquier herramienta que necesite hablarle al
+daemon. Se intentó además cAdvisor por su ruta alternativa que no depende del socket (lee cgroups y
+el storage driver directamente), y falló igual porque este daemon usa el snapshotter de containerd
+(`driver-type: io.containerd.snapshotter.v1`), que cAdvisor v0.52.1 no sabe leer para resolver el
+layer de un contenedor (`failed to identify the read-write layer ID ...`); verificado con un
+`tmp-cadvisor` real, `ninguna` métrica `container_*` traía datos por contenedor, solo el cgroup raíz
+(`id="/"`). `node_exporter` no tiene ninguno de los dos problemas porque lee `/proc`/`/sys`
+directamente, sin pasar por el socket ni por el storage driver de Docker.
 
-**Limitación verificada bajo OrbStack: cAdvisor no ve ningún contenedor individual.**
-Se verificó levantando `cadvisor:v0.52.1` como contenedor temporal (`tmp-cadvisor`) en la red
-`account-event-notification` y consultando su `/metrics` desde `tmp-curl`, y de nuevo con un
-`tmp-prometheus` apuntando al `prometheus.yml`/`alerts.yml` de este directorio más el mismo
-`tmp-cadvisor` (con alias de red `cadvisor` para que el job de scrape resolviera igual que en
-producción). `docker info` en este host reporta `Storage Driver: overlayfs` con
-`driver-type: io.containerd.snapshotter.v1` — Docker (vía OrbStack) usa el snapshotter de
-containerd, no el graphdriver clásico `overlay2`. El manejador de Docker de cAdvisor v0.52.1 solo
-sabe resolver el layer read-write de un contenedor leyendo
-`/var/lib/docker/image/overlayfs/layerdb/mounts/<id>/mount-id`, un archivo que solo existe con el
-graphdriver clásico; con el snapshotter de containerd no existe, y el log de cAdvisor muestra, para
-cada contenedor del host:
+**Qué significa esto para el tablero.** La fila `Recursos del entorno (VM de Docker)` reporta la
+VM como un todo, no contenedor por contenedor — salvo `CPU de los procesos JVM` y `Memoria RSS
+aproximada JVM`, que sí son por proceso porque las reporta Micrometer desde dentro de cada JVM, no
+node_exporter. La carga *interna* de Postgres (consultas, backends, transacciones) se ve en la fila
+`Carga de Postgres` vía `postgres-exporter`, que tampoco depende del socket de Docker. Para ver
+CPU/memoria/red **por contenedor** (incluido `postgres`), la alternativa que sí funciona en este
+host es correr en la terminal, fuera de cualquier contenedor:
 
+```bash
+docker stats --no-stream
 ```
-Failed to create existing container: /docker/<id>: failed to identify the read-write layer ID for
-container "<id>". - open /rootfs/var/lib/docker/image/overlayfs/layerdb/mounts/<id>/mount-id:
-no such file or directory
-```
-
-Efecto: cAdvisor arranca y responde (`/healthz` → 200, target `up` en Prometheus), pero **ninguna**
-métrica `container_*` trae el label `container_label_com_docker_compose_service` (ni ningún otro
-label por contenedor) — solo se expone el cgroup raíz (`id="/"`). No es un problema puntual de
-`container_fs_*`, como podría anticiparse: es cAdvisor entero sin datos por contenedor en este
-entorno, `--docker_only=true` o no. Las cinco consultas de la fila `Recursos de contenedores` (y la
-de `ContainerMemoryNearLimit` en `alerts.yml`) son sintácticamente válidas y correctas — se
-verificaron contra un Prometheus real con cAdvisor scrapeado, `status: success` con 0 resultados —
-y funcionarán tal cual en cualquier host donde Docker use el graphdriver `overlay2` clásico (la
-configuración por defecto en Linux estándar y en versiones anteriores de Docker
-Desktop/OrbStack). No se ocultó ni se quitó nada del tablero por esto: los paneles quedan
-documentados como "sin datos hasta desplegar en un host compatible", igual que cualquier otro panel
-de este tablero que depende de una fuente que aún no emite.
 
 ## Qué no está instrumentado
 
@@ -322,7 +312,8 @@ contenedores), once en total:
 | `PostgresDown` | `pg_up == 0` durante 1 min | Revisar el contenedor `postgres` |
 | `NotificationsOldestPendingTooOld` | `cobre_oldest_pending_age_seconds > 120` durante 5 min | Igual que `NotificationsAttemptsDueBacklog`, pero mirando Postgres en vez del gauge en memoria |
 | `PostgresActiveTimeHigh` | `rate(pg_stat_database_active_time_seconds_total{datname="notifications"}[5m]) > 0.8` durante 5 min | La base está saturada; revisar el panel `Carga de Postgres` (scans por tabla, tuplas por segundo, backends por estado), consultas e índices |
-| `ContainerMemoryNearLimit` | `working_set / spec_memory_limit_bytes > 0.9` durante 5 min, por servicio (cAdvisor) | El contenedor está cerca de que el kernel lo mate por OOM; subir el límite en `compose.yaml` o investigar la fuga/carga |
+| `HostMemoryLow` | `node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.10` durante 5 min | La VM de Docker se queda sin memoria; subir el límite de memoria de la VM (OrbStack/Docker Desktop) o bajar la carga |
+| `HostCpuSaturated` | CPU idle de la VM `< 10 %` durante 5 min | La VM está saturada de CPU; reducir carga o asignarle más CPU a la VM |
 
 `NotificationsAttemptsDueBacklog`, `NotificationsAttemptsDueMetricMissing` y
 `NotificationsClientFailureRateHigh` tienen datos reales hoy. `NotificationsLeaseExpirationsHigh` carga
@@ -331,10 +322,11 @@ instrumentado"). `NotificationsDbPoolExhausted` y `PostgresDown` necesitan `post
 arriba (perfil `observability`); `NotificationsOldestPendingTooOld` necesita además
 `postgres-exporter/queries.yaml`; `NotificationsApiServerErrors` no necesita los buckets HTTP del
 punto 1 porque usa `_count`, no `histogram_quantile`. `PostgresActiveTimeHigh` tiene datos reales
-hoy (mismo job `postgres` que el resto de la fila `Carga de Postgres`). `ContainerMemoryNearLimit`
-carga (`promtool check rules` en verde) pero no puede evaluar a `true` para ningún servicio bajo
-este stack: depende de `container_label_com_docker_compose_service`, y esa serie no existe bajo
-OrbStack hoy (ver "cAdvisor" arriba).
+hoy (mismo job `postgres` que el resto de la fila `Carga de Postgres`). `HostMemoryLow` y
+`HostCpuSaturated` necesitan `node-exporter` arriba (perfil `observability`, job `node`); a
+diferencia de la descartada `ContainerMemoryNearLimit` (cAdvisor), estas sí tienen datos reales en
+cuanto el servicio está arriba, porque node_exporter no depende del socket de Docker ni del storage
+driver — ver "node_exporter" arriba.
 
 **Decisión: se eliminó `NotificationsDlqNotEmpty`.** La regla original referenciaba
 `notifications_dlq_messages_visible`, un gauge que nunca llegó a existir (ElasticMQ no expone

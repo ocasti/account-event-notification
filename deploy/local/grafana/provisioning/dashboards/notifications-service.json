@@ -11,7 +11,7 @@
   "graphTooltip": 1,
   "refresh": "30s",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 3,
   "time": {
     "from": "now-1h",
     "to": "now"
@@ -3662,9 +3662,9 @@
       }
     },
     {
-      "id": 64,
+      "id": 70,
       "type": "row",
-      "title": "Recursos de contenedores",
+      "title": "Recursos del entorno (VM de Docker)",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -3675,10 +3675,10 @@
       "panels": []
     },
     {
-      "id": 65,
+      "id": 71,
       "type": "timeseries",
-      "title": "CPU por servicio (cores)",
-      "description": "sum by (container_label_com_docker_compose_service) (rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service!=\"\"}[5m])), en núcleos equivalentes. Requiere el servicio cadvisor (perfil observability, job cadvisor en prometheus.yml). Verificado levantando cadvisor:v0.52.1 como contenedor temporal en esta red y consultando /metrics: bajo OrbStack (Docker con storage driver overlayfs + containerd snapshotter, `docker info` -> driver-type io.containerd.snapshotter.v1) cAdvisor v0.52.1 NO puede resolver el layer read-write de ningún contenedor ('failed to identify the read-write layer ID ... layerdb/mounts/<id>/mount-id: no such file or directory'), porque su manejador de Docker solo entiende el layout clásico del graphdriver overlay2, no el snapshotter de containerd. Resultado: TODAS las métricas por contenedor (cpu, memoria, fs, red y el label container_label_com_docker_compose_service) vienen vacías — solo se expone el cgroup raíz ('/'). No es solo container_fs_*, como se anticipaba: es cadvisor entero sin per-container data en este entorno. Ver README, sección cAdvisor, para el detalle.",
+      "title": "CPU total por modo (%)",
+      "description": "sum by (mode) (rate(node_cpu_seconds_total[5m])) / scalar(count(node_cpu_seconds_total{mode=\"idle\"})): fracción de la capacidad total de CPU de la VM (todos los núcleos) usada en cada modo (user, system, iowait, idle, ...) por segundo (el scalar() es necesario porque count() sin 'by' produce una serie sin labels, que si no, no matchea con las series por mode). Alimenta HostCpuSaturated (idle < 10%). La carga interna de Postgres (tiempo activo, backends por estado, transacciones/tuplas por segundo, E/S de bloque) se lee en la fila 'Carga de Postgres', no aquí: node_exporter no distingue procesos, solo la VM completa. La CPU/memoria del contenedor de Postgres en particular no es observable desde dentro de este stack: bajo OrbStack ningún contenedor puede alcanzar el socket de Docker (ni root, ni privilegiado, ni montando /var/run: 'permission denied'), y cAdvisor (que no necesita el socket) tampoco funciona aquí porque este daemon usa el snapshotter de containerd, que su v0.52.1 no soporta para resolver el layer de un contenedor. Para ver CPU/memoria por contenedor (incluido postgres), usar `docker stats --no-stream` en el host.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3696,9 +3696,98 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (container_label_com_docker_compose_service) (rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service!=\"\"}[5m]))",
+          "expr": "sum by (mode) (rate(node_cpu_seconds_total[5m])) / scalar(count(node_cpu_seconds_total{mode=\"idle\"}))",
           "range": true,
-          "legendFormat": "{{container_label_com_docker_compose_service}}"
+          "legendFormat": "{{mode}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 72,
+      "type": "timeseries",
+      "title": "Load average vs. núcleos disponibles",
+      "description": "node_load1/5/15 de la VM, superpuestos con count(node_cpu_seconds_total{mode=\"idle\"}) (número de núcleos) como referencia: si el load sostenido supera el número de núcleos, hay más trabajo listo para correr que CPU para atenderlo.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 184
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "node_load1",
+          "range": true,
+          "legendFormat": "load1"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "node_load5",
+          "range": true,
+          "legendFormat": "load5"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "node_load15",
+          "range": true,
+          "legendFormat": "load15"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "count(node_cpu_seconds_total{mode=\"idle\"})",
+          "range": true,
+          "legendFormat": "núcleos"
         }
       ],
       "fieldConfig": {
@@ -3734,10 +3823,10 @@
       }
     },
     {
-      "id": 66,
+      "id": 73,
       "type": "timeseries",
-      "title": "Memoria: working set vs. límite por servicio",
-      "description": "container_memory_working_set_bytes frente a container_spec_memory_limit_bytes, por servicio (container_label_com_docker_compose_service). El working set es lo que realmente cuenta el OOM killer del kernel. Requiere el servicio cadvisor (perfil observability, job cadvisor en prometheus.yml). Verificado levantando cadvisor:v0.52.1 como contenedor temporal en esta red y consultando /metrics: bajo OrbStack (Docker con storage driver overlayfs + containerd snapshotter, `docker info` -> driver-type io.containerd.snapshotter.v1) cAdvisor v0.52.1 NO puede resolver el layer read-write de ningún contenedor ('failed to identify the read-write layer ID ... layerdb/mounts/<id>/mount-id: no such file or directory'), porque su manejador de Docker solo entiende el layout clásico del graphdriver overlay2, no el snapshotter de containerd. Resultado: TODAS las métricas por contenedor (cpu, memoria, fs, red y el label container_label_com_docker_compose_service) vienen vacías — solo se expone el cgroup raíz ('/'). No es solo container_fs_*, como se anticipaba: es cadvisor entero sin per-container data en este entorno. Ver README, sección cAdvisor, para el detalle.",
+      "title": "Memoria usada vs. total (VM)",
+      "description": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes (usada, incluye caché de página reclamable) frente a node_memory_MemTotal_bytes (total asignado a la VM de Docker). Alimenta HostMemoryLow (disponible < 10%).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3745,8 +3834,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 184
+        "x": 0,
+        "y": 192
       },
       "targets": [
         {
@@ -3755,9 +3844,9 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "container_memory_working_set_bytes{container_label_com_docker_compose_service!=\"\"}",
+          "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes",
           "range": true,
-          "legendFormat": "{{container_label_com_docker_compose_service}} working_set"
+          "legendFormat": "usada"
         },
         {
           "refId": "B",
@@ -3765,9 +3854,9 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "container_spec_memory_limit_bytes{container_label_com_docker_compose_service!=\"\"}",
+          "expr": "node_memory_MemTotal_bytes",
           "range": true,
-          "legendFormat": "{{container_label_com_docker_compose_service}} limit"
+          "legendFormat": "total"
         }
       ],
       "fieldConfig": {
@@ -3803,79 +3892,10 @@
       }
     },
     {
-      "id": 67,
+      "id": 74,
       "type": "timeseries",
-      "title": "E/S de bloque por servicio",
-      "description": "rate(container_fs_reads_bytes_total[5m]) y rate(container_fs_writes_bytes_total[5m]), por servicio. Requiere el servicio cadvisor (perfil observability, job cadvisor en prometheus.yml). Verificado levantando cadvisor:v0.52.1 como contenedor temporal en esta red y consultando /metrics: bajo OrbStack (Docker con storage driver overlayfs + containerd snapshotter, `docker info` -> driver-type io.containerd.snapshotter.v1) cAdvisor v0.52.1 NO puede resolver el layer read-write de ningún contenedor ('failed to identify the read-write layer ID ... layerdb/mounts/<id>/mount-id: no such file or directory'), porque su manejador de Docker solo entiende el layout clásico del graphdriver overlay2, no el snapshotter de containerd. Resultado: TODAS las métricas por contenedor (cpu, memoria, fs, red y el label container_label_com_docker_compose_service) vienen vacías — solo se expone el cgroup raíz ('/'). No es solo container_fs_*, como se anticipaba: es cadvisor entero sin per-container data en este entorno. Ver README, sección cAdvisor, para el detalle.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 192
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (container_label_com_docker_compose_service) (rate(container_fs_reads_bytes_total{container_label_com_docker_compose_service!=\"\"}[5m]))",
-          "range": true,
-          "legendFormat": "{{container_label_com_docker_compose_service}} reads"
-        },
-        {
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (container_label_com_docker_compose_service) (rate(container_fs_writes_bytes_total{container_label_com_docker_compose_service!=\"\"}[5m]))",
-          "range": true,
-          "legendFormat": "{{container_label_com_docker_compose_service}} writes"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "Bps",
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 8,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "none"
-            }
-          },
-          "min": 0
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "mean",
-            "lastNotNull",
-            "max"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 68,
-      "type": "timeseries",
-      "title": "Red por servicio",
-      "description": "rate(container_network_receive_bytes_total[5m]) y rate(container_network_transmit_bytes_total[5m]), por servicio. Requiere el servicio cadvisor (perfil observability, job cadvisor en prometheus.yml). Verificado levantando cadvisor:v0.52.1 como contenedor temporal en esta red y consultando /metrics: bajo OrbStack (Docker con storage driver overlayfs + containerd snapshotter, `docker info` -> driver-type io.containerd.snapshotter.v1) cAdvisor v0.52.1 NO puede resolver el layer read-write de ningún contenedor ('failed to identify the read-write layer ID ... layerdb/mounts/<id>/mount-id: no such file or directory'), porque su manejador de Docker solo entiende el layout clásico del graphdriver overlay2, no el snapshotter de containerd. Resultado: TODAS las métricas por contenedor (cpu, memoria, fs, red y el label container_label_com_docker_compose_service) vienen vacías — solo se expone el cgroup raíz ('/'). No es solo container_fs_*, como se anticipaba: es cadvisor entero sin per-container data en este entorno. Ver README, sección cAdvisor, para el detalle.",
+      "title": "E/S de disco: bytes leídos/escritos por dispositivo",
+      "description": "rate(node_disk_read_bytes_total[5m]) y rate(node_disk_written_bytes_total[5m]), por dispositivo (vda/vdb son los discos reales de la VM en este host; nbd* son dispositivos network-block sin uso, normalmente en 0).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3893,9 +3913,9 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (container_label_com_docker_compose_service) (rate(container_network_receive_bytes_total{container_label_com_docker_compose_service!=\"\"}[5m]))",
+          "expr": "rate(node_disk_read_bytes_total[5m])",
           "range": true,
-          "legendFormat": "{{container_label_com_docker_compose_service}} rx"
+          "legendFormat": "{{device}} read"
         },
         {
           "refId": "B",
@@ -3903,9 +3923,9 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (container_label_com_docker_compose_service) (rate(container_network_transmit_bytes_total{container_label_com_docker_compose_service!=\"\"}[5m]))",
+          "expr": "rate(node_disk_written_bytes_total[5m])",
           "range": true,
-          "legendFormat": "{{container_label_com_docker_compose_service}} tx"
+          "legendFormat": "{{device}} write"
         }
       ],
       "fieldConfig": {
@@ -3941,17 +3961,17 @@
       }
     },
     {
-      "id": 69,
-      "type": "table",
-      "title": "Postgres: CPU, memoria y E/S (contenedor)",
-      "description": "CPU (cores), memoria (working set) y E/S de bloque (lecturas+escrituras/s) del contenedor del servicio postgres, vía cAdvisor (container_label_com_docker_compose_service=\"postgres\"). Requiere el servicio cadvisor (perfil observability, job cadvisor en prometheus.yml). Verificado levantando cadvisor:v0.52.1 como contenedor temporal en esta red y consultando /metrics: bajo OrbStack (Docker con storage driver overlayfs + containerd snapshotter, `docker info` -> driver-type io.containerd.snapshotter.v1) cAdvisor v0.52.1 NO puede resolver el layer read-write de ningún contenedor ('failed to identify the read-write layer ID ... layerdb/mounts/<id>/mount-id: no such file or directory'), porque su manejador de Docker solo entiende el layout clásico del graphdriver overlay2, no el snapshotter de containerd. Resultado: TODAS las métricas por contenedor (cpu, memoria, fs, red y el label container_label_com_docker_compose_service) vienen vacías — solo se expone el cgroup raíz ('/'). No es solo container_fs_*, como se anticipaba: es cadvisor entero sin per-container data en este entorno. Ver README, sección cAdvisor, para el detalle.",
+      "id": 75,
+      "type": "timeseries",
+      "title": "E/S de disco: io_time por dispositivo",
+      "description": "rate(node_disk_io_time_seconds_total[5m]): fracción de cada segundo en que el dispositivo tuvo al menos una operación de E/S en curso (0 a 1, puede acercarse a 1 con colas profundas incluso sin mucho throughput). Complementa el panel de bytes leídos/escritos.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "gridPos": {
         "h": 8,
-        "w": 24,
+        "w": 12,
         "x": 0,
         "y": 200
       },
@@ -3962,11 +3982,68 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service=\"postgres\"}[5m]))",
-          "range": false,
-          "instant": true,
-          "format": "table",
-          "legendFormat": "CPU (cores)"
+          "expr": "rate(node_disk_io_time_seconds_total[5m])",
+          "range": true,
+          "legendFormat": "{{device}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 76,
+      "type": "timeseries",
+      "title": "Red por interfaz",
+      "description": "rate(node_network_receive_bytes_total[5m]) y rate(node_network_transmit_bytes_total[5m]), por interfaz de red de la VM.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 200
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(node_network_receive_bytes_total[5m])",
+          "range": true,
+          "legendFormat": "{{device}} rx"
         },
         {
           "refId": "B",
@@ -3974,57 +4051,229 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(container_memory_working_set_bytes{container_label_com_docker_compose_service=\"postgres\"})",
-          "range": false,
-          "instant": true,
-          "format": "table",
-          "legendFormat": "Memoria working set (bytes)"
-        },
-        {
-          "refId": "C",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(container_fs_reads_bytes_total{container_label_com_docker_compose_service=\"postgres\"}[5m])) + sum(rate(container_fs_writes_bytes_total{container_label_com_docker_compose_service=\"postgres\"}[5m]))",
-          "range": false,
-          "instant": true,
-          "format": "table",
-          "legendFormat": "E/S de bloque (bytes/s)"
+          "expr": "rate(node_network_transmit_bytes_total[5m])",
+          "range": true,
+          "legendFormat": "{{device}} tx"
         }
       ],
       "fieldConfig": {
         "defaults": {
+          "unit": "Bps",
           "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
           },
-          "unit": "short"
+          "min": 0
         },
         "overrides": []
       },
       "options": {
-        "showHeader": true,
-        "cellHeight": "sm"
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 77,
+      "type": "timeseries",
+      "title": "Espacio en disco (VM)",
+      "description": "node_filesystem_avail_bytes y node_filesystem_size_bytes. El mountpoint \"/\" de la VM no aparece en node_exporter: su fstype real cae en la lista de tipos excluidos por defecto del collector filesystem (típicamente 'overlay' en el rootfs de una VM de OrbStack). Se usa /var/lib/docker como proxy — mismo dispositivo físico (/dev/vdb1) que el resto del disco de datos de la VM — para tener una señal real de espacio libre.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
       },
-      "transformations": [
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 208
+      },
+      "targets": [
         {
-          "id": "merge",
-          "options": {}
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "node_filesystem_avail_bytes{mountpoint=\"/var/lib/docker\"}",
+          "range": true,
+          "legendFormat": "disponible"
         },
         {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true
-            },
-            "renameByName": {}
-          }
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "node_filesystem_size_bytes{mountpoint=\"/var/lib/docker\"}",
+          "range": true,
+          "legendFormat": "total"
         }
-      ]
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 78,
+      "type": "timeseries",
+      "title": "CPU de los procesos JVM",
+      "description": "process_cpu_usage{job=~\"notifications-api|notifications-worker\"}: fracción de CPU usada por cada proceso JVM (api, worker), por instance. A diferencia de la CPU de la VM de arriba, esta sí es por proceso — Micrometer la reporta desde dentro de cada JVM, sin depender de cAdvisor ni del socket de Docker.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 208
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "process_cpu_usage{job=~\"notifications-api|notifications-worker\"}",
+          "range": true,
+          "legendFormat": "{{job}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 79,
+      "type": "timeseries",
+      "title": "Memoria RSS aproximada JVM",
+      "description": "sum by (job) (jvm_memory_used_bytes{job=~\"notifications-api|notifications-worker\"}): suma de todas las áreas de memoria de la JVM (heap + non-heap) reportadas por Micrometer, por job. Es una aproximación del RSS real del proceso (el RSS del SO incluye además memoria nativa fuera de la contabilidad de la JVM: stacks de hilos nativos, mmap de librerías, buffers directos no siempre incluidos), pero es la señal por-proceso más cercana disponible sin acceso a /proc del proceso desde dentro de este stack.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 216
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (job) (jvm_memory_used_bytes{job=~\"notifications-api|notifications-worker\"})",
+          "range": true,
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
     }
   ]
 }
