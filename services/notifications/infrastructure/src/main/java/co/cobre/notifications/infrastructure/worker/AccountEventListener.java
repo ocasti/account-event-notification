@@ -4,6 +4,7 @@ import co.cobre.notifications.application.usecase.RegistrationResult;
 import co.cobre.notifications.application.usecase.RegisterNotificationEvent;
 import co.cobre.notifications.infrastructure.worker.DeliveryMetrics;
 import io.awspring.cloud.sqs.annotation.SqsListener;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -13,6 +14,8 @@ import org.springframework.stereotype.Component;
 @Component
 @Profile("worker")
 public class AccountEventListener {
+
+    private static final org.slf4j.Logger logger = LoggerFactory.getLogger(AccountEventListener.class);
 
     private final RegisterNotificationEvent registerNotificationEvent;
     private final AccountEventMessageMapper mapper;
@@ -42,7 +45,13 @@ public class AccountEventListener {
         switch (result) {
             case REGISTERED -> metrics.registered(command.clientId().value(), command.eventKey().value());
             case SKIPPED -> metrics.skipped(command.clientId().value(), command.eventKey().value());
-            case DUPLICATE -> {}
+            case DUPLICATE -> {
+                metrics.duplicate(command.clientId().value(), command.eventKey().value());
+                logger.atDebug()
+                    .addKeyValue("event_id", command.eventId().value())
+                    .addKeyValue("client_id", command.clientId().value())
+                    .log("duplicate account event ignored");
+            }
         }
     }
 }
