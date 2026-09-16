@@ -8,8 +8,11 @@ import co.cobre.notifications.domain.Subscription;
 import co.cobre.notifications.infrastructure.webhook.HttpWebhookSender;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
+
 /**
  * Metered decorator for WebhookSender that records delivery latency metrics.
+ * Delegates to HttpWebhookSender and records the latency of each delivery outcome.
  */
 @Component
 @org.springframework.context.annotation.Primary
@@ -25,6 +28,15 @@ public class MeteredWebhookSender implements WebhookSender {
 
     @Override
     public DeliveryOutcome send(Subscription subscription, NotificationEvent event, DeliveryAttempt attempt) {
-        throw new UnsupportedOperationException();
+        var outcome = delegate.send(subscription, event, attempt);
+
+        var latency = switch (outcome) {
+            case DeliveryOutcome.Success s -> s.latency();
+            case DeliveryOutcome.TransientFailure tf -> tf.latency();
+            case DeliveryOutcome.PermanentFailure pf -> pf.latency();
+        };
+
+        metrics.webhookLatency(event.clientId().value(), latency);
+        return outcome;
     }
 }

@@ -14,6 +14,8 @@ import java.util.Optional;
 
 /**
  * Metered decorator for NotificationEventRepository that records delivery metrics.
+ * Delegates to NotificationEventRepositoryAdapter and records delivery metrics
+ * when events transition to terminal states (COMPLETED, FAILED, RETRYING).
  */
 @Component
 @org.springframework.context.annotation.Primary
@@ -29,31 +31,47 @@ public class MeteredNotificationEventRepository implements NotificationEventRepo
 
     @Override
     public void save(NotificationEvent event) {
-        throw new UnsupportedOperationException();
+        delegate.save(event);
     }
 
     @Override
     public Optional<NotificationEvent> findByClientAndId(ClientId clientId, EventId eventId) {
-        throw new UnsupportedOperationException();
+        return delegate.findByClientAndId(clientId, eventId);
     }
 
     @Override
     public Optional<NotificationEvent> findById(EventId eventId) {
-        throw new UnsupportedOperationException();
+        return delegate.findById(eventId);
     }
 
     @Override
     public boolean existsById(EventId eventId) {
-        throw new UnsupportedOperationException();
+        return delegate.existsById(eventId);
     }
 
     @Override
     public NotificationEventPage search(ListNotificationEventsQuery query) {
-        throw new UnsupportedOperationException();
+        return delegate.search(query);
     }
 
     @Override
     public boolean transition(EventId eventId, DeliveryStatus expectedCurrent, NotificationEvent updated) {
-        throw new UnsupportedOperationException();
+        boolean result = delegate.transition(eventId, expectedCurrent, updated);
+
+        if (result && shouldRecordMetric(updated.status())) {
+            metrics.delivered(
+                updated.clientId().value(),
+                updated.status().name().toLowerCase(),
+                updated.eventKey().value()
+            );
+        }
+
+        return result;
+    }
+
+    private boolean shouldRecordMetric(DeliveryStatus status) {
+        return status == DeliveryStatus.COMPLETED ||
+               status == DeliveryStatus.FAILED ||
+               status == DeliveryStatus.RETRYING;
     }
 }
