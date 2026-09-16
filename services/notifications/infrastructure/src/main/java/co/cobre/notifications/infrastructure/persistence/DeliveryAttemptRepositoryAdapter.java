@@ -121,6 +121,26 @@ public class DeliveryAttemptRepositoryAdapter implements DeliveryAttemptReposito
     public Map<co.cobre.notifications.domain.EventId, Integer> countByEvents(
         java.util.Collection<co.cobre.notifications.domain.EventId> eventIds
     ) {
-        return Map.of();
+        if (eventIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<String> eventIdValues = eventIds.stream()
+            .map(id -> id.value())
+            .toList();
+
+        var results = jpaRepository.countByEventIds(eventIdValues);
+        Map<co.cobre.notifications.domain.EventId, Integer> counts = new HashMap<>();
+
+        for (Object[] row : results) {
+            String eventId = (String) row[0];
+            Long count = (Long) row[1];
+            counts.put(
+                new co.cobre.notifications.domain.EventId(eventId),
+                count.intValue()
+            );
+        }
+
+        return counts;
     }
 }
