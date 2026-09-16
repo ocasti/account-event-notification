@@ -66,7 +66,7 @@ worker adds 512 MB.
 | **Delivery rate by status** | `sum by (status) (rate(notifications_deliveries_total[1m]))` | Entregas por segundo, separadas por estado final del intento (`completed`/`retrying`/`failed`). Una subida sostenida de `failed` es la primera señal de un webhook de cliente caído. |
 | **Webhook latency p95 by client** | `histogram_quantile(0.95, sum by (le, client_id) (rate(notifications_webhook_latency_seconds_bucket[1m])))` | p95 del POST del webhook, por cliente. Detecta degradación del endpoint de un cliente concreto antes de que empiece a fallar. |
 | **Attempts due** | `max(notifications_attempts_due)` | Intentos vencidos aún no reclamados por ningún worker (gauge publicado por cada réplica, agregado con `max`, nunca sumado). Si sube, los workers no dan abasto: escalar réplicas o revisar Postgres. |
-| **Failures by client (last hour)** | `sum by (client_id) (increase(notifications_deliveries_total{status="failed"}[1h]))` | Tabla con el conteo de fallos por cliente en la última hora. Responde directamente "¿qué cliente está teniendo problemas?" sin tocar la tabla de intentos. |
+| **Failures by client (selected range)** | `sum by (client_id) (increase(notifications_deliveries_total{status="failed"}[$__range]))` | Tabla con el conteo de fallos por cliente en la última hora. Responde directamente "¿qué cliente está teniendo problemas?" sin tocar la tabla de intentos. |
 
 **Qué publica el código hoy.** `notifications_attempts_due` lo publica cada réplica del worker
 (`DueAttemptsGaugeUpdater`). `notifications_deliveries_total` y `notifications_webhook_latency_seconds`
@@ -119,18 +119,20 @@ mirar para saber si la base está saturada.
   cambio, `http_server_requests_seconds_bucket` no existe todavía y el panel de p95 por uri queda
   sin datos (es válido, no un error de la consulta).
 
-### Resumen (última hora)
+### Resumen (rango de tiempo seleccionado)
+
+Los contadores del resumen usan `$__range`, es decir, el rango de tiempo elegido en Grafana, y el filtro `client_id`: al acotar el rango a la última corrida de carga (o al último minuto) reflejan solo esa corrida, sin arrastrar datos anteriores. Los dos paneles marcados como foto del momento (backlog vencido y eventos por estado en Postgres) son gauges y no dependen del rango.
 
 | Panel | Consulta | Qué significa |
 |---|---|---|
-| Entregas completadas (1h) | `sum(increase(notifications_deliveries_total{status="completed"}[1h]))` | Intentos que terminaron bien en la última hora. |
-| Entregas fallidas (1h) | `sum(increase(notifications_deliveries_total{status="failed"}[1h]))` | Intentos que agotaron reintentos en la última hora. |
-| Tasa de éxito (1h) | `sum(increase(...{status="completed"}[1h])) / sum(increase(notifications_deliveries_total[1h]))` | Proporción de intentos completados sobre el total con resultado. |
-| p95 latencia webhook (1h) | `histogram_quantile(0.95, sum by (le) (increase(notifications_webhook_latency_seconds_bucket[1h])))` | p95 del POST al webhook, todos los clientes. |
+| Entregas completadas (rango) | `sum(increase(notifications_deliveries_total{status="completed"}[$__range]))` | Intentos que terminaron bien en la última hora. |
+| Entregas fallidas (rango) | `sum(increase(notifications_deliveries_total{status="failed"}[$__range]))` | Intentos que agotaron reintentos en la última hora. |
+| Tasa de éxito (rango) | `sum(increase(...{status="completed"}[$__range])) / sum(increase(notifications_deliveries_total[$__range]))` | Proporción de intentos completados sobre el total con resultado. |
+| p95 latencia webhook (rango) | `histogram_quantile(0.95, sum by (le) (increase(notifications_webhook_latency_seconds_bucket[$__range])))` | p95 del POST al webhook, todos los clientes. |
 | Backlog vencido (worker) | `max(notifications_attempts_due)` | Intentos vencidos no reclamados, gauge en memoria del worker (max entre réplicas). |
 | Eventos por estado (Postgres) | `cobre_events_by_status` | Conteo actual de `notification_events` por `status`, desde la base (no desde el worker). |
-| Duplicados (1h) | `sum(increase(notifications_duplicates_total[1h]))` | Reentregas con `event_id` ya registrado. |
-| Saltados (1h) | `sum(increase(notifications_skipped_total[1h]))` | Eventos recibidos que el servicio decidió no registrar. |
+| Duplicados (rango) | `sum(increase(notifications_duplicates_total[$__range]))` | Reentregas con `event_id` ya registrado. |
+| Saltados (rango) | `sum(increase(notifications_skipped_total[$__range]))` | Eventos recibidos que el servicio decidió no registrar. |
 
 ### Carga de Postgres
 
@@ -171,7 +173,7 @@ Todo lo que responde "¿qué tan cargada está la base ahora mismo?", junto en u
 |---|---|---|
 | Tasa de registro de eventos | `sum by (client_id) (rate(notifications_registered_total{client_id=~"$client_id"}[1m]))` | Eventos nuevos registrados por segundo, por cliente. |
 | Eventos saltados | `notifications_skipped_total` | Contador crudo, sin ventana. |
-| Duplicados (increase 1h) | `increase(notifications_duplicates_total[1h])` | Reentregas detectadas en ventana móvil de 1 h. |
+| Duplicados (increase 1h) | `increase(notifications_duplicates_total[$__range])` | Reentregas detectadas en ventana móvil de 1 h. |
 | (nota) | — | La profundidad de la cola `account-events` en ElasticMQ no está instrumentada; ver "Qué no está instrumentado". |
 
 ### Errores

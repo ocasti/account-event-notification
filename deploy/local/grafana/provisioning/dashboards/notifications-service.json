@@ -79,7 +79,7 @@
     {
       "id": 9,
       "type": "row",
-      "title": "Resumen (última hora)",
+      "title": "Resumen (rango de tiempo seleccionado)",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -92,8 +92,8 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "Entregas completadas (1h)",
-      "description": "Intentos de entrega que terminaron en estado completed en la última hora (notifications_deliveries_total).",
+      "title": "Entregas completadas (rango)",
+      "description": "Intentos de entrega que terminaron en estado completed en la última hora (notifications_deliveries_total). Calculado sobre el rango de tiempo seleccionado en Grafana ($__range) y el filtro de cliente; al cambiar el rango o el cliente se recalcula.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -111,7 +111,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(notifications_deliveries_total{status=\"completed\"}[1h]))",
+          "expr": "sum(increase(notifications_deliveries_total{client_id=~\"$client_id\",status=\"completed\"}[$__range]))",
           "range": true
         }
       ],
@@ -151,8 +151,8 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "Entregas fallidas (1h)",
-      "description": "Intentos de entrega que terminaron en estado failed en la última hora (notifications_deliveries_total).",
+      "title": "Entregas fallidas (rango)",
+      "description": "Intentos de entrega que terminaron en estado failed en la última hora (notifications_deliveries_total). Calculado sobre el rango de tiempo seleccionado en Grafana ($__range) y el filtro de cliente; al cambiar el rango o el cliente se recalcula.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -170,7 +170,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(notifications_deliveries_total{status=\"failed\"}[1h]))",
+          "expr": "sum(increase(notifications_deliveries_total{client_id=~\"$client_id\",status=\"failed\"}[$__range]))",
           "range": true
         }
       ],
@@ -218,8 +218,8 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Tasa de éxito (1h)",
-      "description": "Proporción de intentos de entrega completed sobre el total de intentos con resultado (completed+failed+retrying) en la última hora.",
+      "title": "Tasa de éxito (rango)",
+      "description": "Proporción de intentos de entrega completed sobre el total de intentos con resultado (completed+failed+retrying) en la última hora. Calculado sobre el rango de tiempo seleccionado en Grafana ($__range) y el filtro de cliente; al cambiar el rango o el cliente se recalcula.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -237,7 +237,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(notifications_deliveries_total{status=\"completed\"}[1h])) / sum(increase(notifications_deliveries_total[1h]))",
+          "expr": "sum(increase(notifications_deliveries_total{client_id=~\"$client_id\",status=\"completed\"}[$__range])) / sum(increase(notifications_deliveries_total{client_id=~\"$client_id\"}[$__range]))",
           "range": true
         }
       ],
@@ -285,8 +285,8 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "p95 latencia webhook (1h)",
-      "description": "Percentil 95 de la duración del POST al webhook del cliente en la última hora, sobre todos los clientes (notifications_webhook_latency_seconds).",
+      "title": "p95 latencia webhook (rango)",
+      "description": "Percentil 95 de la duración del POST al webhook del cliente en la última hora, sobre todos los clientes (notifications_webhook_latency_seconds). Calculado sobre el rango de tiempo seleccionado en Grafana ($__range) y el filtro de cliente; al cambiar el rango o el cliente se recalcula.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -304,7 +304,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (increase(notifications_webhook_latency_seconds_bucket[1h])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (increase(notifications_webhook_latency_seconds_bucket{client_id=~\"$client_id\"}[$__range])))",
           "range": true
         }
       ],
@@ -349,7 +349,7 @@
       "id": 5,
       "type": "stat",
       "title": "Backlog vencido (worker)",
-      "description": "Intentos de entrega vencidos que ningún worker ha reclamado todavía, tomando el máximo del gauge notifications_attempts_due entre réplicas (nunca se suma).",
+      "description": "Valor actual del gauge; no depende del rango de tiempo.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -417,7 +417,7 @@
       "id": 6,
       "type": "stat",
       "title": "Eventos por estado (Postgres)",
-      "description": "Conteo actual de notification_events agrupado por estado, calculado por el postgres-exporter (cobre_events_by_status). Requiere el exportador arriba (punto 2 del encargo).",
+      "description": "Estado actual de la tabla notification_events según postgres_exporter. Es una foto del momento, no depende del rango de tiempo ni del filtro de cliente.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -477,8 +477,8 @@
     {
       "id": 7,
       "type": "stat",
-      "title": "Duplicados (1h)",
-      "description": "Eventos recibidos que ya existían (misma clave de idempotencia) en la última hora (notifications_duplicates_total).",
+      "title": "Duplicados (rango)",
+      "description": "Eventos recibidos que ya existían (misma clave de idempotencia) en la última hora (notifications_duplicates_total). Calculado sobre el rango de tiempo seleccionado en Grafana ($__range) y el filtro de cliente; al cambiar el rango o el cliente se recalcula.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -496,7 +496,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(notifications_duplicates_total[1h]))",
+          "expr": "sum(increase(notifications_duplicates_total{client_id=~\"$client_id\"}[$__range]))",
           "range": true
         }
       ],
@@ -536,8 +536,8 @@
     {
       "id": 8,
       "type": "stat",
-      "title": "Saltados (1h)",
-      "description": "Eventos recibidos que el servicio decidió no registrar en la última hora (notifications_skipped_total): p. ej. sin suscripción activa para el event_key.",
+      "title": "Saltados (rango)",
+      "description": "Eventos recibidos que el servicio decidió no registrar en la última hora (notifications_skipped_total): p. ej. sin suscripción activa para el event_key. Calculado sobre el rango de tiempo seleccionado en Grafana ($__range) y el filtro de cliente; al cambiar el rango o el cliente se recalcula.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -555,7 +555,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(notifications_skipped_total[1h]))",
+          "expr": "sum(increase(notifications_skipped_total{client_id=~\"$client_id\"}[$__range]))",
           "range": true
         }
       ],
@@ -2080,8 +2080,8 @@
     {
       "id": 20,
       "type": "timeseries",
-      "title": "Duplicados (increase 1h)",
-      "description": "Eventos con clave de idempotencia repetida detectados en la última hora, en ventana móvil (increase(notifications_duplicates_total[1h])).",
+      "title": "Duplicados (rango)",
+      "description": "Eventos con clave de idempotencia repetida detectados en la última hora, en ventana móvil (increase(notifications_duplicates_total[1h])). Calculado sobre el rango de tiempo seleccionado en Grafana ($__range) y el filtro de cliente; al cambiar el rango o el cliente se recalcula.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2099,7 +2099,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "increase(notifications_duplicates_total[1h])",
+          "expr": "increase(notifications_duplicates_total{client_id=~\"$client_id\"}[$__range])",
           "range": true
         }
       ],
