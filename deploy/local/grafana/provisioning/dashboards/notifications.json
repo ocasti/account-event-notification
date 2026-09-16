@@ -124,52 +124,6 @@
         "textMode": "value",
         "orientation": "horizontal"
       }
-    },
-    {
-      "id": 4,
-      "type": "table",
-      "title": "Failures by client (last hour)",
-      "description": "Failed delivery attempts per client over the last hour (notifications.deliveries, status=failed). Use it to spot which client's endpoint is degraded.",
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 16 },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (client_id) (increase(notifications_deliveries_total{status=\"failed\"}[1h]))",
-          "legendFormat": "{{client_id}}",
-          "format": "table",
-          "instant": true,
-          "range": false
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "decimals": 0,
-          "custom": { "align": "center", "displayMode": "color-background" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "orange", "value": 1 },
-              { "color": "red", "value": 10 }
-            ]
-          }
-        },
-        "overrides": [
-          { "matcher": { "id": "byName", "options": "Time" }, "properties": [{ "id": "custom.hidden", "value": true }] },
-          { "matcher": { "id": "byName", "options": "client_id" }, "properties": [{ "id": "displayName", "value": "Client" }] },
-          { "matcher": { "id": "byName", "options": "Value" }, "properties": [{ "id": "displayName", "value": "Failed deliveries (1h)" }] }
-        ]
-      },
-      "options": {
-        "showHeader": true,
-        "sortBy": [{ "displayName": "Failed deliveries (1h)", "desc": true }]
-      },
-      "transformations": [
-        { "id": "organize", "options": { "excludeByName": { "Time": true }, "indexByName": {}, "renameByName": {} } }
-      ]
     }
   ]
 }
