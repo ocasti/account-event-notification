@@ -700,6 +700,9 @@ def _rest_do_negative_cross_client(event_id, wrong_token, stats):
     stats.record("negative_cross_client", status, elapsed, {404})
 
 
+MAX_REPLAYS = 200  # overridden by --max-replays; bounds the failure tail a run has to wait for
+
+
 def rest_load_worker(stop_event, tokens, all_ids, id_to_client, own_fail_ids, failed_pool, stats, target_interval):
     """One REST load generator thread. Loops until stop_event is set, picking a request type per
     the documented mix and pacing itself to ~target_interval seconds between iterations so that
@@ -719,7 +722,7 @@ def rest_load_worker(stop_event, tokens, all_ids, id_to_client, own_fail_ids, fa
         elif r < 0.85:
             _rest_do_detail(token, client, random.choice(all_ids), stats, failed_pool, own_fail_ids)
         elif r < 0.95:
-            popped = failed_pool.pop_random()
+            popped = failed_pool.pop_random() if stats.replays_launched < MAX_REPLAYS else None
             if popped is None:
                 # nothing known-failed yet (early in the run); keep the rate up with a detail
                 # request instead, tagged under "detail" rather than a fake "replay" sample
@@ -818,6 +821,8 @@ def parse_args():
     p.add_argument("--fail-ratio", type=float, default=0.10, help="fraction that must fail every attempt (default 0.10)")
     p.add_argument("--concurrency", type=int, default=8, help="publishing threads, batches of 10 (default 8)")
     p.add_argument("--timeout", type=int, default=300, help="seconds to wait for the backlog to drain (default 300)")
+    p.add_argument("--max-replays", type=int, default=200,
+                   help="cap on replays launched by the REST load; each replay adds a 5-attempt cycle (default 200)")
     p.add_argument(
         "--poll-concurrency",
         type=int,
@@ -852,6 +857,8 @@ def parse_args():
 
 def main():
     args = parse_args()
+    global MAX_REPLAYS
+    MAX_REPLAYS = args.max_replays
     if args.events <= 0:
         print("ERROR: --events must be > 0", file=sys.stderr)
         sys.exit(1)

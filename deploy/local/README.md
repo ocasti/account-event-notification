@@ -495,17 +495,21 @@ auto-refresh de 10 s o más; si igual se ve lento, cierra el dashboard mientras 
 **Resultados de referencia** (2026-09-16, MacBook con Docker en OrbStack, 10 CPU / 8 GB para la
 VM, `make load EVENTS=2000 FAIL_RATIO=0.10`, WireMock respondiendo 200 en ~10 ms):
 
-| Métrica | 1 worker | 3 workers |
-|---|---|---|
-| Publicados en la cola | 2000 en 0,18 s | 2000 en 0,29 s |
-| Registrados por la API / perdidos | 2000 / 0 | 2000 / 0 |
-| Completados / fallidos (esperados 1800 / 200) | 1800 / 200 | 1800 / 200 |
-| Intentos según la API = POST en WireMock | 2800 = 2800 | 2800 = 2800 |
-| Duplicados | 0 | 0 |
-| Duración hasta estado terminal | 110 s | 56 s |
-| Throughput de entregas | 18 /s | 35 /s |
-| p95 latencia del webhook | 10 ms | 19 ms |
-| Backlog máximo (`notifications_attempts_due`) | 1758 | 1316 |
+| Métrica | 1 worker (2 000) | 3 workers (2 000) | 3 workers (50 000, 5 % fallos, REST 20 rps) |
+|---|---|---|---|
+| Publicados en la cola | 2000 en 0,18 s | 2000 en 0,29 s | 50 000 en 3,4 s |
+| Registrados por la API / perdidos | 2000 / 0 | 2000 / 0 | 50 000 / 0 |
+| Completados / fallidos (esperados 1800 / 200) | 1800 / 200 | 1800 / 200 | 47 500 / 2 500 (esperados) |
+| Intentos según la API = POST en WireMock | 2800 = 2800 | 2800 = 2800 | 61 000 intentos, 0 sin respuesta HTTP (variante B) |
+| Duplicados | 0 | 0 | 0 |
+| Duración hasta estado terminal | 110 s | 56 s | 791 s (cola de 2 500 fallidos + 200 replays) |
+| Throughput de entregas | 18 /s | 35 /s | 63 /s (86 /s en el tramo sin fallos) |
+| p95 latencia del webhook | 10 ms | 19 ms | 25 ms |
+| Backlog máximo (`notifications_attempts_due`) | 1758 | 1316 | 47 956 |
+
+En la corrida de 50 000 la API REST recibió a la vez 28 467 peticiones (listados paginados y filtrados, detalle,
+200 replays y casos negativos) con 0 respuestas 5xx y 0 códigos inesperados; p95 de 25 ms en listados y 6,5 ms en
+detalle. Con el sondeo antiguo (un GET por id) la misma corrida saturaba la VM; ver "Tokens y replays" arriba.
 
 La duración la marca el backoff de los 200 fallidos (cinco intentos con esperas de 2 a 10 s en el
 perfil local); los 1800 exitosos se drenan en los primeros segundos. Con tres réplicas el trabajo se

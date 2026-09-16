@@ -811,12 +811,14 @@ flowchart TB
 │   ├── case-description.pdf           enunciado original
 │   ├── 01-system-design.html          este documento
 │   ├── 02-security.md                 análisis OWASP
-│   └── 03-ai-usage.md                 anexo de uso de IA
+│   ├── 03-ai-usage.md                 anexo de uso de IA
+│   └── api/                           openapi.json (REST, exportado con make openapi) · asyncapi.yaml (cola) · webhook-contract.md (POST saliente)
 ├── scripts/
-│   ├── preflight.sh            valida Docker, puertos y memoria antes de arrancar
-│   └── token.sh                 emite el JWT de demostración
+│   ├── preflight.sh            valida Docker, puertos, memoria y reloj de la VM antes de arrancar
+│   ├── token.sh                 emite el JWT de demostración
+│   └── load_test.py             prueba de carga: publica N eventos, induce fallos, verifica pérdidas y duplicados, carga REST
 ├── .env.example
-├── Makefile                   preflight · keys · up · up-all · down · logs · ps · build · test · token · emit · replay · clean
+├── Makefile                   preflight · keys · up · up-all · down · logs · ps · build · test · token · emit · replay · load · openapi · clean
 └── .github/workflows/ci.yml   mvnw verify por servicio (con informe y cobertura) + build de ambas imágenes</pre></figure>
 
   <h3>Plan de implementación por fases</h3>
@@ -826,7 +828,7 @@ flowchart TB
     <tbody>
       <tr><td>Núcleo, ingestión y API</td><td><code>domain</code> y <code>application</code> completos con tests de máquina de estados y política de reintentos. ElasticMQ, listener SQS y simulador emitiendo los eventos del JSON. API con los tres endpoints sobre Postgres, JWT con aislamiento por cliente, 404 para evento ajeno, 409 para replay no permitido. ArchUnit verde. Compose con <code>api</code>, <code>worker</code> en modo solo ingestión, <code>postgres</code>, <code>elasticmq</code> y <code>event-simulator</code>.</td><td>Eventos entrando por la cola y visibles en la API; consulta, detalle y validación del replay</td></tr>
       <tr><td>Entrega</td><td><code>WebhookSender</code> HTTPS con HMAC y timeouts. Scheduler cada 1 s con reclamo por lote, arrendamiento por lote y escritura condicional del resultado. Estados RETRYING y FAILED reales, replay ejecutado por el worker con ciclo nuevo. Tope de filas por cliente por lote. WireMock con los tres fallos del conjunto de referencia. Métricas Micrometer con nombres definitivos. Un test de integración end-to-end con Testcontainers y el test de reclamo concurrente. <b>Fuera de esta fase por control de alcance:</b> cifrado en reposo de la clave de firma, caché de suscripciones, lotes adaptativos, circuit breaker por suscripción, test de carga. <b>Al cierre, el alcance funcional queda congelado.</b></td><td>Entrega completa: webhook firmado, reintentos, replay, aislamiento entre clientes</td></tr>
-      <tr><td>Observabilidad y documentación</td><td>Documento de diseño y documento de seguridad en <code>docs/</code>, anexo de uso de IA, README con arranque en un comando. Grafana con tres paneles provisionados. GitHub Actions. Ensayo completo de la demostración con la URL del receptor inyectada por variable de entorno.</td><td>Diseño, seguridad, anexo de IA, demostración ensayada</td></tr>
+      <tr><td>Observabilidad y documentación</td><td>Documento de diseño y documento de seguridad en <code>docs/</code>, anexo de uso de IA, README con arranque en un comando. Dos tableros de Grafana provisionados y contratos de API en <code>docs/api/</code> (OpenAPI, AsyncAPI, webhook). GitHub Actions. Ensayo completo de la demostración con la URL del receptor inyectada por variable de entorno.</td><td>Diseño, seguridad, anexo de IA, demostración ensayada</td></tr>
     </tbody>
   </table>
   </div>
