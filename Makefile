@@ -5,6 +5,9 @@ EVENTS ?= 2000
 FAIL_RATIO ?= 0.10
 CONCURRENCY ?= 8
 TIMEOUT ?= 300
+WIREMOCK_JOURNAL_LIMIT ?= 5000
+API_RPS ?= 20
+API_CLIENTS ?= 4
 
 .PHONY: help preflight keys infra up up-all down logs ps build test token emit replay clean load
 
@@ -62,7 +65,7 @@ clean: ## Remove build output of both services
 	cd services/notifications && ./mvnw -q clean
 	cd services/event-simulator && ./mvnw -q clean
 
-load: ## Load test against the running stack: make load EVENTS=2000 FAIL_RATIO=0.10 CONCURRENCY=8 TIMEOUT=300
+load: ## Load test against the running stack: make load EVENTS=2000 FAIL_RATIO=0.10 CONCURRENCY=8 TIMEOUT=300 WIREMOCK_JOURNAL_LIMIT=5000 API_RPS=20 API_CLIENTS=4
 	@TOKEN_CLIENT001=$$(scripts/token.sh CLIENT001) && \
 	TOKEN_CLIENT002=$$(scripts/token.sh CLIENT002) && \
 	TOKEN_CLIENT003=$$(scripts/token.sh CLIENT003) && \
@@ -72,4 +75,5 @@ load: ## Load test against the running stack: make load EVENTS=2000 FAIL_RATIO=0
 	  -e TOKEN_CLIENT002="$$TOKEN_CLIENT002" \
 	  -e TOKEN_CLIENT003="$$TOKEN_CLIENT003" \
 	  python:3.12-alpine python /scripts/load_test.py \
-	    --events $(EVENTS) --fail-ratio $(FAIL_RATIO) --concurrency $(CONCURRENCY) --timeout $(TIMEOUT)
+	    --events $(EVENTS) --fail-ratio $(FAIL_RATIO) --concurrency $(CONCURRENCY) --timeout $(TIMEOUT) \
+	    --wiremock-journal-limit $(WIREMOCK_JOURNAL_LIMIT) --api-rps $(API_RPS) --api-clients $(API_CLIENTS)

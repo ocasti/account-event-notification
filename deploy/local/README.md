@@ -368,54 +368,100 @@ red `account-event-notification`, así que habla con los hostnames internos del 
    emite ~1 evento cada 2 s que puede aparecer como `pending` solo unos milisegundos). Cada ronda
    imprime el backlog de Prometheus (`max(notifications_attempts_due)`) y el delta de entregas
    por status desde el inicio de la corrida (incluye el tráfico de fondo del simulador).
-4. Con el sistema ya en reposo (drenado, o al agotar `--timeout`), hace **una única pasada** de
+4. **Mientras dura la espera del drenado**, un segundo generador independiente mantiene carga
+   contra la API REST de autoservicio (`--api-rps`, default 20; `--api-clients` hilos, default
+   4) — ver el punto siguiente. Se detiene en cuanto termina la espera (drenada o por timeout) y
+   nunca cuenta como parte del sondeo del punto 3.
+5. Con el sistema ya en reposo (drenado, o al agotar `--timeout`), hace **una única pasada** de
    `GET /notification_events/{id}` sobre todos los ids (`--poll-concurrency` hilos, default 8)
    para clasificar el estado final de cada uno; si algún id sigue sin estado terminal tras esa
    pasada, reintenta solo esos ids hasta 3 veces más, 5 s entre cada una, antes de reportarlos
    como no terminales. Al terminar (con o sin drenado), borra el stub de fallo (también si la
    corrida falla o se interrumpe) y compara: eventos publicados vs. registrados vs. perdidos (404
    en la pasada final); completed/failed esperados vs. obtenidos (los `-F-` deben terminar
-   `failed` con `attempts_count = 5` y ningún otro evento debe fallar); la suma de
-   `attempts_count` de la API contra el conteo de `POST /webhook` que WireMock recibió para esta
-   corrida (filtrado por el tag `LOAD-<run>-`, para no mezclar el tráfico del simulador de
-   eventos que sigue corriendo en paralelo); los deltas de Prometheus; el p95 de
-   `notifications_webhook_latency_seconds` y el máximo de `notifications_attempts_due` en la
-   ventana de la corrida.
+   `failed`, con el ciclo 0 en exactamente 5 intentos y `attempts_count` múltiplo de 5 — ver
+   "replays" abajo); **recepción confirmada** (dos variantes, ver siguiente sección); los deltas
+   de Prometheus; el p95 de `notifications_webhook_latency_seconds` y el máximo de
+   `notifications_attempts_due` en la ventana de la corrida.
+
+**Dos variantes del criterio de recepción.** WireMock solo guarda las últimas
+`--wiremock-journal-limit` peticiones en su journal (default 5000, igual que
+`--max-request-journal-entries` en `compose.yaml` — ver "Límites" abajo, **no subirlo**: con
+120 000 WireMock se queda colgado porque recorre el journal completo en cada petición). El
+criterio original — suma de `attempts_count` de la API contra `POST /webhook` que WireMock
+recibió para esta corrida (filtrado por el tag `LOAD-<run>-`) — solo es válido cuando todos los
+POST de la corrida caben en ese journal. Antes de evaluar, el script calcula
+`expected_posts = completados + 5×fallidos + 5×replays` (los replays de la fase REST, ver abajo,
+también cuestan 5 POST cada uno) y decide:
+
+- **Variante A** (`expected_posts <= --wiremock-journal-limit`): compara intentos de la API
+  contra el conteo de WireMock, como antes.
+- **Variante B** (`expected_posts > --wiremock-journal-limit`): el conteo de WireMock no es
+  confiable (el journal ya rotó), así que en su lugar lee `attempts[].response_status` de la
+  pasada final de clasificación y exige (a) cero intentos con `response_status` nulo — un intento
+  con `response_status` nulo es un error de E/S (timeout o conexión) que nunca llegó al
+  receptor — y (b) que los ids `-F-` tengan sus intentos en 503. Ambos conteos (`response_status`
+  numérico vs. nulo) se imprimen siempre en el informe, se use o no esta variante para el PASS.
+
+El informe siempre indica qué variante aplicó y por qué (`expected_posts` calculado vs. el
+límite).
+
+6. **Carga REST concurrente** (punto 4): mientras el drenado corre, reparte tráfico entre los
+   tres clientes por turnos así: 40% listado con paginación por cursor (`GET
+   /notification_events?limit=50`, siguiendo `next_cursor` hasta 3 páginas), 20% listado filtrado
+   (`delivery_status=failed` o `completed`, con ventana `from`/`to` de la última hora), 25%
+   detalle de un id al azar de la corrida, 10% replay de un id `-F-` propio de la corrida que ya
+   esté `failed` (si no hay ninguno conocido aún, cae en un detalle en su lugar; cada replay
+   añade un nuevo ciclo de hasta 5 intentos más — de ahí que el criterio de "5 intentos" pase a
+   ser "ciclo 0 con 5 y `attempts_count` múltiplo de 5", y que `expected_posts` crezca 5 por cada
+   uno), y 5% negativos (sin token, espera 401; detalle de un id de otro cliente, espera 404). Se
+   mide por tipo de petición: número, p50/p95 de latencia medida en el cliente, y códigos
+   distintos del esperado — impreso en la tabla `API REST bajo carga`. Esta fase existe porque el
+   sondeo del drenado apenas toca la API (6 peticiones cada 5 s); sin ella, la fila **API HTTP**
+   del dashboard de Grafana (tasa y p95 por `uri`/`status`) y los percentiles por ruta no tienen
+   tráfico real que mostrar durante una corrida.
 
 **Cómo se ejecuta** (con el stack ya arriba, `make up` o `make up-all`):
 
 ```bash
-make load                                          # 2000 eventos, 10% de fallo
+make load                                          # 2000 eventos, 10% de fallo, 20 req/s de API
 make load EVENTS=200 FAIL_RATIO=0.20 TIMEOUT=120    # parámetros explícitos
 make load CONCURRENCY=16                            # más hilos de publicación
+make load API_RPS=0                                 # sin fase de carga REST
+make load API_RPS=50 API_CLIENTS=8                  # más carga sobre la API REST
+make load WIREMOCK_JOURNAL_LIMIT=5000               # forzar el límite del journal (default)
 ```
 
 `--poll-concurrency` (default 8) controla los hilos de la pasada final de clasificación (una por
 id, con el sistema ya drenado); no afecta el sondeo por rondas, que siempre hace 6 peticiones fijas
-sin importar `--events`.
+sin importar `--events`. `--api-rps 0` desactiva la fase de carga REST por completo.
 
 El target genera los tres tokens de demo con `scripts/token.sh` en el host y los pasa al
 contenedor por variable de entorno (`TOKEN_CLIENT001`, `TOKEN_CLIENT002`, `TOKEN_CLIENT003`); si
 se invoca `scripts/load_test.py` a mano fuera del target, hay que exportarlas primero.
 
-**Qué significa `RESULT: PASS`.** Los cinco criterios deben cumplirse a la vez: cero eventos
-perdidos, `completed` y `failed` obtenidos igual a los esperados (con los ids `-F-` exactos y 5
-intentos cada uno), la suma de intentos de la API igual al conteo de POST en WireMock, y el delta
-de `notifications_duplicates_total` en cero. Cualquier otra cosa (incluido no alcanzar estado
-terminal antes del timeout) es `RESULT: FAIL` y código de salida 1. Los deltas de Prometheus y las
-métricas de latencia/backlog se imprimen siempre, mismo con `PASS`, mismo con `FAIL` (son
+**Qué significa `RESULT: PASS`.** Los criterios deben cumplirse a la vez: cero eventos perdidos;
+`completed` y `failed` obtenidos igual a los esperados (los ids `-F-` exactos, ciclo 0 con 5
+intentos y `attempts_count` múltiplo de 5); recepción confirmada (variante A o B, según
+corresponda — ver arriba); el delta de `notifications_duplicates_total` en cero; y, si `--api-rps`
+> 0, cero respuestas 5xx y cero códigos inesperados en la carga REST. Cualquier otra cosa
+(incluido no alcanzar estado terminal antes del timeout durante la clasificación final) es
+`RESULT: FAIL` y código de salida 1. No alcanzar el drenado dentro de `--timeout` por sí solo es
+solo un WARN si la clasificación final igual encuentra todos los ids en estado terminal (puede
+pasar con tráfico de fondo del simulador compitiendo por el sondeo). Los deltas de Prometheus y
+las métricas de latencia/backlog se imprimen siempre, mismo con `PASS`, mismo con `FAIL` (son
 informativos, no gatean el resultado, porque el simulador de eventos sigue emitiendo en paralelo y
 los mueve).
 
 **Límites de la herramienta:**
 
-- El journal de peticiones de WireMock guarda como máximo 5000 entradas (`--max-request-journal-
-  entries 5000` en `compose.yaml`); con los valores por defecto (2000 eventos, 10% de fallo) la
-  corrida genera como máximo ~2800 POST propios, y el simulador de referencia añade tráfico de
-  fondo constante — no hay margen ilimitado. Con `EVENTS` mucho mayor, resetear el journal antes
-  no evita que se llene durante la corrida; conviene bajar `EVENTS` o `--fail-ratio` (cada evento
-  fallido cuesta 5 POST en vez de 1) si el conteo final de la comparación intentos-API-vs-WireMock
-  se ve truncado.
+- El journal de peticiones de WireMock guarda como máximo **5000** entradas por defecto
+  (`--max-request-journal-entries 5000` en `compose.yaml`) — **no subir este límite**: con
+  120 000 entradas WireMock se queda colgado bajo carga porque recorre el journal completo en
+  cada petición entrante. Con los valores por defecto (2000 eventos, 10% de fallo) la corrida
+  genera como máximo ~2800 POST propios y cabe de sobra; más allá de eso (o con `EVENTS` mucho
+  mayor, o muchos replays de la fase REST) el script cambia solo a la variante B del criterio de
+  recepción (ver arriba) en vez de comparar contra un conteo de WireMock que ya rotó.
 - Por defecto solo hay una réplica de `notifications-worker`, con `batch-size: 50` por ciclo de
   1 s: el techo de entrega ronda 50 eventos/s. Para subirlo, escalar antes de lanzar la carga:
   `docker compose -f deploy/local/compose.yaml --env-file .env --profile infra --profile app up -d
@@ -423,6 +469,9 @@ los mueve).
 - El reset del journal de WireMock usa `DELETE /__admin/requests` (el endpoint real de WireMock
   3.13.1 para esta versión; `POST /__admin/requests/reset` no existe en esta imagen y devuelve
   404).
+- La fase de carga REST no está sincronizada con la publicación de eventos: si empieza a pedir
+  detalles de ids de la corrida antes de que el consumidor los procese, puede ver 404 pasajeros
+  en el bucket `detail` (se tolera explícitamente, no cuenta como código inesperado).
 
 **Qué mirar en Grafana durante la corrida.** Con `make up-all` corriendo, `open
 http://localhost:3001` y observar, mientras la carga avanza: **Delivery rate by status** debe
@@ -431,7 +480,10 @@ reintentos); **Attempts due** sube mientras el lote está pendiente y vuelve a 0
 queda alto, el worker no da abasto (ver "Límites" arriba, escalar réplicas); **Webhook latency p95
 by client** no debería moverse mucho salvo que se agregue latencia artificial; **Failures by client
 (last hour)** debe mostrar solo los eventos `LOAD-<run>-F-*` de la corrida (más lo que ya hubiera
-fallado antes).
+fallado antes); **API HTTP** (tasa y p95 por `uri`/`status`, 4xx/5xx, peticiones activas) ahora
+tiene tráfico real que mostrar mientras dura el drenado gracias a la fase de carga REST del punto
+6 — antes de este cambio esa fila quedaba casi vacía, porque el sondeo del drenado solo hace 6
+peticiones baratas cada 5 s.
 
 En una corrida grande (decenas de miles de eventos, varios minutos), evita dejar el dashboard en
 un rango largo tipo "Last 6 hours" con auto-refresh corto: sobre una VM ya cargada eso agrega
@@ -459,6 +511,28 @@ La duración la marca el backoff de los 200 fallidos (cinco intentos con esperas
 perfil local); los 1800 exitosos se drenan en los primeros segundos. Con tres réplicas el trabajo se
 reparte sin que ninguna clave (evento, intento) se entregue dos veces, y el p95 sube porque WireMock
 recibe el triple de concurrencia.
+
+**Resultado de referencia con la fase de carga REST** (2026-09-16, mismo entorno, `make load
+EVENTS=50 FAIL_RATIO=0.0 API_RPS=5 TIMEOUT=120`, sin fallos inducidos):
+
+| Métrica | Valor |
+|---|---|
+| Publicados / registrados / perdidos | 50 / 50 / 0 |
+| Completados (esperados 50) / fallidos (esperados 0) | 50 / 0 |
+| Variante del criterio de recepción | A (`expected_posts` 50 ≤ límite 5000) |
+| Intentos según la API = POST en WireMock | 50 = 50 |
+| Duplicados | 0 |
+| Peticiones REST bajo carga (total / 5xx / inesperados) | 1086 / 0 / 0 |
+| Mezcla observada (listing cursor / listing filtrado / detalle / replay / negativos) | 723 / 122 / 210 / 0 / 31 |
+| `RESULT` | `PASS` |
+
+Con `FAIL_RATIO=0.0` no hay ids `-F-`, así que el bucket de replay no encuentra nada que reproducir
+y cae siempre en detalle (0 replays, como se espera — el generador solo reproduce ids `-F-` propios
+de la corrida, nunca fallos preexistentes del dataset de referencia como `EVT003/EVT005/EVT009`).
+El drenado no llegó a confirmarse dentro del timeout de 120 s (el simulador de fondo, que emite a
+los mismos tres clientes, deja el sondeo agregado con backlog intermitente de 1 evento en vez de
+dos rondas limpias seguidas) — es solo un WARN informativo: la clasificación final igual encontró
+los 50 eventos propios en `completed`, así que el resultado es `PASS`.
 
 ## Demostración con un receptor externo
 
