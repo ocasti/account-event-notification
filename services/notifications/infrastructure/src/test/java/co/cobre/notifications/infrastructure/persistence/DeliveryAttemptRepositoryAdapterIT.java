@@ -5,6 +5,11 @@ import co.cobre.notifications.domain.AttemptOrigin;
 import co.cobre.notifications.domain.DeliveryAttempt;
 import co.cobre.notifications.domain.DeliveryResult;
 import co.cobre.notifications.domain.EventId;
+import co.cobre.notifications.domain.fixtures.Clocks;
+import co.cobre.notifications.domain.fixtures.DeliveryAttempts;
+import co.cobre.notifications.domain.fixtures.Ids;
+import co.cobre.notifications.domain.fixtures.NotificationEvents;
+import co.cobre.notifications.infrastructure.fixtures.Entities;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +33,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
+
+    /**
+     * {@code notification_events.subscription_id} has a foreign key on {@code subscriptions};
+     * this is one of the three rows Flyway seeds (V2__initial_subscriptions.sql), used here only
+     * to satisfy that constraint — none of these tests assert on subscription identity.
+     */
+    private static final String PERSISTED_SUBSCRIPTION_ID = "sub_client001";
 
     @Autowired
     private DeliveryAttemptRepositoryAdapter adapter;
@@ -53,7 +65,7 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     void shouldReturnSavedAttemptWhenFindingByEvent() {
         var eventId = new EventId("evt-attempt-001");
         createEvent(eventId);
-        var attempt = DeliveryAttempt.first(eventId, 0, Instant.now(), AttemptOrigin.SYSTEM);
+        var attempt = DeliveryAttempt.first(eventId, 0, Clocks.NOW, AttemptOrigin.SYSTEM);
 
         adapter.save(attempt);
         var found = adapter.findByEvent(eventId);
@@ -67,22 +79,16 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     void shouldOrderAttemptsByCycleThenAttemptNumberWhenFindingByEvent() {
         var eventId = new EventId("evt-order-001");
         createEvent(eventId);
-        var att1 = new DeliveryAttempt(
-            UUID.randomUUID(), eventId, 0, 2, Instant.now(), Optional.empty(), Optional.empty(),
-            Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM
-        );
-        var att2 = new DeliveryAttempt(
-            UUID.randomUUID(), eventId, 1, 1, Instant.now(), Optional.empty(), Optional.empty(),
-            Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM
-        );
-        var att3 = new DeliveryAttempt(
-            UUID.randomUUID(), eventId, 0, 1, Instant.now(), Optional.empty(), Optional.empty(),
-            Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM
-        );
+        var secondAttemptInCycleZero = DeliveryAttempts.anAttempt()
+            .withEventId(eventId).withCycle(0).withAttemptNumber(2).withNextAttemptAt(Clocks.NOW).build();
+        var firstAttemptInCycleOne = DeliveryAttempts.anAttempt()
+            .withEventId(eventId).withCycle(1).withAttemptNumber(1).withNextAttemptAt(Clocks.NOW).build();
+        var firstAttemptInCycleZero = DeliveryAttempts.anAttempt()
+            .withEventId(eventId).withCycle(0).withAttemptNumber(1).withNextAttemptAt(Clocks.NOW).build();
 
-        adapter.save(att1);
-        adapter.save(att2);
-        adapter.save(att3);
+        adapter.save(secondAttemptInCycleZero);
+        adapter.save(firstAttemptInCycleOne);
+        adapter.save(firstAttemptInCycleZero);
         var found = adapter.findByEvent(eventId);
 
         assertThat(found).extracting(DeliveryAttempt::cycle, DeliveryAttempt::attemptNumber)
@@ -94,14 +100,10 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     void shouldExcludeExecutedAttemptsWhenClaimingDueAttempts() {
         var eventId = new EventId("evt-executed-001");
         createEvent(eventId);
-        var now = Instant.now();
-        var pastDue = now.minusSeconds(10);
-        var executeAttempt = new DeliveryAttempt(
-            UUID.randomUUID(), eventId, 0, 1, pastDue, Optional.empty(), Optional.empty(),
-            Optional.of(now), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM
-        );
-        adapter.save(executeAttempt);
-        var claim = new DeliveryClaim(now, 10, 10, "worker-1", Duration.ofSeconds(16));
+        var executedAttempt = DeliveryAttempts.anAttempt()
+            .withEventId(eventId).withNextAttemptAt(secondsAgo(10)).withExecutedAt(dbNow()).build();
+        adapter.save(executedAttempt);
+        var claim = new DeliveryClaim(dbNow(), 10, 10, Ids.WORKER_1, Duration.ofSeconds(16));
 
         var claimed = adapter.claimDue(claim);
 
@@ -111,36 +113,28 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     @Test
     @Transactional
     void shouldClaimOnlyUnclaimedDueAttemptWhenMultipleAttemptsExist() {
-        var eventId1 = new EventId("evt-claim-001");
-        var eventId2 = new EventId("evt-claim-002");
-        createEvent(eventId1);
-        createEvent(eventId2);
-        var now = Instant.now();
-        var pastDue = now.minusSeconds(10);
-        var future = now.plusSeconds(100);
-        var dueAttempt = new DeliveryAttempt(
-            UUID.randomUUID(), eventId1, 0, 1, pastDue, Optional.empty(), Optional.empty(),
-            Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM
-        );
-        var futureAttempt = new DeliveryAttempt(
-            UUID.randomUUID(), eventId1, 0, 2, future, Optional.empty(), Optional.empty(),
-            Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM
-        );
-        var executeAttempt = new DeliveryAttempt(
-            UUID.randomUUID(), eventId2, 0, 1, pastDue, Optional.empty(), Optional.empty(),
-            Optional.of(now), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM
-        );
+        var dueEventId = new EventId("evt-claim-001");
+        var executedEventId = new EventId("evt-claim-002");
+        createEvent(dueEventId);
+        createEvent(executedEventId);
+        var pastDue = secondsAgo(10);
+        var dueAttempt = DeliveryAttempts.anAttempt()
+            .withEventId(dueEventId).withAttemptNumber(1).withNextAttemptAt(pastDue).build();
+        var futureAttempt = DeliveryAttempts.anAttempt()
+            .withEventId(dueEventId).withAttemptNumber(2).withNextAttemptAt(secondsFromNow(100)).build();
+        var executedAttempt = DeliveryAttempts.anAttempt()
+            .withEventId(executedEventId).withAttemptNumber(1).withNextAttemptAt(pastDue).withExecutedAt(dbNow()).build();
         adapter.save(dueAttempt);
         adapter.save(futureAttempt);
-        adapter.save(executeAttempt);
-        var claim = new DeliveryClaim(now, 10, 10, "worker-1", Duration.ofSeconds(16));
+        adapter.save(executedAttempt);
+        var claim = new DeliveryClaim(dbNow(), 10, 10, Ids.WORKER_1, Duration.ofSeconds(16));
 
         var claimed = adapter.claimDue(claim);
 
         assertThat(claimed).hasSize(1);
         assertThat(claimed.get(0).id()).isEqualTo(dueAttempt.id());
         assertThat(claimed.get(0).claimedAt()).isPresent();
-        assertThat(claimed.get(0).claimedBy()).contains("worker-1");
+        assertThat(claimed.get(0).claimedBy()).contains(Ids.WORKER_1);
     }
 
     @Test
@@ -148,41 +142,35 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     void shouldClaimOnlyAttemptWithExpiredLeaseWhenClaimingDueAttempts() {
         var eventId = new EventId("evt-lease-001");
         createEvent(eventId);
-        var now = Instant.now();
-        var pastDue = now.minusSeconds(30);
+        var pastDue = secondsAgo(30);
         var lease = Duration.ofSeconds(16);
-        var att1 = new DeliveryAttempt(
-            UUID.randomUUID(), eventId, 0, 1, pastDue, Optional.of(now.minusSeconds(15)),
-            Optional.of("worker-a"), Optional.empty(), Optional.empty(), Optional.empty(),
-            Optional.empty(), AttemptOrigin.SYSTEM
-        );
-        var att2 = new DeliveryAttempt(
-            UUID.randomUUID(), eventId, 0, 2, pastDue, Optional.of(now.minusSeconds(20)),
-            Optional.of("worker-b"), Optional.empty(), Optional.empty(), Optional.empty(),
-            Optional.empty(), AttemptOrigin.SYSTEM
-        );
-        adapter.save(att1);
-        adapter.save(att2);
-        var claim = new DeliveryClaim(now, 10, 10, "worker-2", lease);
+        var attemptWithActiveLease = DeliveryAttempts.anAttempt()
+            .withEventId(eventId).withAttemptNumber(1).withNextAttemptAt(pastDue)
+            .withClaimedAt(secondsAgo(15)).withClaimedBy("worker-a").build();
+        var attemptWithExpiredLease = DeliveryAttempts.anAttempt()
+            .withEventId(eventId).withAttemptNumber(2).withNextAttemptAt(pastDue)
+            .withClaimedAt(secondsAgo(20)).withClaimedBy("worker-b").build();
+        adapter.save(attemptWithActiveLease);
+        adapter.save(attemptWithExpiredLease);
+        var claim = new DeliveryClaim(dbNow(), 10, 10, "worker-2", lease);
 
         var claimed = adapter.claimDue(claim);
 
         assertThat(claimed).hasSize(1);
-        assertThat(claimed.get(0).id()).isEqualTo(att2.id());
+        assertThat(claimed.get(0).id()).isEqualTo(attemptWithExpiredLease.id());
     }
 
     @Test
     @Transactional
     void shouldCapClaimedAttemptsAtMaxPerClientWhenClientHasMoreDueAttempts() {
-        var eventId1 = new EventId("evt-max-001");
-        var eventId2 = new EventId("evt-max-002");
-        createEvent(eventId1);
-        createEvent(eventId2);
-        var now = Instant.now();
-        var pastDue = now.minusSeconds(100);
-        saveDueAttempts(eventId1, 4, pastDue);
-        saveDueAttempts(eventId2, 4, pastDue);
-        var claim = new DeliveryClaim(now, 20, 5, "worker-1", Duration.ofSeconds(16));
+        var firstEventId = new EventId("evt-max-001");
+        var secondEventId = new EventId("evt-max-002");
+        createEvent(firstEventId);
+        createEvent(secondEventId);
+        var pastDue = secondsAgo(100);
+        saveDueAttempts(firstEventId, 4, pastDue);
+        saveDueAttempts(secondEventId, 4, pastDue);
+        var claim = new DeliveryClaim(dbNow(), 20, 5, Ids.WORKER_1, Duration.ofSeconds(16));
 
         var claimed = adapter.claimDue(claim);
 
@@ -194,17 +182,14 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     void shouldRecordResultWhenWorkerMatchesClaimant() {
         var eventId = new EventId("evt-result-001");
         createEvent(eventId);
-        var now = Instant.now();
-        var attempt = new DeliveryAttempt(
-            UUID.randomUUID(), eventId, 0, 1, now,
-            Optional.of(now.minusSeconds(5)), Optional.of("worker-1"),
-            Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM
-        );
+        var attempt = DeliveryAttempts.anAttempt()
+            .withEventId(eventId).withNextAttemptAt(Clocks.NOW)
+            .withClaimedAt(Clocks.NOW.minusSeconds(5)).withClaimedBy(Ids.WORKER_1).build();
         adapter.save(attempt);
         var result = new DeliveryResult(Optional.of(200), Optional.empty(), Optional.of(Duration.ofMillis(150)));
-        var executed = attempt.executed(now.plusSeconds(1), "worker-1", result);
+        var executed = attempt.executed(Clocks.NOW.plusSeconds(1), Ids.WORKER_1, result);
 
-        var success = adapter.recordResultIf(executed, "worker-1");
+        var success = adapter.recordResultIf(executed, Ids.WORKER_1);
 
         assertThat(success).isTrue();
         var found = adapter.findByEvent(eventId).get(0);
@@ -218,15 +203,12 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     void shouldNotRecordResultWhenWorkerDoesNotMatchClaimant() {
         var eventId = new EventId("evt-wrong-worker-001");
         createEvent(eventId);
-        var now = Instant.now();
-        var attempt = new DeliveryAttempt(
-            UUID.randomUUID(), eventId, 0, 1, now,
-            Optional.of(now.minusSeconds(5)), Optional.of("worker-1"),
-            Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM
-        );
+        var attempt = DeliveryAttempts.anAttempt()
+            .withEventId(eventId).withNextAttemptAt(Clocks.NOW)
+            .withClaimedAt(Clocks.NOW.minusSeconds(5)).withClaimedBy(Ids.WORKER_1).build();
         adapter.save(attempt);
         var result = new DeliveryResult(Optional.of(500), Optional.of("error"), Optional.of(Duration.ofMillis(100)));
-        var executed = attempt.executed(now.plusSeconds(1), "worker-2", result);
+        var executed = attempt.executed(Clocks.NOW.plusSeconds(1), "worker-2", result);
 
         var success = adapter.recordResultIf(executed, "worker-2");
 
@@ -240,17 +222,15 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     void shouldNotRecordResultWhenAttemptAlreadyExecuted() {
         var eventId = new EventId("evt-executed-001");
         createEvent(eventId);
-        var now = Instant.now();
-        var attempt = new DeliveryAttempt(
-            UUID.randomUUID(), eventId, 0, 1, now,
-            Optional.of(now.minusSeconds(5)), Optional.of("worker-1"),
-            Optional.of(now), Optional.of(200), Optional.empty(), Optional.of(Duration.ofMillis(50)), AttemptOrigin.SYSTEM
-        );
+        var attempt = DeliveryAttempts.anAttempt()
+            .withEventId(eventId).withNextAttemptAt(Clocks.NOW)
+            .withClaimedAt(Clocks.NOW.minusSeconds(5)).withClaimedBy(Ids.WORKER_1)
+            .withExecutedAt(Clocks.NOW).withResponseStatus(200).withLatency(Duration.ofMillis(50)).build();
         adapter.save(attempt);
         var result = new DeliveryResult(Optional.of(201), Optional.empty(), Optional.of(Duration.ofMillis(100)));
-        var executed = attempt.executed(now.plusSeconds(1), "worker-1", result);
+        var executed = attempt.executed(Clocks.NOW.plusSeconds(1), Ids.WORKER_1, result);
 
-        var success = adapter.recordResultIf(executed, "worker-1");
+        var success = adapter.recordResultIf(executed, Ids.WORKER_1);
 
         assertThat(success).isFalse();
     }
@@ -258,7 +238,7 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void shouldClaimEachDueAttemptExactlyOnceWhenWorkersClaimConcurrently() throws InterruptedException {
-        var baseTime = Instant.now();
+        var baseTime = dbNow();
         var pastDue = baseTime.minusSeconds(30);
         createEventsWithDueAttempts(20, pastDue);
 
@@ -271,27 +251,27 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     @Test
     @Transactional
     void shouldReturnCountsOnlyForEventsHavingAttemptsWhenCountingByEvents() {
-        var eventId1 = new EventId("evt-count-001");
-        var eventId2 = new EventId("evt-count-002");
-        var eventId3 = new EventId("evt-count-003");
-        createEvent(eventId1);
-        createEvent(eventId2);
-        createEvent(eventId3);
-        var attempt1 = DeliveryAttempt.first(eventId1, 0, Instant.now(), AttemptOrigin.SYSTEM);
-        var attempt2 = DeliveryAttempt.first(eventId1, 0, Instant.now(), AttemptOrigin.SYSTEM);
-        var attempt3 = DeliveryAttempt.first(eventId1, 0, Instant.now(), AttemptOrigin.SYSTEM);
-        var attempt4 = DeliveryAttempt.first(eventId2, 0, Instant.now(), AttemptOrigin.SYSTEM);
-        adapter.save(attempt1);
-        adapter.save(attempt2);
-        adapter.save(attempt3);
-        adapter.save(attempt4);
+        var eventWithThreeAttempts = new EventId("evt-count-001");
+        var eventWithOneAttempt = new EventId("evt-count-002");
+        var eventWithNoAttempts = new EventId("evt-count-003");
+        createEvent(eventWithThreeAttempts);
+        createEvent(eventWithOneAttempt);
+        createEvent(eventWithNoAttempts);
+        var firstAttemptForBusyEvent = DeliveryAttempt.first(eventWithThreeAttempts, 0, Clocks.NOW, AttemptOrigin.SYSTEM);
+        var secondAttemptForBusyEvent = DeliveryAttempt.first(eventWithThreeAttempts, 0, Clocks.NOW, AttemptOrigin.SYSTEM);
+        var thirdAttemptForBusyEvent = DeliveryAttempt.first(eventWithThreeAttempts, 0, Clocks.NOW, AttemptOrigin.SYSTEM);
+        var onlyAttemptForQuietEvent = DeliveryAttempt.first(eventWithOneAttempt, 0, Clocks.NOW, AttemptOrigin.SYSTEM);
+        adapter.save(firstAttemptForBusyEvent);
+        adapter.save(secondAttemptForBusyEvent);
+        adapter.save(thirdAttemptForBusyEvent);
+        adapter.save(onlyAttemptForQuietEvent);
 
-        var counts = adapter.countByEvents(List.of(eventId1, eventId2, eventId3));
+        var counts = adapter.countByEvents(List.of(eventWithThreeAttempts, eventWithOneAttempt, eventWithNoAttempts));
 
         assertThat(counts).hasSize(2);
-        assertThat(counts.get(eventId1)).isEqualTo(3);
-        assertThat(counts.get(eventId2)).isEqualTo(1);
-        assertThat(counts).doesNotContainKey(eventId3);
+        assertThat(counts.get(eventWithThreeAttempts)).isEqualTo(3);
+        assertThat(counts.get(eventWithOneAttempt)).isEqualTo(1);
+        assertThat(counts).doesNotContainKey(eventWithNoAttempts);
     }
 
     @Test
@@ -303,34 +283,20 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
     }
 
     private void createEvent(EventId eventId) {
-        var entity = new NotificationEventEntity();
-        entity.setEventId(eventId.value());
-        entity.setClientId("CLIENT_001");
-        entity.setEventKey("test.event");
-        entity.setContent("{}");
-        entity.setCreatedAt(Instant.now());
-        entity.setReceivedAt(Instant.now());
-        entity.setStatus(DeliveryStatusEntity.PENDING);
-        entity.setCycle(0);
-        eventJpaRepository.save(entity);
+        eventJpaRepository.save(Entities.notificationEvent(
+            NotificationEvents.aPendingEvent().withEventId(eventId).withSubscriptionId(PERSISTED_SUBSCRIPTION_ID).build()));
     }
 
     private void saveDueAttempts(EventId eventId, int count, Instant dueAt) {
-        IntStream.range(0, count).forEach(i -> adapter.save(new DeliveryAttempt(
-            UUID.randomUUID(), eventId, 0, 1, dueAt, Optional.empty(), Optional.empty(),
-            Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM
-        )));
+        IntStream.range(0, count).forEach(i -> adapter.save(
+            DeliveryAttempts.anAttempt().withEventId(eventId).withNextAttemptAt(dueAt).build()));
     }
 
     private void createEventsWithDueAttempts(int count, Instant dueAt) {
         IntStream.range(0, count).forEach(i -> {
             var eventId = new EventId("evt-concurrent-" + i);
             createEvent(eventId);
-            var attempt = new DeliveryAttempt(
-                UUID.randomUUID(), eventId, 0, 1, dueAt, Optional.empty(), Optional.empty(),
-                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), AttemptOrigin.SYSTEM
-            );
-            adapter.save(attempt);
+            adapter.save(DeliveryAttempts.anAttempt().withEventId(eventId).withNextAttemptAt(dueAt).build());
         });
     }
 
@@ -358,5 +324,23 @@ class DeliveryAttemptRepositoryAdapterIT extends PersistenceTestSupport {
         var finishedInTime = latch.await(10, TimeUnit.SECONDS);
         executor.shutdown();
         return new ConcurrentClaimOutcome(allClaimedIds, finishedInTime);
+    }
+
+    /**
+     * {@code claimDueAttempts} compares {@code next_attempt_at} and {@code claimed_at} against
+     * Postgres' own {@code now()} (see {@link DeliveryAttemptJpaRepository#claimDueAttempts}),
+     * not the application clock, so due/expired-lease fixtures in this class are built relative
+     * to the real wall clock rather than {@link Clocks#NOW}.
+     */
+    private static Instant dbNow() {
+        return Instant.now();
+    }
+
+    private static Instant secondsAgo(long seconds) {
+        return Instant.now().minusSeconds(seconds);
+    }
+
+    private static Instant secondsFromNow(long seconds) {
+        return Instant.now().plusSeconds(seconds);
     }
 }

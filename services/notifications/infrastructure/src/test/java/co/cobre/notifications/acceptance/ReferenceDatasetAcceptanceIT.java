@@ -12,6 +12,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.awspring.cloud.sqs.operations.SqsTemplate;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -218,15 +219,15 @@ class ReferenceDatasetAcceptanceIT {
         NotificationEventEntity entity = notificationEventJpaRepository.findById("EVT003").orElseThrow();
         List<DeliveryAttemptEntity> attempts = deliveryAttemptJpaRepository.findByEventId(
             "EVT003", Sort.by(Sort.Direction.ASC, "cycle").and(Sort.by(Sort.Direction.ASC, "attemptNumber")));
-        List<DeliveryAttemptEntity> cycle1 = attemptsInCycle(attempts, 1);
+        List<DeliveryAttemptEntity> replayCycleAttempts = attemptsInCycle(attempts, 1);
 
         assertThat(entity.getStatus()).isEqualTo(DeliveryStatusEntity.FAILED);
         assertThat(entity.getCycle()).isEqualTo(1);
         assertThat(attempts).hasSize(10);
         assertThat(attemptsInCycle(attempts, 0)).hasSize(5);
-        assertThat(cycle1).hasSize(5);
+        assertThat(replayCycleAttempts).hasSize(5);
         assertThat(attempts).extracting(DeliveryAttemptEntity::getResponseStatus).containsOnly(503);
-        assertThat(cycle1).extracting(DeliveryAttemptEntity::getOrigin)
+        assertThat(replayCycleAttempts).extracting(DeliveryAttemptEntity::getOrigin)
             .containsExactly(
                 AttemptOriginEntity.REPLAY,
                 AttemptOriginEntity.SYSTEM,
@@ -319,19 +320,18 @@ class ReferenceDatasetAcceptanceIT {
         return JSON_MAPPER.readValue(json, ReferenceDataset.class).events();
     }
 
-    private void awaitNoPendingOrRetrying(List<String> eventIds, Duration timeout) throws InterruptedException {
-        Instant deadline = Instant.now().plus(timeout);
-        while (Instant.now().isBefore(deadline)) {
-            List<NotificationEventEntity> current = notificationEventJpaRepository.findAllById(eventIds);
-            boolean settled = current.size() == eventIds.size() && current.stream().noneMatch(e ->
-                e.getStatus() == DeliveryStatusEntity.PENDING || e.getStatus() == DeliveryStatusEntity.RETRYING);
-            if (settled) {
-                return;
-            }
-            Thread.sleep(500);
-        }
-        throw new AssertionError("Timed out after " + timeout + " waiting for " + eventIds
-            + " to leave PENDING/RETRYING");
+    private void awaitNoPendingOrRetrying(List<String> eventIds, Duration timeout) {
+        Awaitility.await().atMost(timeout).pollInterval(Duration.ofMillis(500))
+            .until(() -> allSettled(eventIds));
+    }
+
+    private boolean allSettled(List<String> eventIds) {
+        List<NotificationEventEntity> current = notificationEventJpaRepository.findAllById(eventIds);
+        return current.size() == eventIds.size() && current.stream().noneMatch(ReferenceDatasetAcceptanceIT::isInFlight);
+    }
+
+    private static boolean isInFlight(NotificationEventEntity event) {
+        return event.getStatus() == DeliveryStatusEntity.PENDING || event.getStatus() == DeliveryStatusEntity.RETRYING;
     }
 
     private long countWiremockWebhookRequests() throws IOException, InterruptedException {

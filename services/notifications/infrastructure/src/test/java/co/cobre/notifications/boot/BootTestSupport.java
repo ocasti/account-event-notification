@@ -84,9 +84,9 @@ public abstract class BootTestSupport {
         PublicKey publicKey = keyPair.getPublic();
 
         byte[] encoded = publicKey.getEncoded();
-        String base64 = Base64.getEncoder().encodeToString(encoded);
+        String encodedPublicKey = Base64.getEncoder().encodeToString(encoded);
         String pem = "-----BEGIN PUBLIC KEY-----\n" +
-                     base64 + "\n" +
+                     encodedPublicKey + "\n" +
                      "-----END PUBLIC KEY-----";
 
         Path tempFile = Files.createTempFile("boot-test-public-key", ".pem");

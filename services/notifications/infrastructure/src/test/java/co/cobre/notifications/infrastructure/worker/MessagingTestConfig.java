@@ -6,9 +6,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 @TestConfiguration
 public class MessagingTestConfig {
@@ -32,9 +30,7 @@ public class MessagingTestConfig {
     @Bean
     @Primary
     public RegisterNotificationEvent registerNotificationEvent() {
-        var mock = mock(RegisterNotificationEvent.class);
-        when(mock.register(any())).thenReturn(RegistrationResult.REGISTERED);
-        return mock;
+        return mock(RegisterNotificationEvent.class, invocation -> RegistrationResult.REGISTERED);
     }
 
     @Bean

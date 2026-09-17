@@ -1,6 +1,10 @@
 package co.cobre.notifications.infrastructure.webhook;
 
 import co.cobre.notifications.domain.*;
+import co.cobre.notifications.domain.fixtures.DeliveryAttempts;
+import co.cobre.notifications.domain.fixtures.Ids;
+import co.cobre.notifications.domain.fixtures.NotificationEvents;
+import co.cobre.notifications.domain.fixtures.Subscriptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -9,7 +13,6 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.net.InetAddress;
-import java.net.URI;
 import java.net.UnknownHostException;
 import java.time.Clock;
 import java.time.Duration;
@@ -222,14 +225,13 @@ class HttpWebhookSenderTest {
         var subscription = createSubscription("https://private.example.com/hook", "secret-key");
         var event = createEvent();
         var attempt = createAttempt();
-        mockServer.expect(org.springframework.test.web.client.ExpectedCount.never(), requestTo(org.hamcrest.Matchers.any(String.class)))
-            .andRespond(withSuccess());
 
         var outcome = sender.send(subscription, event, attempt);
 
         assertThat(outcome).isInstanceOf(DeliveryOutcome.PermanentFailure.class);
         assertThat(responseStatusOf(outcome)).contains(0);
         assertThat(reasonOf(outcome)).isEqualTo("invalid webhook url");
+        mockServer.verify();
     }
 
     private static Optional<Integer> responseStatusOf(DeliveryOutcome outcome) {
@@ -285,35 +287,16 @@ class HttpWebhookSenderTest {
         return new HttpWebhookSender(restClient, signer, mapper, validator);
     }
 
-    private Subscription createSubscription(String url, String signatureKey) throws Exception {
-        return new Subscription(
-            "sub-1",
-            new ClientId("client-1"),
-            java.util.Set.of(new EventKey("test.event")),
-            new WebhookUrl(new URI(url)),
-            Optional.empty(),
-            Optional.ofNullable(signatureKey),
-            true,
-            Instant.now()
-        );
+    private Subscription createSubscription(String url, String signatureKey) {
+        var builder = Subscriptions.aSubscription().withUrl(WebhookUrl.of(url));
+        return signatureKey == null ? builder.build() : builder.withSignatureKey(signatureKey).build();
     }
 
     private NotificationEvent createEvent() {
-        return new NotificationEvent(
-            new EventId("event-1"),
-            new ClientId("client-1"),
-            new EventKey("test.event"),
-            "{\"data\":\"test\"}",
-            Instant.now(),
-            Instant.now(),
-            DeliveryStatus.PENDING,
-            Optional.of("sub-1"),
-            0,
-            Optional.empty()
-        );
+        return NotificationEvents.aPendingEvent().withEventId(Ids.EVT_001).build();
     }
 
     private DeliveryAttempt createAttempt() {
-        return DeliveryAttempt.first(new EventId("event-1"), 0, Instant.now(), AttemptOrigin.SYSTEM);
+        return DeliveryAttempts.anAttempt().withEventId(Ids.EVT_001).build();
     }
 }

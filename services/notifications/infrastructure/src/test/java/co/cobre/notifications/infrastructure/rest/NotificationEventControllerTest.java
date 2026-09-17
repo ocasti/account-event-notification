@@ -2,13 +2,22 @@ package co.cobre.notifications.infrastructure.rest;
 
 import co.cobre.notifications.application.usecase.GetNotificationEvent;
 import co.cobre.notifications.application.usecase.ListNotificationEvents;
+import co.cobre.notifications.application.usecase.NotificationEventDetail;
 import co.cobre.notifications.application.usecase.NotificationEventSummary;
 import co.cobre.notifications.application.usecase.NotificationEventSummaryPage;
+import co.cobre.notifications.application.usecase.ListNotificationEventsQuery;
 import co.cobre.notifications.application.usecase.ReplayNotificationEvent;
+import co.cobre.notifications.application.usecase.ReplayResult;
+import co.cobre.notifications.domain.AttemptOrigin;
+import co.cobre.notifications.domain.DeliveryStatus;
+import co.cobre.notifications.domain.EventId;
+import co.cobre.notifications.domain.EventKey;
 import co.cobre.notifications.domain.IllegalStateTransitionException;
 import co.cobre.notifications.domain.NotificationEventNotFoundException;
 import co.cobre.notifications.domain.ReplayNotAllowedException;
-import co.cobre.notifications.domain.*;
+import co.cobre.notifications.domain.fixtures.DeliveryAttempts;
+import co.cobre.notifications.domain.fixtures.Ids;
+import co.cobre.notifications.domain.fixtures.NotificationEvents;
 import co.cobre.notifications.infrastructure.security.AuthenticatedClientArgumentResolver;
 import co.cobre.notifications.infrastructure.security.ClientIdResolver;
 import co.cobre.notifications.infrastructure.security.JwtProperties;
@@ -24,15 +33,18 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
 import static co.cobre.notifications.infrastructure.security.RestTestSecurityConfig.token;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(NotificationEventController.class)
 @EnableConfigurationProperties(JwtProperties.class)
@@ -72,26 +84,27 @@ class NotificationEventControllerTest {
 
     @Test
     void shouldReturnEventsWhenListRequestHasValidToken() throws Exception {
-        ClientId clientId = new ClientId("CLIENT002");
-        EventId eventId = new EventId("EVT001");
-        NotificationEvent event = new NotificationEvent(
-            eventId,
-            clientId,
-            new EventKey("user.created"),
-            "test content",
-            Instant.parse("2024-03-15T10:00:00Z"),
-            Instant.parse("2024-03-15T10:00:00Z"),
-            DeliveryStatus.FAILED,
-            Optional.of("sub123"),
-            1,
-            Optional.empty()
+        var query = new ListNotificationEventsQuery(
+            Ids.CLIENT_002,
+            Optional.of(Instant.parse("2024-03-15T00:00:00Z")),
+            Optional.of(Instant.parse("2024-03-16T00:00:00Z")),
+            Optional.of(DeliveryStatus.FAILED),
+            20,
+            Optional.of("abc")
         );
-        when(listNotificationEvents.list(any()))
+        var event = NotificationEvents.aPendingEvent()
+            .withEventId(Ids.EVT_001)
+            .withClientId(Ids.CLIENT_002)
+            .withEventKey(new EventKey("user.created"))
+            .withStatus(DeliveryStatus.FAILED)
+            .withCycle(1)
+            .build();
+        when(listNotificationEvents.list(query))
             .thenReturn(new NotificationEventSummaryPage(
                 List.of(new NotificationEventSummary(event, 5)),
                 Optional.of("cursor123")
             ));
-        String jwtToken = token("CLIENT002");
+        var jwtToken = token("CLIENT002");
 
         mockMvc.perform(get("/notification_events")
                 .header("Authorization", "Bearer " + jwtToken)
@@ -105,22 +118,17 @@ class NotificationEventControllerTest {
             .andExpect(jsonPath("$.items[0].event_id").value("EVT001"))
             .andExpect(jsonPath("$.items[0].event_type").value("user.created"))
             .andExpect(jsonPath("$.items[0].client_id").value("CLIENT002"))
-            .andExpect(jsonPath("$.items[0].content").value("test content"))
+            .andExpect(jsonPath("$.items[0].content").value(event.content()))
             .andExpect(jsonPath("$.items[0].delivery_status").value("failed"))
             .andExpect(jsonPath("$.items[0].attempts_count").value(5))
             .andExpect(jsonPath("$.next_cursor").value("cursor123"));
 
-        verify(listNotificationEvents).list(argThat(query ->
-            query.clientId().value().equals("CLIENT002") &&
-            query.status().isPresent() && query.status().get() == DeliveryStatus.FAILED &&
-            query.limit() == 20 &&
-            query.cursor().isPresent() && query.cursor().get().equals("abc")
-        ));
+        verify(listNotificationEvents).list(query);
     }
 
     @Test
     void shouldReturn400WhenListRequestHasInvalidDeliveryStatus() throws Exception {
-        String jwtToken = token("CLIENT002");
+        var jwtToken = token("CLIENT002");
 
         mockMvc.perform(get("/notification_events")
                 .header("Authorization", "Bearer " + jwtToken)
@@ -131,7 +139,7 @@ class NotificationEventControllerTest {
 
     @Test
     void shouldReturn400WhenListRequestHasLimitZero() throws Exception {
-        String jwtToken = token("CLIENT002");
+        var jwtToken = token("CLIENT002");
 
         mockMvc.perform(get("/notification_events")
                 .header("Authorization", "Bearer " + jwtToken)
@@ -142,7 +150,7 @@ class NotificationEventControllerTest {
 
     @Test
     void shouldReturn400WhenListRequestHasLimitTooHigh() throws Exception {
-        String jwtToken = token("CLIENT002");
+        var jwtToken = token("CLIENT002");
 
         mockMvc.perform(get("/notification_events")
                 .header("Authorization", "Bearer " + jwtToken)
@@ -153,56 +161,44 @@ class NotificationEventControllerTest {
 
     @Test
     void shouldDefaultLimitTo20WhenListRequestOmitsLimit() throws Exception {
-        when(listNotificationEvents.list(any()))
+        var query = new ListNotificationEventsQuery(
+            Ids.CLIENT_002, Optional.empty(), Optional.empty(), Optional.empty(), 20, Optional.empty()
+        );
+        when(listNotificationEvents.list(query))
             .thenReturn(new NotificationEventSummaryPage(
                 List.of(),
                 Optional.empty()
             ));
-        String jwtToken = token("CLIENT002");
+        var jwtToken = token("CLIENT002");
 
         mockMvc.perform(get("/notification_events")
                 .header("Authorization", "Bearer " + jwtToken))
             .andExpect(status().isOk());
 
-        verify(listNotificationEvents).list(argThat(query -> query.limit() == 20));
+        verify(listNotificationEvents).list(query);
     }
 
     @Test
     void shouldReturnDetailWhenGetRequestHasValidToken() throws Exception {
-        ClientId clientId = new ClientId("CLIENT002");
-        EventId eventId = new EventId("EVT003");
-        NotificationEvent event = new NotificationEvent(
-            eventId,
-            clientId,
-            new EventKey("user.created"),
-            "test content",
-            Instant.parse("2024-03-15T10:00:00Z"),
-            Instant.parse("2024-03-15T10:00:00Z"),
-            DeliveryStatus.PENDING,
-            Optional.of("sub123"),
-            1,
-            Optional.empty()
-        );
-        DeliveryAttempt attempt = new DeliveryAttempt(
-            java.util.UUID.randomUUID(),
-            eventId,
-            1,
-            1,
-            Instant.parse("2024-03-15T10:30:00Z"),
-            Optional.empty(),
-            Optional.empty(),
-            Optional.of(Instant.parse("2024-03-15T10:15:00Z")),
-            Optional.of(500),
-            Optional.empty(),
-            Optional.of(java.time.Duration.ofMillis(150)),
-            AttemptOrigin.SYSTEM
-        );
-        when(getNotificationEvent.get(any(), any()))
-            .thenReturn(new co.cobre.notifications.application.usecase.NotificationEventDetail(
-                event,
-                List.of(attempt)
-            ));
-        String jwtToken = token("CLIENT002");
+        var event = NotificationEvents.aPendingEvent()
+            .withEventId(Ids.EVT_003)
+            .withClientId(Ids.CLIENT_002)
+            .withEventKey(new EventKey("user.created"))
+            .withCycle(1)
+            .build();
+        var attempt = DeliveryAttempts.anAttempt()
+            .withEventId(Ids.EVT_003)
+            .withCycle(1)
+            .withAttemptNumber(1)
+            .withNextAttemptAt(Instant.parse("2024-03-15T10:30:00Z"))
+            .withExecutedAt(Instant.parse("2024-03-15T10:15:00Z"))
+            .withResponseStatus(500)
+            .withLatency(Duration.ofMillis(150))
+            .withOrigin(AttemptOrigin.SYSTEM)
+            .build();
+        when(getNotificationEvent.get(Ids.CLIENT_002, Ids.EVT_003))
+            .thenReturn(new NotificationEventDetail(event, List.of(attempt)));
+        var jwtToken = token("CLIENT002");
 
         mockMvc.perform(get("/notification_events/EVT003")
                 .header("Authorization", "Bearer " + jwtToken))
@@ -218,9 +214,9 @@ class NotificationEventControllerTest {
 
     @Test
     void shouldReturn404WhenGetRequestHasNonExistentId() throws Exception {
-        when(getNotificationEvent.get(any(), any()))
+        when(getNotificationEvent.get(Ids.CLIENT_002, new EventId("EVT999")))
             .thenThrow(new NotificationEventNotFoundException(new EventId("EVT999")));
-        String jwtToken = token("CLIENT002");
+        var jwtToken = token("CLIENT002");
 
         mockMvc.perform(get("/notification_events/EVT999")
                 .header("Authorization", "Bearer " + jwtToken))
@@ -230,13 +226,9 @@ class NotificationEventControllerTest {
 
     @Test
     void shouldReturn202WhenReplayRequestHasValidToken() throws Exception {
-        EventId eventId = new EventId("EVT003");
-        when(replayNotificationEvent.replay(any(), any()))
-            .thenReturn(new co.cobre.notifications.application.usecase.ReplayResult(
-                eventId,
-                2
-            ));
-        String jwtToken = token("CLIENT002");
+        when(replayNotificationEvent.replay(Ids.CLIENT_002, Ids.EVT_003))
+            .thenReturn(new ReplayResult(Ids.EVT_003, 2));
+        var jwtToken = token("CLIENT002");
 
         mockMvc.perform(post("/notification_events/EVT003/replay")
                 .header("Authorization", "Bearer " + jwtToken))
@@ -248,9 +240,9 @@ class NotificationEventControllerTest {
 
     @Test
     void shouldReturn409WhenReplayEndpointRejectsNonFailedEvent() throws Exception {
-        when(replayNotificationEvent.replay(any(), any()))
-            .thenThrow(new ReplayNotAllowedException(new EventId("EVT003"), DeliveryStatus.COMPLETED));
-        String jwtToken = token("CLIENT002");
+        when(replayNotificationEvent.replay(Ids.CLIENT_002, Ids.EVT_003))
+            .thenThrow(new ReplayNotAllowedException(Ids.EVT_003, DeliveryStatus.COMPLETED));
+        var jwtToken = token("CLIENT002");
 
         mockMvc.perform(post("/notification_events/EVT003/replay")
                 .header("Authorization", "Bearer " + jwtToken))
@@ -260,9 +252,9 @@ class NotificationEventControllerTest {
 
     @Test
     void shouldReturn409WhenReplayHasIllegalTransition() throws Exception {
-        when(replayNotificationEvent.replay(any(), any()))
+        when(replayNotificationEvent.replay(Ids.CLIENT_002, Ids.EVT_003))
             .thenThrow(new IllegalStateTransitionException(DeliveryStatus.COMPLETED, DeliveryStatus.PENDING));
-        String jwtToken = token("CLIENT002");
+        var jwtToken = token("CLIENT002");
 
         mockMvc.perform(post("/notification_events/EVT003/replay")
                 .header("Authorization", "Bearer " + jwtToken))

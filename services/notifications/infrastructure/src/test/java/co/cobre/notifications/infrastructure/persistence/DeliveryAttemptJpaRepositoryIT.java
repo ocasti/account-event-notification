@@ -1,15 +1,31 @@
 package co.cobre.notifications.infrastructure.persistence;
 
+import co.cobre.notifications.domain.ClientId;
+import co.cobre.notifications.domain.EventId;
+import co.cobre.notifications.domain.EventKey;
+import co.cobre.notifications.domain.fixtures.Clocks;
+import co.cobre.notifications.domain.fixtures.DeliveryAttempts;
+import co.cobre.notifications.domain.fixtures.NotificationEvents;
+import co.cobre.notifications.infrastructure.fixtures.Entities;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class DeliveryAttemptJpaRepositoryIT extends PersistenceTestSupport {
+
+    private static final EventId EVENT_ID = new EventId("test-event-1");
+
+    /**
+     * {@code notification_events.subscription_id} has a foreign key on {@code subscriptions};
+     * this is one of the three rows Flyway seeds (V2__initial_subscriptions.sql), used here only
+     * to satisfy that constraint — this test does not assert on subscription identity.
+     */
+    private static final String PERSISTED_SUBSCRIPTION_ID = "sub_client001";
 
     @Autowired
     private DeliveryAttemptJpaRepository deliveryAttemptRepository;
@@ -19,64 +35,53 @@ class DeliveryAttemptJpaRepositoryIT extends PersistenceTestSupport {
 
     @Test
     void shouldCountOnlyUnexecutedUnclaimedAttemptsWhenCountingDueAttempts() {
-        var event = new NotificationEventEntity();
-        event.setEventId("test-event-1");
-        event.setClientId("test-client");
-        event.setEventKey("test.key");
-        event.setContent("{}");
-        event.setCreatedAt(Instant.now());
-        event.setReceivedAt(Instant.now());
-        event.setStatus(DeliveryStatusEntity.PENDING);
-        event.setCycle(0);
-        notificationEventRepository.save(event);
+        var event = NotificationEvents.aPendingEvent()
+            .withEventId(EVENT_ID)
+            .withClientId(new ClientId("test-client"))
+            .withEventKey(new EventKey("test.key"))
+            .withSubscriptionId(PERSISTED_SUBSCRIPTION_ID)
+            .build();
+        notificationEventRepository.save(Entities.notificationEvent(event));
+        var past = hoursAgo(1);
+        var future = hoursFromNow(1);
 
-        var now = Instant.now();
-        var past = now.minus(1, ChronoUnit.HOURS);
-        var future = now.plus(1, ChronoUnit.HOURS);
+        var dueAttempt = DeliveryAttempts.anAttempt().withEventId(EVENT_ID).withNextAttemptAt(past).build();
+        deliveryAttemptRepository.save(Entities.deliveryAttempt(dueAttempt));
 
-        var dueAttempt = new DeliveryAttemptEntity();
-        dueAttempt.setId(UUID.randomUUID());
-        dueAttempt.setEventId("test-event-1");
-        dueAttempt.setCycle(0);
-        dueAttempt.setAttemptNumber(1);
-        dueAttempt.setNextAttemptAt(past);
-        dueAttempt.setOrigin(AttemptOriginEntity.SYSTEM);
-        deliveryAttemptRepository.save(dueAttempt);
+        var claimedAttempt = DeliveryAttempts.anAttempt()
+            .withEventId(EVENT_ID)
+            .withNextAttemptAt(past)
+            .withClaimedAt(Clocks.NOW)
+            .withClaimedBy("worker-1")
+            .build();
+        deliveryAttemptRepository.save(Entities.deliveryAttempt(claimedAttempt));
 
-        var claimedAttempt = new DeliveryAttemptEntity();
-        claimedAttempt.setId(UUID.randomUUID());
-        claimedAttempt.setEventId("test-event-1");
-        claimedAttempt.setCycle(0);
-        claimedAttempt.setAttemptNumber(1);
-        claimedAttempt.setNextAttemptAt(past);
-        claimedAttempt.setClaimedAt(now);
-        claimedAttempt.setClaimedBy("worker-1");
-        claimedAttempt.setOrigin(AttemptOriginEntity.SYSTEM);
-        deliveryAttemptRepository.save(claimedAttempt);
+        var futureAttempt = DeliveryAttempts.anAttempt().withEventId(EVENT_ID).withNextAttemptAt(future).build();
+        deliveryAttemptRepository.save(Entities.deliveryAttempt(futureAttempt));
 
-        var futureAttempt = new DeliveryAttemptEntity();
-        futureAttempt.setId(UUID.randomUUID());
-        futureAttempt.setEventId("test-event-1");
-        futureAttempt.setCycle(0);
-        futureAttempt.setAttemptNumber(1);
-        futureAttempt.setNextAttemptAt(future);
-        futureAttempt.setOrigin(AttemptOriginEntity.SYSTEM);
-        deliveryAttemptRepository.save(futureAttempt);
-
-        var executedAttempt = new DeliveryAttemptEntity();
-        executedAttempt.setId(UUID.randomUUID());
-        executedAttempt.setEventId("test-event-1");
-        executedAttempt.setCycle(0);
-        executedAttempt.setAttemptNumber(1);
-        executedAttempt.setNextAttemptAt(past);
-        executedAttempt.setExecutedAt(now);
-        executedAttempt.setResponseStatus(200);
-        executedAttempt.setLatencyMs(100L);
-        executedAttempt.setOrigin(AttemptOriginEntity.SYSTEM);
-        deliveryAttemptRepository.save(executedAttempt);
+        var executedAttempt = DeliveryAttempts.anAttempt()
+            .withEventId(EVENT_ID)
+            .withNextAttemptAt(past)
+            .withExecutedAt(Clocks.NOW)
+            .withResponseStatus(200)
+            .withLatency(Duration.ofMillis(100))
+            .build();
+        deliveryAttemptRepository.save(Entities.deliveryAttempt(executedAttempt));
 
         long result = deliveryAttemptRepository.countDue();
 
         assertThat(result).isEqualTo(1L);
+    }
+
+    /**
+     * {@code countDue()} filters on Postgres's own {@code now()}, so "due" must be expressed
+     * relative to the real wall clock rather than the fixed {@link Clocks#NOW}.
+     */
+    private Instant hoursAgo(long hours) {
+        return Instant.now().minus(hours, ChronoUnit.HOURS);
+    }
+
+    private Instant hoursFromNow(long hours) {
+        return Instant.now().plus(hours, ChronoUnit.HOURS);
     }
 }
