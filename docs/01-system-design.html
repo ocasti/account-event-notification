@@ -370,7 +370,7 @@ flowchart LR
   </figure>
 
   <h3>Rules ArchUnit enforces</h3>
-  <p>Five rules in <code>HexagonalArchitectureTest</code>, under <code>infrastructure/src/test/java/co/cobre/notifications/architecture/</code>:</p>
+  <p>Six rules in <code>HexagonalArchitectureTest</code>, under <code>infrastructure/src/test/java/co/cobre/notifications/architecture/</code>:</p>
   <ul class="tight">
     <li><code>domain</code> imports nothing from <code>application</code> or <code>infrastructure</code>, nor the <code>org.springframework</code>, <code>jakarta</code>, <code>com.fasterxml</code> or <code>tools.jackson</code> (Jackson 3) packages.</li>
     <li><code>application</code> imports no <code>infrastructure</code> and none of those same framework packages. The core's only interfaces are the output ports, in the <code>application.port</code> package; use cases are concrete classes in <code>application.usecase</code>, with no inbound interface, and adapters invoke them directly.</li>
@@ -378,6 +378,8 @@ flowchart LR
     <li><code>infrastructure.rest</code> does not depend on <code>infrastructure.persistence</code>: controllers only call use cases, never repositories or JPA entities.</li>
     <li><code>infrastructure.worker</code> does not depend on <code>infrastructure.rest</code> or <code>infrastructure.security</code>, and <code>infrastructure.rest</code> does not depend on <code>infrastructure.worker</code>: the <code>api</code> and <code>worker</code> processes stay isolated at compile time, not only by Spring profile.</li>
   </ul>
+  <p><b>Test code has its own rules.</b> A <code>TestConventionsTest</code> in every module (domain, application, infrastructure and the simulator) fails the build if a test calls a lax Mockito matcher (<code>any()</code>, <code>isA()</code>, <code>argThat()</code>), depends on reflection, or has a name outside the <code>should&lt;Result&gt;When&lt;Condition&gt;</code> pattern. Test data comes from object mothers and builders in <code>co.cobre.notifications.domain.fixtures</code>, packaged as the <code>domain</code> test jar and consumed by the other modules, with a fixed clock and identifiers from the reference dataset.</p>
+  <p><b>Build gates.</b> <code>mvnw verify</code> runs PMD on production and test code (unused imports and private members, empty or generic catch blocks, lost stack traces, an <code>if</code> nested inside another, cyclomatic or cognitive complexity above 8, NPath above 50, confusing ternaries) and JaCoCo with a 100 % line-coverage minimum per module; both run in CI. The production code has no <code>else</code> branches and no nested control statements: guard clauses and early returns, one nesting level per method, exhaustive <code>switch</code> expressions over sealed types.</p>
 
   <!-- 5 -->
   <h2 id="estados">5. Lifecycle of a notification</h2>
@@ -1084,6 +1086,8 @@ flowchart TB
   <!-- 17 -->
   <h2 id="revision">17. Design change log</h2>
   <p>Changes applied to this document after two consistency reviews against the requirements, with the affected section and the reason. Kept as a record of the decisions.</p>
+  <h3>Version 3.3</h3>
+  <p>Quality gates and test conventions recorded: PMD and JaCoCo in <code>verify</code>, test conventions enforced by ArchUnit, shared fixtures as a test jar; controller reduced to one line per operation with error responses documented in the controller advice; success rate and client failure rate computed over final outcomes. No change to the runtime behaviour.</p>
   <h3>Version 3.2</h3>
   <p>Version 3.2: document translated to English; no technical change.</p>
   <h3>Version 3</h3>
@@ -1098,7 +1102,7 @@ flowchart TB
       <tr><td>6, 16</td><td>No mention of the HTTP client's retry behavior</td><td><code>WebhookClientConfig</code> builds the <code>HttpClient</code> with <code>disableAutomaticRetries()</code>: every retry is a domain decision (<code>RetryPolicy</code>), never the HTTP client's</td></tr>
       <tr><td>14</td><td><code>RandomGenerator.getDefault()</code> for jitter</td><td>Replaced by <code>new java.util.Random()</code> in <code>RetryConfig</code>: the default <code>RandomGenerator</code> algorithm is not guaranteed on the <code>eclipse-temurin:21-jre-alpine</code> image, and <code>Random</code> does not depend on a provider loaded through <code>ServiceLoader</code></td></tr>
       <tr><td>16</td><td>HTTPS policy described as part of the webhook contract with no explicit owner</td><td>Lives in <code>WebhookUrlValidator</code> (<code>requireHttps</code>, allowlist); <code>WebhookUrl</code> in the domain accepts HTTP and HTTPS by design and knows nothing about the policy</td></tr>
-      <tr><td>16</td><td>Unspecified whether replay returns <code>Location</code></td><td><code>NotificationEventController.replay</code> responds with <code>ResponseEntity.accepted().body(...)</code> without a <code>Location</code> header: there is no addressable "replay attempt" resource yet</td></tr>
+      <tr><td>16</td><td>Unspecified whether replay returns <code>Location</code></td><td><code>NotificationEventController.replay</code> returns the body with <code>@ResponseStatus(ACCEPTED)</code> and no <code>Location</code> header: there is no addressable "replay attempt" resource yet</td></tr>
       <tr><td>4, 12</td><td>Infrastructure packages described without a fixed name (for example "RestClient HTTPS", "Spring Data JPA" as if it were the package)</td><td>Flat, explicit packages: <code>domain</code> with no subpackages; <code>application.port</code> / <code>application.usecase</code>; <code>infrastructure.{config,persistence,rest,security,webhook,worker}</code>, verified by <code>HexagonalArchitectureTest</code></td></tr>
     </tbody>
   </table>
