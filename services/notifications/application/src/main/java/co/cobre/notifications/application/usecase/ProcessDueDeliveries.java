@@ -100,9 +100,9 @@ public final class ProcessDueDeliveries {
 
     private void handleOutcome(NotificationEvent event, DeliveryAttempt attempt, DeliveryOutcome outcome, Instant now) {
         switch (outcome) {
-            case DeliveryOutcome.Success s -> event.complete(now);
-            case DeliveryOutcome.TransientFailure tf -> handleTransientFailure(event, attempt, now);
-            case DeliveryOutcome.PermanentFailure pf -> event.fail();
+            case DeliveryOutcome.Success ignored -> event.complete(now);
+            case DeliveryOutcome.TransientFailure ignored -> handleTransientFailure(event, attempt, now);
+            case DeliveryOutcome.PermanentFailure ignored -> event.fail();
         }
     }
 
