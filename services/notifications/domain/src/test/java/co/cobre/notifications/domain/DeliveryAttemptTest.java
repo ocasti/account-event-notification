@@ -2,7 +2,9 @@ package co.cobre.notifications.domain;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -12,7 +14,7 @@ class DeliveryAttemptTest {
     private final Instant now = Instant.parse("2024-01-01T00:00:00Z");
 
     @Test
-    void shouldCreateFirstAttemptWithAttemptNumberOne() {
+    void shouldSetAttemptNumberOneWhenCreatingFirstAttempt() {
         var attempt = DeliveryAttempt.first(eventId, 0, now, AttemptOrigin.SYSTEM);
 
         assertThat(attempt.attemptNumber()).isOne();
@@ -28,7 +30,7 @@ class DeliveryAttemptTest {
     }
 
     @Test
-    void shouldCreateFirstAttemptWithEventIdAndCycle() {
+    void shouldSetEventIdAndCycleWhenCreatingFirstAttempt() {
         var attempt = DeliveryAttempt.first(eventId, 2, now, AttemptOrigin.SYSTEM);
 
         assertThat(attempt.eventId()).isEqualTo(eventId);
@@ -36,7 +38,7 @@ class DeliveryAttemptTest {
     }
 
     @Test
-    void shouldCreateNextAttemptWithIncrementedAttemptNumber() {
+    void shouldIncrementAttemptNumberWhenCreatingNextAttempt() {
         var first = DeliveryAttempt.first(eventId, 0, now, AttemptOrigin.SYSTEM);
         var nextInstant = now.plusSeconds(30);
 
@@ -50,7 +52,7 @@ class DeliveryAttemptTest {
     }
 
     @Test
-    void shouldCreateNextAttemptWithDistinctId() {
+    void shouldAssignDistinctIdWhenCreatingNextAttempt() {
         var first = DeliveryAttempt.first(eventId, 0, now, AttemptOrigin.SYSTEM);
         var nextInstant = now.plusSeconds(30);
 
@@ -60,17 +62,16 @@ class DeliveryAttemptTest {
     }
 
     @Test
-    void shouldReportNotExecutedWhenExecutedAtEmpty() {
+    void shouldReportNotExecutedWhenExecutedAtIsEmpty() {
         var attempt = DeliveryAttempt.first(eventId, 0, now, AttemptOrigin.SYSTEM);
 
         assertThat(attempt.isExecuted()).isFalse();
     }
 
     @Test
-    void shouldReportExecutedWhenExecutedAtPresent() {
+    void shouldReportExecutedWhenExecutedAtIsPresent() {
         var attempt = DeliveryAttempt.first(eventId, 0, now, AttemptOrigin.SYSTEM);
         var executedAtInstant = now.plusSeconds(5);
-
         var executed = new DeliveryAttempt(
             attempt.id(),
             attempt.eventId(),
@@ -79,7 +80,7 @@ class DeliveryAttemptTest {
             attempt.nextAttemptAt(),
             attempt.claimedAt(),
             attempt.claimedBy(),
-            java.util.Optional.of(executedAtInstant),
+            Optional.of(executedAtInstant),
             attempt.responseStatus(),
             attempt.failureReason(),
             attempt.latency(),
@@ -90,12 +91,12 @@ class DeliveryAttemptTest {
     }
 
     @Test
-    void shouldExecuteAttemptWithResult() {
+    void shouldRecordResultWhenAttemptIsExecuted() {
         var attempt = DeliveryAttempt.first(eventId, 0, now, AttemptOrigin.SYSTEM);
         var result = new DeliveryResult(
-            java.util.Optional.of(200),
-            java.util.Optional.empty(),
-            java.util.Optional.of(java.time.Duration.ofMillis(100))
+            Optional.of(200),
+            Optional.empty(),
+            Optional.of(Duration.ofMillis(100))
         );
         var executedAtInstant = now.plusSeconds(5);
 
@@ -106,6 +107,6 @@ class DeliveryAttemptTest {
         assertThat(executed.claimedBy()).contains("worker-1");
         assertThat(executed.responseStatus()).contains(200);
         assertThat(executed.failureReason()).isEmpty();
-        assertThat(executed.latency()).contains(java.time.Duration.ofMillis(100));
+        assertThat(executed.latency()).contains(Duration.ofMillis(100));
     }
 }

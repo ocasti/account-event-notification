@@ -1,5 +1,7 @@
 package co.cobre.notifications.domain;
 
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -11,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class RetryPolicyTest {
 
     @Test
-    void shouldReturnStandardPolicyWithCorrectDefaults() {
+    void shouldReturnStandardDefaultsWhenCreatingStandardPolicy() {
         var policy = RetryPolicy.standard();
 
         assertThat(policy.baseDelay()).isEqualTo(Duration.ofSeconds(30));
@@ -21,78 +23,39 @@ class RetryPolicyTest {
         assertThat(policy.maxAttempts()).isEqualTo(5);
     }
 
-    @Test
-    void shouldReturnZeroDelayBeforeFirstAttempt() {
+    @ParameterizedTest(name = "shouldComputeDelayWhenAttemptNumberIs{0}")
+    @CsvSource({
+        "1,0",
+        "2,30",
+        "3,120",
+        "4,480",
+        "5,900"
+    })
+    void shouldComputeDelayWhenAttemptNumberVaries(int attemptNumber, long expectedSeconds) {
         var policy = RetryPolicy.standard();
         var random = fixedRandom(0.5);
 
-        var delay = policy.delayBefore(1, random);
+        var delay = policy.delayBefore(attemptNumber, random);
 
-        assertThat(delay).isEqualTo(Duration.ZERO);
+        assertThat(delay).isEqualTo(Duration.ofSeconds(expectedSeconds));
     }
 
-    @Test
-    void shouldReturnBaseDelayBeforeSecondAttempt() {
+    @ParameterizedTest(name = "shouldApplyJitterWhenRandomValueIs{0}")
+    @CsvSource({
+        "0.0,24",
+        "1.0,36"
+    })
+    void shouldApplyJitterWhenRandomValueVaries(double randomValue, long expectedSeconds) {
         var policy = RetryPolicy.standard();
-        var random = fixedRandom(0.5);
+        var random = fixedRandom(randomValue);
 
         var delay = policy.delayBefore(2, random);
 
-        assertThat(delay).isEqualTo(Duration.ofSeconds(30));
+        assertThat(delay).isEqualTo(Duration.ofSeconds(expectedSeconds));
     }
 
     @Test
-    void shouldReturnTwoMinutesBeforeThirdAttempt() {
-        var policy = RetryPolicy.standard();
-        var random = fixedRandom(0.5);
-
-        var delay = policy.delayBefore(3, random);
-
-        assertThat(delay).isEqualTo(Duration.ofSeconds(120));
-    }
-
-    @Test
-    void shouldReturnEightMinutesBeforeFourthAttempt() {
-        var policy = RetryPolicy.standard();
-        var random = fixedRandom(0.5);
-
-        var delay = policy.delayBefore(4, random);
-
-        assertThat(delay).isEqualTo(Duration.ofSeconds(480));
-    }
-
-    @Test
-    void shouldCapAtMaxDelayBeforeFifthAttempt() {
-        var policy = RetryPolicy.standard();
-        var random = fixedRandom(0.5);
-
-        var delay = policy.delayBefore(5, random);
-
-        assertThat(delay).isEqualTo(Duration.ofMinutes(15));
-    }
-
-    @Test
-    void shouldApplyJitterMinWithZeroRandom() {
-        var policy = RetryPolicy.standard();
-        var random = fixedRandom(0.0);
-
-        var delay = policy.delayBefore(2, random);
-
-        assertThat(delay).isEqualTo(Duration.ofSeconds(24));
-    }
-
-    @Test
-    void shouldApplyJitterMaxWithOneRandom() {
-        var policy = RetryPolicy.standard();
-        var random = fixedRandom(1.0);
-
-        var delay = policy.delayBefore(2, random);
-
-        assertThat(delay).isEqualTo(Duration.ofSeconds(36));
-    }
-
-    @Test
-    void shouldNeverExceedMaxDelayWithJitter() {
+    void shouldNotExceedMaxDelayWhenJitterPushesAboveCap() {
         var policy = RetryPolicy.standard();
         var random = fixedRandom(1.0);
 
@@ -101,22 +64,21 @@ class RetryPolicyTest {
         assertThat(delay).isLessThanOrEqualTo(Duration.ofMinutes(15));
     }
 
-    @Test
-    void shouldNotBeExhaustedAt5Attempts() {
+    @ParameterizedTest(name = "shouldReportExhaustedWhenAttemptCountIs{0}")
+    @CsvSource({
+        "5,false",
+        "6,true"
+    })
+    void shouldReportExhaustedWhenAttemptCountVaries(int attemptNumber, boolean expectedExhausted) {
         var policy = RetryPolicy.standard();
 
-        assertThat(policy.isExhausted(5)).isFalse();
+        var exhausted = policy.isExhausted(attemptNumber);
+
+        assertThat(exhausted).isEqualTo(expectedExhausted);
     }
 
     @Test
-    void shouldBeExhaustedAt6Attempts() {
-        var policy = RetryPolicy.standard();
-
-        assertThat(policy.isExhausted(6)).isTrue();
-    }
-
-    @Test
-    void shouldThrowWhenDelayBeforeZero() {
+    void shouldRejectDelayComputationWhenAttemptNumberIsZero() {
         var policy = RetryPolicy.standard();
         var random = fixedRandom(0.5);
 

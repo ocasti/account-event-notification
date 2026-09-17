@@ -1,119 +1,85 @@
 package co.cobre.notifications.domain;
 
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
+
+import java.util.Optional;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class DeliveryStatusTest {
 
-    @Test
-    void shouldAllowTransitionFromPendingToCompleted() {
-        assertThat(DeliveryStatus.PENDING.canTransitionTo(DeliveryStatus.COMPLETED)).isTrue();
+    @ParameterizedTest(name = "shouldAllowTransitionWhenMovingFrom{0}To{1}")
+    @MethodSource("validTransitions")
+    void shouldAllowTransitionWhenTransitionIsValid(DeliveryStatus from, DeliveryStatus to) {
+        var allowed = from.canTransitionTo(to);
+
+        assertThat(allowed).isTrue();
     }
 
-    @Test
-    void shouldAllowTransitionFromPendingToRetrying() {
-        assertThat(DeliveryStatus.PENDING.canTransitionTo(DeliveryStatus.RETRYING)).isTrue();
+    private static Stream<Arguments> validTransitions() {
+        return Stream.of(
+            Arguments.of(DeliveryStatus.PENDING, DeliveryStatus.COMPLETED),
+            Arguments.of(DeliveryStatus.PENDING, DeliveryStatus.RETRYING),
+            Arguments.of(DeliveryStatus.PENDING, DeliveryStatus.FAILED),
+            Arguments.of(DeliveryStatus.RETRYING, DeliveryStatus.COMPLETED),
+            Arguments.of(DeliveryStatus.RETRYING, DeliveryStatus.RETRYING),
+            Arguments.of(DeliveryStatus.RETRYING, DeliveryStatus.FAILED),
+            Arguments.of(DeliveryStatus.FAILED, DeliveryStatus.PENDING)
+        );
     }
 
-    @Test
-    void shouldAllowTransitionFromPendingToFailed() {
-        assertThat(DeliveryStatus.PENDING.canTransitionTo(DeliveryStatus.FAILED)).isTrue();
+    @ParameterizedTest(name = "shouldRejectTransitionWhenMovingFrom{0}To{1}")
+    @MethodSource("invalidTransitions")
+    void shouldRejectTransitionWhenTransitionIsInvalid(DeliveryStatus from, DeliveryStatus to) {
+        var allowed = from.canTransitionTo(to);
+
+        assertThat(allowed).isFalse();
     }
 
-    @Test
-    void shouldAllowTransitionFromRetryingToCompleted() {
-        assertThat(DeliveryStatus.RETRYING.canTransitionTo(DeliveryStatus.COMPLETED)).isTrue();
+    private static Stream<Arguments> invalidTransitions() {
+        return Stream.of(
+            Arguments.of(DeliveryStatus.COMPLETED, DeliveryStatus.PENDING),
+            Arguments.of(DeliveryStatus.COMPLETED, DeliveryStatus.RETRYING),
+            Arguments.of(DeliveryStatus.COMPLETED, DeliveryStatus.FAILED),
+            Arguments.of(DeliveryStatus.COMPLETED, DeliveryStatus.SKIPPED),
+            Arguments.of(DeliveryStatus.SKIPPED, DeliveryStatus.PENDING),
+            Arguments.of(DeliveryStatus.SKIPPED, DeliveryStatus.RETRYING),
+            Arguments.of(DeliveryStatus.SKIPPED, DeliveryStatus.COMPLETED),
+            Arguments.of(DeliveryStatus.SKIPPED, DeliveryStatus.FAILED),
+            Arguments.of(DeliveryStatus.PENDING, DeliveryStatus.PENDING),
+            Arguments.of(DeliveryStatus.RETRYING, DeliveryStatus.PENDING),
+            Arguments.of(DeliveryStatus.FAILED, DeliveryStatus.COMPLETED),
+            Arguments.of(DeliveryStatus.FAILED, DeliveryStatus.RETRYING)
+        );
     }
 
-    @Test
-    void shouldAllowTransitionFromRetryingToRetrying() {
-        assertThat(DeliveryStatus.RETRYING.canTransitionTo(DeliveryStatus.RETRYING)).isTrue();
+    @ParameterizedTest(name = "shouldReportTerminalWhenStatusIs{0}")
+    @CsvSource({
+        "PENDING,false",
+        "RETRYING,false",
+        "FAILED,false",
+        "COMPLETED,true",
+        "SKIPPED,true"
+    })
+    void shouldReportTerminalWhenStatusVaries(DeliveryStatus status, boolean expectedTerminal) {
+        var terminal = status.isTerminal();
+
+        assertThat(terminal).isEqualTo(expectedTerminal);
     }
 
-    @Test
-    void shouldAllowTransitionFromRetryingToFailed() {
-        assertThat(DeliveryStatus.RETRYING.canTransitionTo(DeliveryStatus.FAILED)).isTrue();
-    }
+    @ParameterizedTest(name = "shouldMapApiValueWhenValueIs{0}")
+    @CsvSource({
+        "FAILED,FAILED",
+        "completed,COMPLETED",
+        "bogus,"
+    })
+    void shouldMapApiValueWhenValueIsKnownOrUnknown(String apiValue, String expectedName) {
+        var result = DeliveryStatus.fromApiValue(apiValue);
 
-    @Test
-    void shouldAllowTransitionFromFailedToPending() {
-        assertThat(DeliveryStatus.FAILED.canTransitionTo(DeliveryStatus.PENDING)).isTrue();
-    }
-
-    @Test
-    void shouldNotAllowTransitionFromCompletedToAny() {
-        assertThat(DeliveryStatus.COMPLETED.canTransitionTo(DeliveryStatus.PENDING)).isFalse();
-        assertThat(DeliveryStatus.COMPLETED.canTransitionTo(DeliveryStatus.RETRYING)).isFalse();
-        assertThat(DeliveryStatus.COMPLETED.canTransitionTo(DeliveryStatus.FAILED)).isFalse();
-        assertThat(DeliveryStatus.COMPLETED.canTransitionTo(DeliveryStatus.SKIPPED)).isFalse();
-    }
-
-    @Test
-    void shouldNotAllowTransitionFromSkippedToAny() {
-        assertThat(DeliveryStatus.SKIPPED.canTransitionTo(DeliveryStatus.PENDING)).isFalse();
-        assertThat(DeliveryStatus.SKIPPED.canTransitionTo(DeliveryStatus.RETRYING)).isFalse();
-        assertThat(DeliveryStatus.SKIPPED.canTransitionTo(DeliveryStatus.COMPLETED)).isFalse();
-        assertThat(DeliveryStatus.SKIPPED.canTransitionTo(DeliveryStatus.FAILED)).isFalse();
-    }
-
-    @Test
-    void shouldNotAllowTransitionFromPendingToPending() {
-        assertThat(DeliveryStatus.PENDING.canTransitionTo(DeliveryStatus.PENDING)).isFalse();
-    }
-
-    @Test
-    void shouldNotAllowTransitionFromRetryingToPending() {
-        assertThat(DeliveryStatus.RETRYING.canTransitionTo(DeliveryStatus.PENDING)).isFalse();
-    }
-
-    @Test
-    void shouldNotAllowTransitionFromFailedToCompleted() {
-        assertThat(DeliveryStatus.FAILED.canTransitionTo(DeliveryStatus.COMPLETED)).isFalse();
-    }
-
-    @Test
-    void shouldNotAllowTransitionFromFailedToRetrying() {
-        assertThat(DeliveryStatus.FAILED.canTransitionTo(DeliveryStatus.RETRYING)).isFalse();
-    }
-
-    @Test
-    void shouldConsiderCompletedAsTerminal() {
-        assertThat(DeliveryStatus.COMPLETED.isTerminal()).isTrue();
-    }
-
-    @Test
-    void shouldConsiderSkippedAsTerminal() {
-        assertThat(DeliveryStatus.SKIPPED.isTerminal()).isTrue();
-    }
-
-    @Test
-    void shouldNotConsiderFailedAsTerminal() {
-        assertThat(DeliveryStatus.FAILED.isTerminal()).isFalse();
-    }
-
-    @Test
-    void shouldNotConsiderPendingAsTerminal() {
-        assertThat(DeliveryStatus.PENDING.isTerminal()).isFalse();
-    }
-
-    @Test
-    void shouldNotConsiderRetryingAsTerminal() {
-        assertThat(DeliveryStatus.RETRYING.isTerminal()).isFalse();
-    }
-
-    @Test
-    void fromApiValue_withKnownUppercaseValue_returnsStatus() {
-        assertThat(DeliveryStatus.fromApiValue("FAILED")).contains(DeliveryStatus.FAILED);
-    }
-
-    @Test
-    void fromApiValue_withKnownLowercaseValue_returnsStatus() {
-        assertThat(DeliveryStatus.fromApiValue("completed")).contains(DeliveryStatus.COMPLETED);
-    }
-
-    @Test
-    void fromApiValue_withUnknownValue_returnsEmpty() {
-        assertThat(DeliveryStatus.fromApiValue("bogus")).isEmpty();
+        assertThat(result.map(Enum::name)).isEqualTo(Optional.ofNullable(expectedName));
     }
 }

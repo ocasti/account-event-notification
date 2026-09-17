@@ -7,7 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class NotificationEventNotFoundExceptionTest {
 
     @Test
-    void shouldIncludeEventIdInMessage() {
+    void shouldIncludeEventIdInMessageWhenEventIsNotFound() {
         var eventId = new EventId("event-404");
 
         var exception = new NotificationEventNotFoundException(eventId);
