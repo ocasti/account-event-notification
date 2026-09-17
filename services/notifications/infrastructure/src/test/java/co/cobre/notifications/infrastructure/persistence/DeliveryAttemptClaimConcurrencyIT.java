@@ -13,21 +13,25 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class DeliveryAttemptClaimConcurrencyIT extends PersistenceTestSupport {
+
+    private static final int TOTAL_ATTEMPTS = 200;
+    private static final int NUM_CLIENTS = 10;
+    private static final int NUM_WORKERS = 8;
+    private static final int ROUNDS_PER_WORKER = 5;
 
     @Autowired
     private DeliveryAttemptRepositoryAdapter adapter;
@@ -45,18 +49,25 @@ class DeliveryAttemptClaimConcurrencyIT extends PersistenceTestSupport {
     }
 
     @RepeatedTest(3)
-    void testConcurrentClaimsNeverOverlap() throws InterruptedException {
-        int totalAttempts = 200;
-        int numClients = 10;
-        Instant baseTime = Instant.now();
-        Instant pastDue = baseTime.minusSeconds(30);
+    void shouldClaimEachAttemptExactlyOnceWhenWorkersCompeteAcrossMultipleRounds() throws InterruptedException {
+        var baseTime = Instant.now();
+        var pastDue = baseTime.minusSeconds(30);
+        insertPendingAttempts(TOTAL_ATTEMPTS, NUM_CLIENTS, baseTime, pastDue);
 
-        List<UUID> createdIds = new ArrayList<>();
-        for (int i = 0; i < totalAttempts; i++) {
-            String clientId = "client-" + (i % numClients);
-            EventId eventId = new EventId("evt-concurrent-" + i);
+        var result = claimConcurrently(NUM_WORKERS, ROUNDS_PER_WORKER, baseTime);
 
-            NotificationEventEntity event = new NotificationEventEntity();
+        assertThat(result.executorFinishedInTime()).isTrue();
+        assertThat(result.workerFailures()).isEmpty();
+        assertThat(result.duplicateClaims()).isEmpty();
+        assertThat(result.claimedByAttemptId()).hasSize(TOTAL_ATTEMPTS);
+    }
+
+    private void insertPendingAttempts(int totalAttempts, int numClients, Instant baseTime, Instant pastDue) {
+        IntStream.range(0, totalAttempts).forEach(i -> {
+            var clientId = "client-" + (i % numClients);
+            var eventId = new EventId("evt-concurrent-" + i);
+
+            var event = new NotificationEventEntity();
             event.setEventId(eventId.value());
             event.setClientId(clientId);
             event.setEventKey("test.event");
@@ -67,67 +78,68 @@ class DeliveryAttemptClaimConcurrencyIT extends PersistenceTestSupport {
             event.setCycle(0);
             eventJpaRepository.save(event);
 
-            DeliveryAttempt attempt = DeliveryAttempt.first(
-                eventId, 0, pastDue, AttemptOrigin.SYSTEM
-            );
+            var attempt = DeliveryAttempt.first(eventId, 0, pastDue, AttemptOrigin.SYSTEM);
             adapter.save(attempt);
-            createdIds.add(attempt.id());
-        }
+        });
+    }
 
-        int numWorkers = 8;
-        int roundsPerWorker = 5;
-        CyclicBarrier barrier = new CyclicBarrier(numWorkers);
-        ExecutorService executor = Executors.newFixedThreadPool(numWorkers);
+    private record ConcurrentClaimResult(
+        Map<UUID, String> claimedByAttemptId,
+        List<String> duplicateClaims,
+        List<Exception> workerFailures,
+        boolean executorFinishedInTime
+    ) {
+    }
 
-        // Track which worker claimed each id (to detect duplicates)
-        ConcurrentHashMap<UUID, String> idToWorker = new ConcurrentHashMap<>();
-        AtomicInteger totalClaimed = new AtomicInteger(0);
-        List<Exception> exceptions = new ArrayList<>();
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private ConcurrentClaimResult claimConcurrently(int numWorkers, int roundsPerWorker, Instant baseTime)
+        throws InterruptedException {
+        var barrier = new CyclicBarrier(numWorkers);
+        var executor = Executors.newFixedThreadPool(numWorkers);
+        Map<UUID, String> claimedByAttemptId = new ConcurrentHashMap<>();
+        List<String> duplicateClaims = new CopyOnWriteArrayList<>();
+        List<Exception> workerFailures = new CopyOnWriteArrayList<>();
 
-        for (int w = 0; w < numWorkers; w++) {
-            final String workerId = "worker-" + w;
-            // Collects any per-worker failure (checked or not) so it can be reported once every worker finishes.
-            @SuppressWarnings("PMD.AvoidCatchingGenericException")
-            Runnable task = () -> {
-                try {
-                    barrier.await(); // Synchronize all workers at start
-                    for (int round = 0; round < roundsPerWorker; round++) {
-                        DeliveryClaim claim = new DeliveryClaim(
-                            baseTime, 50, 50, workerId, Duration.ofSeconds(3600)
-                        );
-                        List<DeliveryAttempt> claimed = adapter.claimDue(claim);
-
-                        for (DeliveryAttempt attempt : claimed) {
-                            UUID id = attempt.id();
-                            String previous = idToWorker.putIfAbsent(id, workerId);
-                            if (previous != null && !previous.equals(workerId)) {
-                                fail("Duplicate claim detected: id=" + id +
-                                    " claimed by both " + previous + " and " + workerId);
-                            }
-                            totalClaimed.incrementAndGet();
-                        }
-                    }
-                } catch (Exception e) {
-                    synchronized (exceptions) {
-                        exceptions.add(e);
-                    }
-                }
-            };
-            executor.submit(task);
-        }
+        IntStream.range(0, numWorkers).forEach(w -> {
+            var workerId = "worker-" + w;
+            executor.submit(() -> runClaimRounds(
+                workerId, roundsPerWorker, baseTime, barrier, claimedByAttemptId, duplicateClaims, workerFailures
+            ));
+        });
 
         executor.shutdown();
-        if (!executor.awaitTermination(30, TimeUnit.SECONDS)) {
-            fail("Executor did not finish in time");
-        }
+        var finishedInTime = executor.awaitTermination(30, TimeUnit.SECONDS);
 
-        if (!exceptions.isEmpty()) {
-            fail("Exceptions during concurrent claims: " + exceptions);
-        }
+        return new ConcurrentClaimResult(claimedByAttemptId, duplicateClaims, workerFailures, finishedInTime);
+    }
 
-        assertEquals(totalAttempts, idToWorker.size(),
-            "Expected all " + totalAttempts + " attempts to be claimed without duplicates between workers, " +
-            "but got " + idToWorker.size() + " unique ids. " +
-            "Total claims across all rounds: " + totalClaimed.get());
+    @SuppressWarnings("PMD.AvoidCatchingGenericException")
+    private void runClaimRounds(
+        String workerId,
+        int roundsPerWorker,
+        Instant baseTime,
+        CyclicBarrier barrier,
+        Map<UUID, String> claimedByAttemptId,
+        List<String> duplicateClaims,
+        List<Exception> workerFailures
+    ) {
+        try {
+            barrier.await();
+            IntStream.range(0, roundsPerWorker).forEach(round -> {
+                var claim = new DeliveryClaim(baseTime, 50, 50, workerId, Duration.ofSeconds(3600));
+                var claimed = adapter.claimDue(claim);
+                claimed.forEach(attempt -> recordClaim(attempt.id(), workerId, claimedByAttemptId, duplicateClaims));
+            });
+        } catch (Exception e) {
+            workerFailures.add(e);
+        }
+    }
+
+    private void recordClaim(UUID id, String workerId, Map<UUID, String> claimedByAttemptId, List<String> duplicateClaims) {
+        var previous = claimedByAttemptId.putIfAbsent(id, workerId);
+        var claimedByAnotherWorker = previous != null && !previous.equals(workerId);
+        if (claimedByAnotherWorker) {
+            duplicateClaims.add("Duplicate claim detected: id=" + id + " claimed by both " + previous + " and " + workerId);
+        }
     }
 }

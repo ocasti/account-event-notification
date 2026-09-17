@@ -2,411 +2,192 @@ package co.cobre.notifications.infrastructure.webhook;
 
 import co.cobre.notifications.domain.WebhookUrl;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 
 import java.net.InetAddress;
+import java.net.URI;
 import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class WebhookUrlValidatorTest {
 
-    @Test
-    void shouldValidateHttpsUrlWithPublicIp() throws Exception {
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("acceptedAddressRows")
+    void shouldResolveAddressWhenUrlPassesValidation(
+        String rowName, boolean requireHttps, List<String> allowlist, String urlString,
+        String resolverIp, String expectedIpFragment
+    ) throws Exception {
         var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
+            Duration.ofSeconds(5), Duration.ofSeconds(10), requireHttps, allowlist, Duration.ofSeconds(30)
         );
-        var resolver = createMockResolver("93.184.216.34");
+        var resolver = createMockResolver(resolverIp);
         var validator = new WebhookUrlValidator(props, resolver);
+        var url = new WebhookUrl(new URI(urlString));
 
-        var url = new WebhookUrl(new java.net.URI("https://api.example.com/hook"));
         var ip = validator.validate(url);
 
-        assertThat(ip.getHostAddress()).isEqualTo("93.184.216.34");
+        assertThat(ip.getHostAddress()).contains(expectedIpFragment);
     }
 
-    @Test
-    void shouldRejectPrivateIp10Range() throws Exception {
-        var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
+    private static Stream<Arguments> acceptedAddressRows() {
+        return Stream.of(
+            Arguments.of(
+                "public ip with empty allowlist", true, List.of(),
+                "https://api.example.com/hook", "93.184.216.34", "93.184.216.34"
+            ),
+            Arguments.of(
+                "private ip with host in allowlist", true, List.of("wiremock"),
+                "https://wiremock:8080/webhook", "10.0.0.5", "10.0.0.5"
+            ),
+            Arguments.of(
+                "allowlisted host when https not required", false, List.of("wiremock"),
+                "https://wiremock:8080/webhook", "10.0.0.5", "10.0.0.5"
+            ),
+            Arguments.of(
+                "allowlisted host when https required", true, List.of("example.com"),
+                "https://example.com/hook", "93.184.216.34", "93.184.216.34"
+            ),
+            Arguments.of(
+                "ipv6 documentation address", true, List.of(),
+                "https://example.com/hook", "2001:db8::1", "2001:db8"
+            )
         );
-        var resolver = createMockResolver("10.0.0.5");
-        var validator = new WebhookUrlValidator(props, resolver);
+    }
 
-        var url = new WebhookUrl(new java.net.URI("https://private.example.com/hook"));
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("restrictedAddressRows")
+    void shouldThrowWithReasonWhenResolvedAddressIsRestricted(
+        String rowName, String resolverIp, String urlString, String expectedMessage
+    ) throws Exception {
+        var props = new WebhookProperties(
+            Duration.ofSeconds(5), Duration.ofSeconds(10), true, List.of(), Duration.ofSeconds(30)
+        );
+        var resolver = createMockResolver(resolverIp);
+        var validator = new WebhookUrlValidator(props, resolver);
+        var url = new WebhookUrl(new URI(urlString));
 
         assertThatThrownBy(() -> validator.validate(url))
-            .isInstanceOf(IllegalArgumentException.class);
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage(expectedMessage);
+    }
+
+    private static Stream<Arguments> restrictedAddressRows() {
+        var restricted = "Webhook URL resolves to a restricted address";
+        var uniqueLocal = "Webhook URL resolves to a unique local address";
+        return Stream.of(
+            Arguments.of("private 10-range address", "10.0.0.5", "https://private.example.com/hook", restricted),
+            Arguments.of("private 192-range address", "192.168.1.1", "https://private.example.com/hook", restricted),
+            Arguments.of("private 172-range address", "172.16.0.1", "https://private.example.com/hook", restricted),
+            Arguments.of("loopback address", "127.0.0.1", "https://localhost.example.com/hook", restricted),
+            Arguments.of("link-local metadata address", "169.254.169.254", "https://metadata.example.com/hook", restricted),
+            Arguments.of("ipv6 loopback address", "::1", "https://example.com/hook", restricted),
+            Arguments.of("ipv6 unique local address fd00", "fd00::1", "https://example.com/hook", uniqueLocal),
+            Arguments.of("ipv6 unique local address fc00", "fc00::1", "https://example.com/hook", uniqueLocal),
+            Arguments.of("ipv6 unique local address fd12", "fd12::1", "https://example.com/hook", uniqueLocal)
+        );
     }
 
     @Test
-    void shouldRejectPrivateIp192Range() throws Exception {
+    void shouldThrowWhenResolverThrowsDuringValidation() throws Exception {
         var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
+            Duration.ofSeconds(5), Duration.ofSeconds(10), true, List.of(), Duration.ofSeconds(30)
         );
-        var resolver = createMockResolver("192.168.1.1");
-        var validator = new WebhookUrlValidator(props, resolver);
-
-        var url = new WebhookUrl(new java.net.URI("https://private.example.com/hook"));
-
-        assertThatThrownBy(() -> validator.validate(url))
-            .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void shouldRejectPrivateIp172Range() throws Exception {
-        var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
-        );
-        var resolver = createMockResolver("172.16.0.1");
-        var validator = new WebhookUrlValidator(props, resolver);
-
-        var url = new WebhookUrl(new java.net.URI("https://private.example.com/hook"));
-
-        assertThatThrownBy(() -> validator.validate(url))
-            .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void shouldRejectLoopbackAddress() throws Exception {
-        var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
-        );
-        var resolver = createMockResolver("127.0.0.1");
-        var validator = new WebhookUrlValidator(props, resolver);
-
-        var url = new WebhookUrl(new java.net.URI("https://localhost.example.com/hook"));
-
-        assertThatThrownBy(() -> validator.validate(url))
-            .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void shouldRejectMetadataAddress() throws Exception {
-        var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
-        );
-        var resolver = createMockResolver("169.254.169.254");
-        var validator = new WebhookUrlValidator(props, resolver);
-
-        var url = new WebhookUrl(new java.net.URI("https://metadata.example.com/hook"));
-
-        assertThatThrownBy(() -> validator.validate(url))
-            .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void shouldRejectIpv6Loopback() throws Exception {
-        var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
-        );
-        var resolver = createMockResolver("::1");
-        var validator = new WebhookUrlValidator(props, resolver);
-
-        var url = new WebhookUrl(new java.net.URI("https://example.com/hook"));
-
-        assertThatThrownBy(() -> validator.validate(url))
-            .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void shouldRejectIpv6UniqueLocal() throws Exception {
-        var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
-        );
-        var resolver = createMockResolver("fd00::1");
-        var validator = new WebhookUrlValidator(props, resolver);
-
-        var url = new WebhookUrl(new java.net.URI("https://example.com/hook"));
-
-        assertThatThrownBy(() -> validator.validate(url))
-            .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void shouldAllowPrivateIpWhenHostInAllowlist() throws Exception {
-        var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of("wiremock"),
-            Duration.ofSeconds(30)
-        );
-        var resolver = createMockResolver("10.0.0.5");
-        var validator = new WebhookUrlValidator(props, resolver);
-
-        var url = new WebhookUrl(new java.net.URI("https://wiremock:8080/webhook"));
-        var ip = validator.validate(url);
-
-        assertThat(ip.getHostAddress()).isEqualTo("10.0.0.5");
-    }
-
-
-    @Test
-    void shouldThrowOnDnsResolutionFailure() throws Exception {
-        var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
-        );
-        java.util.function.Function<String, List<InetAddress>> failingResolver = host -> {
+        Function<String, List<InetAddress>> failingResolver = host -> {
             throw new RuntimeException("DNS resolution failed");
         };
         var validator = new WebhookUrlValidator(props, failingResolver);
-
-        var url = new WebhookUrl(new java.net.URI("https://example.com/hook"));
+        var url = new WebhookUrl(new URI("https://example.com/hook"));
 
         assertThatThrownBy(() -> validator.validate(url))
             .isInstanceOf(Exception.class);
     }
 
     @Test
-    void shouldAllowHttpWhenNotRequiredAndHostInAllowlist() throws Exception {
+    void shouldThrowWhenHostDoesNotResolveUsingDefaultResolver() throws Exception {
         var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            false,
-            List.of("wiremock"),
-            Duration.ofSeconds(30)
-        );
-        var resolver = createMockResolver("10.0.0.5");
-        var validator = new WebhookUrlValidator(props, resolver);
-
-        var url = new WebhookUrl(new java.net.URI("https://wiremock:8080/webhook"));
-        var ip = validator.validate(url);
-
-        assertThat(ip.getHostAddress()).isEqualTo("10.0.0.5");
-    }
-
-    @Test
-    void shouldAcceptHttpsWhenRequireHttpsIsTrue() throws Exception {
-        var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of("example.com"),
-            Duration.ofSeconds(30)
-        );
-        var resolver = createMockResolver("93.184.216.34");
-        var validator = new WebhookUrlValidator(props, resolver);
-
-        var url = new WebhookUrl(new java.net.URI("https://example.com/hook"));
-        var ip = validator.validate(url);
-
-        assertThat(ip.getHostAddress()).isEqualTo("93.184.216.34");
-    }
-
-    @Test
-    void shouldRejectHostThatDoesNotResolve() throws Exception {
-        var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
+            Duration.ofSeconds(5), Duration.ofSeconds(10), true, List.of(), Duration.ofSeconds(30)
         );
         var validator = new WebhookUrlValidator(props);
-
-        var url = new WebhookUrl(new java.net.URI("https://does-not-exist.invalid/hook"));
+        var url = new WebhookUrl(new URI("https://does-not-exist.invalid/hook"));
 
         assertThatThrownBy(() -> validator.validate(url))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("Webhook host does not resolve: does-not-exist.invalid");
     }
 
-    @Test
-    void shouldRejectIpv6UniqueLocalFc00() throws Exception {
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("rejectedSchemeRows")
+    void shouldThrowWithReasonWhenSchemeIsRejected(
+        String rowName, boolean requireHttps, List<String> allowlist, String uriString, String expectedMessage
+    ) throws Exception {
         var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
-        );
-        var resolver = createMockResolver("fc00::1");
-        var validator = new WebhookUrlValidator(props, resolver);
-
-        var url = new WebhookUrl(new java.net.URI("https://example.com/hook"));
-
-        assertThatThrownBy(() -> validator.validate(url))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("Webhook URL resolves to a unique local address");
-    }
-
-    @Test
-    void shouldRejectIpv6UniqueLocalFd12() throws Exception {
-        var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
-        );
-        var resolver = createMockResolver("fd12::1");
-        var validator = new WebhookUrlValidator(props, resolver);
-
-        var url = new WebhookUrl(new java.net.URI("https://example.com/hook"));
-
-        assertThatThrownBy(() -> validator.validate(url))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("Webhook URL resolves to a unique local address");
-    }
-
-    @Test
-    void shouldAcceptIpv6DocumentationAddress() throws Exception {
-        var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
-        );
-        var resolver = createMockResolver("2001:db8::1");
-        var validator = new WebhookUrlValidator(props, resolver);
-
-        var url = new WebhookUrl(new java.net.URI("https://example.com/hook"));
-        var ip = validator.validate(url);
-
-        assertThat(ip.getHostAddress()).contains("2001:db8");
-    }
-
-    @Test
-    void shouldRejectUriWithoutHost() throws Exception {
-        var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
+            Duration.ofSeconds(5), Duration.ofSeconds(10), requireHttps, allowlist, Duration.ofSeconds(30)
         );
         var resolver = createMockResolver("93.184.216.34");
         var validator = new WebhookUrlValidator(props, resolver);
+        var uri = URI.create(uriString);
 
-        var uriWithoutHost = java.net.URI.create("mailto:test@example.com");
+        assertThatThrownBy(() -> validator.validate(uri))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage(expectedMessage);
+    }
+
+    private static Stream<Arguments> rejectedSchemeRows() {
+        return Stream.of(
+            Arguments.of(
+                "https required but scheme is http", true, List.of(),
+                "http://example.com/hook", "HTTPS is required for webhook URLs"
+            ),
+            Arguments.of(
+                "http scheme not in allowlist", false, List.of(),
+                "http://example.com/hook", "HTTP scheme requires host to be in allowlist"
+            )
+        );
+    }
+
+    @Test
+    void shouldThrowWhenUriHasNoHost() throws Exception {
+        var props = new WebhookProperties(
+            Duration.ofSeconds(5), Duration.ofSeconds(10), true, List.of(), Duration.ofSeconds(30)
+        );
+        var resolver = createMockResolver("93.184.216.34");
+        var validator = new WebhookUrlValidator(props, resolver);
+        var uriWithoutHost = URI.create("mailto:test@example.com");
 
         assertThatThrownBy(() -> validator.validate(uriWithoutHost))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessage("Webhook URL must have a valid host");
     }
 
-    @Test
-    void shouldRejectHttpWhenHttpsIsRequired() throws Exception {
+    @ParameterizedTest(name = "host=<{0}>")
+    @NullAndEmptySource
+    void shouldThrowWhenHostIsBlankInValidateHost(String host) throws Exception {
         var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
+            Duration.ofSeconds(5), Duration.ofSeconds(10), true, List.of(), Duration.ofSeconds(30)
         );
         var resolver = createMockResolver("93.184.216.34");
         var validator = new WebhookUrlValidator(props, resolver);
 
-        var uri = java.net.URI.create("http://example.com/hook");
-
-        assertThatThrownBy(() -> validator.validate(uri))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("HTTPS is required for webhook URLs");
-    }
-
-    @Test
-    void shouldRejectHttpHostNotInAllowlistWhenHttpsNotRequired() throws Exception {
-        var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            false,
-            List.of(),
-            Duration.ofSeconds(30)
-        );
-        var resolver = createMockResolver("93.184.216.34");
-        var validator = new WebhookUrlValidator(props, resolver);
-
-        var uri = java.net.URI.create("http://example.com/hook");
-
-        assertThatThrownBy(() -> validator.validate(uri))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("HTTP scheme requires host to be in allowlist");
-    }
-
-    @Test
-    void shouldRejectNullHostInValidateHost() throws Exception {
-        var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
-        );
-        var resolver = createMockResolver("93.184.216.34");
-        var validator = new WebhookUrlValidator(props, resolver);
-
-        assertThatThrownBy(() -> validator.validateHost(null))
+        assertThatThrownBy(() -> validator.validateHost(host))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessage("Host must not be null or empty");
     }
 
     @Test
-    void shouldRejectEmptyHostInValidateHost() throws Exception {
+    void shouldThrowWhenResolverReturnsNoAddressesInValidateHost() {
         var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
+            Duration.ofSeconds(5), Duration.ofSeconds(10), true, List.of(), Duration.ofSeconds(30)
         );
-        var resolver = createMockResolver("93.184.216.34");
-        var validator = new WebhookUrlValidator(props, resolver);
-
-        assertThatThrownBy(() -> validator.validateHost(""))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("Host must not be null or empty");
-    }
-
-    @Test
-    void shouldRejectHostWhenResolverReturnsNoAddresses() {
-        var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
-        );
-        java.util.function.Function<String, List<InetAddress>> emptyResolver = host -> List.of();
+        Function<String, List<InetAddress>> emptyResolver = host -> List.of();
         var validator = new WebhookUrlValidator(props, emptyResolver);
 
         assertThatThrownBy(() -> validator.validateHost("example.com"))
@@ -414,7 +195,7 @@ class WebhookUrlValidatorTest {
             .hasMessage("Unable to resolve host: example.com");
     }
 
-    private java.util.function.Function<String, List<InetAddress>> createMockResolver(String ipAddress) throws Exception {
+    private Function<String, List<InetAddress>> createMockResolver(String ipAddress) throws Exception {
         return host -> {
             try {
                 return List.of(InetAddress.getByName(ipAddress));

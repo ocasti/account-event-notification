@@ -2,6 +2,9 @@ package co.cobre.notifications.infrastructure.webhook;
 
 import co.cobre.notifications.domain.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
@@ -14,6 +17,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,41 +30,39 @@ class HttpWebhookSenderTest {
     static final Clock FIXED_CLOCK = Clock.fixed(FIXED_TIME, ZoneId.of("UTC"));
 
     @Test
-    void shouldSendPostWithJsonContentType() throws Exception {
+    void shouldSendPostRequestWhenDeliveringWebhookEvent() throws Exception {
         var builder = RestClient.builder();
         var mockServer = MockRestServiceServer.bindTo(builder).build();
         var restClient = builder.build();
         var sender = createSender(restClient);
-
         var subscription = createSubscription("https://api.example.com/hook", "secret-key");
         var event = createEvent();
         var attempt = createAttempt();
-
         mockServer.expect(requestTo("https://api.example.com/hook"))
             .andExpect(method(org.springframework.http.HttpMethod.POST))
             .andExpect(content().contentType("application/json"))
             .andRespond(withSuccess());
 
         sender.send(subscription, event, attempt);
+
         mockServer.verify();
     }
 
     @Test
-    void shouldIncludeEventTimestampHeader() throws Exception {
+    void shouldIncludeEventTimestampHeaderWhenSendingWebhook() throws Exception {
         var builder = RestClient.builder();
         var mockServer = MockRestServiceServer.bindTo(builder).build();
         var restClient = builder.build();
         var sender = createSender(restClient);
-
         var subscription = createSubscription("https://api.example.com/hook", "secret-key");
         var event = createEvent();
         var attempt = createAttempt();
-
         mockServer.expect(requestTo("https://api.example.com/hook"))
             .andExpect(header("event-timestamp", FIXED_TIME.toString()))
             .andRespond(withSuccess());
 
         sender.send(subscription, event, attempt);
+
         mockServer.verify();
     }
 
@@ -70,16 +72,15 @@ class HttpWebhookSenderTest {
         var mockServer = MockRestServiceServer.bindTo(builder).build();
         var restClient = builder.build();
         var sender = createSender(restClient);
-
         var subscription = createSubscription("https://api.example.com/hook", "secret-key");
         var event = createEvent();
         var attempt = createAttempt();
-
         mockServer.expect(requestTo("https://api.example.com/hook"))
             .andExpect(header("event-signature", org.hamcrest.Matchers.notNullValue()))
             .andRespond(withSuccess());
 
         sender.send(subscription, event, attempt);
+
         mockServer.verify();
     }
 
@@ -89,191 +90,99 @@ class HttpWebhookSenderTest {
         var mockServer = MockRestServiceServer.bindTo(builder).build();
         var restClient = builder.build();
         var sender = createSender(restClient);
-
         var subscription = createSubscription("https://api.example.com/hook", null);
         var event = createEvent();
         var attempt = createAttempt();
-
         mockServer.expect(requestTo("https://api.example.com/hook"))
-            .andExpect(request -> {
-                assertThat(request.getHeaders().get("event-signature")).isNull();
-            })
+            .andExpect(request -> assertThat(request.getHeaders().get("event-signature")).isNull())
             .andRespond(withSuccess());
 
         sender.send(subscription, event, attempt);
+
         mockServer.verify();
     }
 
     @Test
-    void shouldIncludeCobreEventIdHeader() throws Exception {
+    void shouldIncludeCobreEventIdHeaderWhenSendingWebhook() throws Exception {
         var builder = RestClient.builder();
         var mockServer = MockRestServiceServer.bindTo(builder).build();
         var restClient = builder.build();
         var sender = createSender(restClient);
-
         var subscription = createSubscription("https://api.example.com/hook", "secret-key");
         var event = createEvent();
         var attempt = createAttempt();
-
         mockServer.expect(requestTo("https://api.example.com/hook"))
             .andExpect(header("x-cobre-event-id", event.eventId().value()))
             .andRespond(withSuccess());
 
         sender.send(subscription, event, attempt);
+
         mockServer.verify();
     }
 
     @Test
-    void shouldIncludeCobreAttemptHeader() throws Exception {
+    void shouldIncludeCobreAttemptHeaderWhenSendingWebhook() throws Exception {
         var builder = RestClient.builder();
         var mockServer = MockRestServiceServer.bindTo(builder).build();
         var restClient = builder.build();
         var sender = createSender(restClient);
-
         var subscription = createSubscription("https://api.example.com/hook", "secret-key");
         var event = createEvent();
         var attempt = createAttempt();
-
         mockServer.expect(requestTo("https://api.example.com/hook"))
             .andExpect(header("x-cobre-attempt", "1"))
             .andRespond(withSuccess());
 
         sender.send(subscription, event, attempt);
+
         mockServer.verify();
     }
 
-    @Test
-    void shouldReturn200AsSuccess() throws Exception {
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("statusClassificationRows")
+    void shouldClassifyOutcomeWhenServerReturnsStatus(
+        String rowName, int status, Class<? extends DeliveryOutcome> expectedType,
+        int expectedResponseStatus, String expectedReason
+    ) throws Exception {
         var builder = RestClient.builder();
         var mockServer = MockRestServiceServer.bindTo(builder).build();
         var restClient = builder.build();
         var sender = createSender(restClient);
-
         var subscription = createSubscription("https://api.example.com/hook", "secret-key");
         var event = createEvent();
         var attempt = createAttempt();
-
         mockServer.expect(requestTo("https://api.example.com/hook"))
-            .andRespond(withSuccess());
+            .andRespond(withStatus(org.springframework.http.HttpStatusCode.valueOf(status)));
 
         var outcome = sender.send(subscription, event, attempt);
 
-        assertThat(outcome).isInstanceOf(DeliveryOutcome.Success.class);
-        var success = (DeliveryOutcome.Success) outcome;
-        assertThat(success.responseStatus()).isEqualTo(200);
-        assertThat(success.latency().toNanos()).isGreaterThanOrEqualTo(0);
+        assertThat(outcome).isInstanceOf(expectedType);
+        assertThat(responseStatusOf(outcome)).contains(expectedResponseStatus);
+        assertThat(reasonOf(outcome)).isEqualTo(expectedReason);
+        assertThat(latencyOf(outcome).toNanos()).isGreaterThanOrEqualTo(0);
+    }
+
+    private static Stream<Arguments> statusClassificationRows() {
+        return Stream.of(
+            Arguments.of("200 classifies as success", 200, DeliveryOutcome.Success.class, 200, null),
+            Arguments.of("503 classifies as transient failure", 503, DeliveryOutcome.TransientFailure.class, 503, "HTTP 503"),
+            Arguments.of("429 classifies as transient failure", 429, DeliveryOutcome.TransientFailure.class, 429, "HTTP 429"),
+            Arguments.of("408 classifies as transient failure", 408, DeliveryOutcome.TransientFailure.class, 408, "HTTP 408"),
+            Arguments.of("404 classifies as permanent failure", 404, DeliveryOutcome.PermanentFailure.class, 404, "client rejected: 404"),
+            Arguments.of("400 classifies as permanent failure", 400, DeliveryOutcome.PermanentFailure.class, 400, "client rejected: 400"),
+            Arguments.of("100 classifies as unclassified transient failure", 100, DeliveryOutcome.TransientFailure.class, 100, "unexpected: 100")
+        );
     }
 
     @Test
-    void shouldReturn503AsTransientFailure() throws Exception {
+    void shouldReturnTransientFailureWhenConnectionErrorOccurs() throws Exception {
         var builder = RestClient.builder();
         var mockServer = MockRestServiceServer.bindTo(builder).build();
         var restClient = builder.build();
         var sender = createSender(restClient);
-
         var subscription = createSubscription("https://api.example.com/hook", "secret-key");
         var event = createEvent();
         var attempt = createAttempt();
-
-        mockServer.expect(requestTo("https://api.example.com/hook"))
-            .andRespond(withStatus(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE));
-
-        var outcome = sender.send(subscription, event, attempt);
-
-        assertThat(outcome).isInstanceOf(DeliveryOutcome.TransientFailure.class);
-        var failure = (DeliveryOutcome.TransientFailure) outcome;
-        assertThat(failure.responseStatus()).contains(503);
-    }
-
-    @Test
-    void shouldReturn429AsTransientFailure() throws Exception {
-        var builder = RestClient.builder();
-        var mockServer = MockRestServiceServer.bindTo(builder).build();
-        var restClient = builder.build();
-        var sender = createSender(restClient);
-
-        var subscription = createSubscription("https://api.example.com/hook", "secret-key");
-        var event = createEvent();
-        var attempt = createAttempt();
-
-        mockServer.expect(requestTo("https://api.example.com/hook"))
-            .andRespond(withStatus(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS));
-
-        var outcome = sender.send(subscription, event, attempt);
-
-        assertThat(outcome).isInstanceOf(DeliveryOutcome.TransientFailure.class);
-    }
-
-    @Test
-    void shouldReturn408AsTransientFailure() throws Exception {
-        var builder = RestClient.builder();
-        var mockServer = MockRestServiceServer.bindTo(builder).build();
-        var restClient = builder.build();
-        var sender = createSender(restClient);
-
-        var subscription = createSubscription("https://api.example.com/hook", "secret-key");
-        var event = createEvent();
-        var attempt = createAttempt();
-
-        mockServer.expect(requestTo("https://api.example.com/hook"))
-            .andRespond(withStatus(org.springframework.http.HttpStatus.REQUEST_TIMEOUT));
-
-        var outcome = sender.send(subscription, event, attempt);
-
-        assertThat(outcome).isInstanceOf(DeliveryOutcome.TransientFailure.class);
-    }
-
-    @Test
-    void shouldReturn404AsPermanentFailure() throws Exception {
-        var builder = RestClient.builder();
-        var mockServer = MockRestServiceServer.bindTo(builder).build();
-        var restClient = builder.build();
-        var sender = createSender(restClient);
-
-        var subscription = createSubscription("https://api.example.com/hook", "secret-key");
-        var event = createEvent();
-        var attempt = createAttempt();
-
-        mockServer.expect(requestTo("https://api.example.com/hook"))
-            .andRespond(withStatus(org.springframework.http.HttpStatus.NOT_FOUND));
-
-        var outcome = sender.send(subscription, event, attempt);
-
-        assertThat(outcome).isInstanceOf(DeliveryOutcome.PermanentFailure.class);
-    }
-
-    @Test
-    void shouldReturn400AsPermanentFailure() throws Exception {
-        var builder = RestClient.builder();
-        var mockServer = MockRestServiceServer.bindTo(builder).build();
-        var restClient = builder.build();
-        var sender = createSender(restClient);
-
-        var subscription = createSubscription("https://api.example.com/hook", "secret-key");
-        var event = createEvent();
-        var attempt = createAttempt();
-
-        mockServer.expect(requestTo("https://api.example.com/hook"))
-            .andRespond(withStatus(org.springframework.http.HttpStatus.BAD_REQUEST));
-
-        var outcome = sender.send(subscription, event, attempt);
-
-        assertThat(outcome).isInstanceOf(DeliveryOutcome.PermanentFailure.class);
-        var failure = (DeliveryOutcome.PermanentFailure) outcome;
-        assertThat(failure.reason()).contains("client rejected");
-    }
-
-    @Test
-    void shouldReturnTransientFailureOnConnectionError() throws Exception {
-        var builder = RestClient.builder();
-        var mockServer = MockRestServiceServer.bindTo(builder).build();
-        var restClient = builder.build();
-        var sender = createSender(restClient);
-
-        var subscription = createSubscription("https://api.example.com/hook", "secret-key");
-        var event = createEvent();
-        var attempt = createAttempt();
-
         mockServer.expect(requestTo("https://api.example.com/hook"))
             .andRespond(request -> {
                 throw new java.io.IOException("connection refused");
@@ -282,31 +191,8 @@ class HttpWebhookSenderTest {
         var outcome = sender.send(subscription, event, attempt);
 
         assertThat(outcome).isInstanceOf(DeliveryOutcome.TransientFailure.class);
-        var failure = (DeliveryOutcome.TransientFailure) outcome;
-        assertThat(failure.responseStatus()).isEmpty();
-        assertThat(failure.reason()).isNotBlank();
-    }
-
-    @Test
-    void shouldReturnTransientFailureForUnclassifiedStatus() throws Exception {
-        var builder = RestClient.builder();
-        var mockServer = MockRestServiceServer.bindTo(builder).build();
-        var restClient = builder.build();
-        var sender = createSender(restClient);
-
-        var subscription = createSubscription("https://api.example.com/hook", "secret-key");
-        var event = createEvent();
-        var attempt = createAttempt();
-
-        mockServer.expect(requestTo("https://api.example.com/hook"))
-            .andRespond(withStatus(org.springframework.http.HttpStatusCode.valueOf(100)));
-
-        var outcome = sender.send(subscription, event, attempt);
-
-        assertThat(outcome).isInstanceOf(DeliveryOutcome.TransientFailure.class);
-        var failure = (DeliveryOutcome.TransientFailure) outcome;
-        assertThat(failure.responseStatus()).contains(100);
-        assertThat(failure.reason()).isEqualTo("unexpected: 100");
+        assertThat(responseStatusOf(outcome)).isEmpty();
+        assertThat(reasonOf(outcome)).isNotBlank();
     }
 
     @Test
@@ -314,7 +200,6 @@ class HttpWebhookSenderTest {
         var builder = RestClient.builder();
         var mockServer = MockRestServiceServer.bindTo(builder).build();
         var restClient = builder.build();
-
         var validator = new WebhookUrlValidator(
             new WebhookProperties(
                 Duration.ofSeconds(5),
@@ -331,24 +216,53 @@ class HttpWebhookSenderTest {
                 }
             }
         );
-
         var signer = new WebhookSigner(FIXED_CLOCK);
         var mapper = new WebhookPayloadMapper(JsonMapper.builder().build());
         var sender = new HttpWebhookSender(restClient, signer, mapper, validator);
-
         var subscription = createSubscription("https://private.example.com/hook", "secret-key");
         var event = createEvent();
         var attempt = createAttempt();
-
         mockServer.expect(org.springframework.test.web.client.ExpectedCount.never(), requestTo(org.hamcrest.Matchers.any(String.class)))
             .andRespond(withSuccess());
 
         var outcome = sender.send(subscription, event, attempt);
 
         assertThat(outcome).isInstanceOf(DeliveryOutcome.PermanentFailure.class);
-        var failure = (DeliveryOutcome.PermanentFailure) outcome;
-        assertThat(failure.responseStatus()).isEqualTo(0);
-        assertThat(failure.reason()).isEqualTo("invalid webhook url");
+        assertThat(responseStatusOf(outcome)).contains(0);
+        assertThat(reasonOf(outcome)).isEqualTo("invalid webhook url");
+    }
+
+    private static Optional<Integer> responseStatusOf(DeliveryOutcome outcome) {
+        if (outcome instanceof DeliveryOutcome.Success success) {
+            return Optional.of(success.responseStatus());
+        }
+        if (outcome instanceof DeliveryOutcome.TransientFailure transientFailure) {
+            return transientFailure.responseStatus();
+        }
+        if (outcome instanceof DeliveryOutcome.PermanentFailure permanentFailure) {
+            return Optional.of(permanentFailure.responseStatus());
+        }
+        throw new IllegalStateException("unexpected outcome: " + outcome);
+    }
+
+    private static String reasonOf(DeliveryOutcome outcome) {
+        if (outcome instanceof DeliveryOutcome.TransientFailure transientFailure) {
+            return transientFailure.reason();
+        }
+        if (outcome instanceof DeliveryOutcome.PermanentFailure permanentFailure) {
+            return permanentFailure.reason();
+        }
+        return null;
+    }
+
+    private static Duration latencyOf(DeliveryOutcome outcome) {
+        if (outcome instanceof DeliveryOutcome.Success success) {
+            return success.latency();
+        }
+        if (outcome instanceof DeliveryOutcome.TransientFailure transientFailure) {
+            return transientFailure.latency();
+        }
+        return ((DeliveryOutcome.PermanentFailure) outcome).latency();
     }
 
     private HttpWebhookSender createSender(RestClient restClient) {

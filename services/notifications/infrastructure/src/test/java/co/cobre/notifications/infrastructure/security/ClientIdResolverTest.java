@@ -8,33 +8,33 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ClientIdResolverTest {
 
     @Test
-    void resolve_extractsClientIdFromConfiguredClaim() {
+    void shouldExtractClientIdWhenClaimIsConfigured() {
         JwtProperties props = new JwtProperties(null, "account-event-notification", "sub");
         ClientIdResolver resolver = new ClientIdResolver(props);
-
         Map<String, Object> claims = new HashMap<>();
         claims.put("sub", "CLIENT002");
         Jwt jwt = new Jwt("token", Instant.now(), Instant.now().plusSeconds(3600), Map.of("alg", "RS256"), claims);
 
         ClientId result = resolver.resolve(jwt);
 
-        assertEquals("CLIENT002", result.value());
+        assertThat(result.value()).isEqualTo("CLIENT002");
     }
 
     @Test
-    void resolve_throwsWhenClaimAbsent() {
+    void shouldThrowIllegalArgumentExceptionWhenClaimIsAbsent() {
         JwtProperties props = new JwtProperties(null, "account-event-notification", "sub");
         ClientIdResolver resolver = new ClientIdResolver(props);
-
         Map<String, Object> claims = new HashMap<>();
         claims.put("other", "value");
         Jwt jwt = new Jwt("token", Instant.now(), Instant.now().plusSeconds(3600), Map.of("alg", "RS256"), claims);
 
-        assertThrows(IllegalArgumentException.class, () -> resolver.resolve(jwt));
+        assertThatThrownBy(() -> resolver.resolve(jwt))
+            .isInstanceOf(IllegalArgumentException.class);
     }
 }

@@ -17,7 +17,7 @@ public class HexagonalArchitectureTest {
         .importPackages("co.cobre.notifications");
 
     @Test
-    void domain_should_not_depend_on_application_or_infrastructure() {
+    void shouldNotDependOnApplicationOrInfrastructureWhenClassResidesInDomain() {
         ArchRule rule = noClasses()
             .that()
             .resideInAPackage("..domain..")
@@ -31,11 +31,12 @@ public class HexagonalArchitectureTest {
                 "com.fasterxml..",
                 "tools.jackson.."
             );
+
         rule.check(classes);
     }
 
     @Test
-    void application_should_not_depend_on_infrastructure_or_framework() {
+    void shouldNotDependOnInfrastructureOrFrameworkWhenClassResidesInApplication() {
         ArchRule rule = noClasses()
             .that()
             .resideInAPackage("..application..")
@@ -48,21 +49,23 @@ public class HexagonalArchitectureTest {
                 "com.fasterxml..",
                 "tools.jackson.."
             );
+
         rule.check(classes);
     }
 
     @Test
-    void entities_should_reside_in_persistence_entity() {
+    void shouldResideInPersistenceEntityPackageWhenClassIsAnnotatedWithEntity() {
         ArchRule rule = classes()
             .that()
             .areAnnotatedWith(Entity.class)
             .should()
             .resideInAPackage("..infrastructure.persistence..");
+
         rule.check(classes);
     }
 
     @Test
-    void infrastructure_rest_should_not_depend_on_infrastructure_persistence() {
+    void shouldNotDependOnInfrastructurePersistenceWhenClassResidesInInfrastructureRest() {
         ArchRule rule = noClasses()
             .that()
             .resideInAPackage("..infrastructure.rest..")
@@ -70,6 +73,7 @@ public class HexagonalArchitectureTest {
             .dependOnClassesThat()
             .resideInAPackage("..infrastructure.persistence..")
             .allowEmptyShould(true);
+
         rule.check(classes);
     }
 
@@ -78,7 +82,7 @@ public class HexagonalArchitectureTest {
      * infrastructure.security, keeping the worker process isolated from the api process.
      */
     @Test
-    void infrastructure_worker_should_not_depend_on_infrastructure_rest_or_security() {
+    void shouldNotDependOnRestOrSecurityWhenClassResidesInInfrastructureWorker() {
         ArchRule rule = noClasses()
             .that()
             .resideInAPackage("..infrastructure.worker..")
@@ -89,6 +93,7 @@ public class HexagonalArchitectureTest {
                 "..infrastructure.security.."
             )
             .allowEmptyShould(true);
+
         rule.check(classes);
     }
 
@@ -97,7 +102,7 @@ public class HexagonalArchitectureTest {
      * keeping the api process isolated from the worker process.
      */
     @Test
-    void infrastructure_rest_should_not_depend_on_infrastructure_worker() {
+    void shouldNotDependOnInfrastructureWorkerWhenClassResidesInInfrastructureRest() {
         ArchRule rule = noClasses()
             .that()
             .resideInAPackage("..infrastructure.rest..")
@@ -105,6 +110,7 @@ public class HexagonalArchitectureTest {
             .dependOnClassesThat()
             .resideInAPackage("..infrastructure.worker..")
             .allowEmptyShould(true);
+
         rule.check(classes);
     }
 }

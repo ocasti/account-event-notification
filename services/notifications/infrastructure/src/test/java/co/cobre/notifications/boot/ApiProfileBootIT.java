@@ -2,21 +2,26 @@ package co.cobre.notifications.boot;
 
 import co.cobre.notifications.application.usecase.GetNotificationEvent;
 import co.cobre.notifications.application.usecase.ListNotificationEvents;
+import co.cobre.notifications.application.usecase.ProcessDueDeliveries;
 import co.cobre.notifications.application.usecase.RegisterNotificationEvent;
 import co.cobre.notifications.application.usecase.ReplayNotificationEvent;
-import co.cobre.notifications.application.usecase.ProcessDueDeliveries;
 import co.cobre.notifications.infrastructure.worker.AccountEventListener;
 import co.cobre.notifications.infrastructure.worker.DeliveryScheduler;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -43,58 +48,71 @@ class ApiProfileBootIT extends BootTestSupport {
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
-        String elasticMQEndpoint = String.format("http://localhost:%d", BootTestSupport.ELASTICMQ.getMappedPort(9324));
-        registry.add("spring.cloud.aws.sqs.endpoint", () -> elasticMQEndpoint);
-        registry.add("spring.cloud.aws.region.static", () -> "us-east-1");
-        registry.add("spring.cloud.aws.credentials.access-key", () -> "local");
-        registry.add("spring.cloud.aws.credentials.secret-key", () -> "local");
-        registry.add("notifications.sqs.queue-name", () -> "account-events-boot");
-        registry.add("spring.flyway.placeholders.webhookUrl", () -> "https://example.test/webhook");
-        registry.add("notifications.jwt.public-key", () -> "file:" + BootTestSupport.publicKeyPath);
+        BootTestSupport.registerBootProperties(registry);
+    }
+
+    static Stream<Arguments> useCaseBeans() {
+        return Stream.of(
+            Arguments.of(RegisterNotificationEvent.class),
+            Arguments.of(ListNotificationEvents.class),
+            Arguments.of(GetNotificationEvent.class),
+            Arguments.of(ReplayNotificationEvent.class),
+            Arguments.of(ProcessDueDeliveries.class)
+        );
+    }
+
+    static Stream<Arguments> workerOnlyBeans() {
+        return Stream.of(
+            Arguments.of(AccountEventListener.class),
+            Arguments.of(DeliveryScheduler.class)
+        );
     }
 
     @Test
-    void contextLoads() {
+    void shouldLoadContextWhenApiProfileIsActive() {
         assertThat(context).isNotNull();
     }
 
     @Test
-    void actuatorHealthReadinessRespondsWithoutToken() throws Exception {
-        mockMvc.perform(get("/actuator/health/readiness"))
-            .andExpect(status().isOk());
+    void shouldRespondOkWhenReadinessProbeIsCalledWithoutToken() throws Exception {
+        var request = get("/actuator/health/readiness");
+
+        var result = mockMvc.perform(request);
+
+        result.andExpect(status().isOk());
     }
 
     @Test
-    void notificationEventsEndpointRequiresToken() throws Exception {
-        mockMvc.perform(get("/notification_events"))
-            .andExpect(status().isUnauthorized());
+    void shouldRejectWithUnauthorizedWhenNotificationEventsAreListedWithoutToken() throws Exception {
+        var request = get("/notification_events");
+
+        var result = mockMvc.perform(request);
+
+        result.andExpect(status().isUnauthorized());
+    }
+
+    @ParameterizedTest(name = "{0} is not registered under the api profile")
+    @MethodSource("workerOnlyBeans")
+    void shouldNotRegisterWorkerBeanWhenApiProfileIsActive(Class<?> workerBean) {
+        var beans = context.getBeansOfType(workerBean);
+
+        assertThat(beans).isEmpty();
+    }
+
+    @ParameterizedTest(name = "{0} is registered under the api profile")
+    @MethodSource("useCaseBeans")
+    void shouldRegisterUseCaseBeanWhenApiProfileIsActive(Class<?> useCase) {
+        var beans = context.getBeansOfType(useCase);
+
+        assertThat(beans).isNotEmpty();
     }
 
     @Test
-    void accountEventListenerNotRegistered() {
-        assertThat(context.getBeansOfType(AccountEventListener.class)).isEmpty();
-    }
+    void shouldSeedThreeSubscriptionsWhenFlywayMigrationsAreApplied() {
+        var query = "SELECT count(*) FROM subscriptions";
 
-    @Test
-    void deliverySchedulerNotRegistered() {
-        assertThat(context.getBeansOfType(DeliveryScheduler.class)).isEmpty();
-    }
+        Integer subscriptionCount = jdbcTemplate.queryForObject(query, Integer.class);
 
-    @Test
-    void allUseCasesRegistered() {
-        assertThat(context.getBeansOfType(RegisterNotificationEvent.class)).isNotEmpty();
-        assertThat(context.getBeansOfType(ListNotificationEvents.class)).isNotEmpty();
-        assertThat(context.getBeansOfType(GetNotificationEvent.class)).isNotEmpty();
-        assertThat(context.getBeansOfType(ReplayNotificationEvent.class)).isNotEmpty();
-        assertThat(context.getBeansOfType(ProcessDueDeliveries.class)).isNotEmpty();
-    }
-
-    @Test
-    void flywayMigrationsApplied() {
-        Integer subscriptionCount = jdbcTemplate.queryForObject(
-            "SELECT count(*) FROM subscriptions",
-            Integer.class
-        );
         assertThat(subscriptionCount).isEqualTo(3);
     }
 }

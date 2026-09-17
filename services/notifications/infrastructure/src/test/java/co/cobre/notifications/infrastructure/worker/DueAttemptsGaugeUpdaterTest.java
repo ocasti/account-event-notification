@@ -1,8 +1,9 @@
 package co.cobre.notifications.infrastructure.worker;
 
 import co.cobre.notifications.infrastructure.persistence.DeliveryAttemptJpaRepository;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -22,21 +23,18 @@ class DueAttemptsGaugeUpdaterTest {
     @InjectMocks
     private DueAttemptsGaugeUpdater updater;
 
-    @Test
-    void refresh_publishesDueAttemptsCountToGauge() {
-        when(attempts.countDue()).thenReturn(42L);
+    @ParameterizedTest(name = "{0} due attempts publish {1} to the gauge")
+    @CsvSource({
+        "0, 0",
+        "42, 42",
+        "2147483647, 2147483647",
+        "2147483648, 2147483647"
+    })
+    void shouldPublishDueCountClampedToIntWhenGaugeIsRefreshed(long dueCount, int expectedGaugeValue) {
+        when(attempts.countDue()).thenReturn(dueCount);
 
         updater.refresh();
 
-        verify(metrics).attemptsDue(42);
-    }
-
-    @Test
-    void refresh_castsDueLongToInt() {
-        when(attempts.countDue()).thenReturn(Integer.MAX_VALUE + 1L);
-
-        updater.refresh();
-
-        verify(metrics).attemptsDue((int) Math.min(Integer.MAX_VALUE + 1L, Integer.MAX_VALUE));
+        verify(metrics).attemptsDue(expectedGaugeValue);
     }
 }

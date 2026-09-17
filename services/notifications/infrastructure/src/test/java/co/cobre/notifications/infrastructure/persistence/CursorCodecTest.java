@@ -11,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class CursorCodecTest {
 
     @Test
-    void encodesAndDecodesRoundTrip() {
+    void shouldPreserveCreatedAtAndEventIdWhenEncodingThenDecoding() {
         var createdAt = Instant.parse("2024-01-01T00:00:00Z");
 
         var encoded = CursorCodec.encode(createdAt, "evt-1");
@@ -22,7 +22,7 @@ class CursorCodecTest {
     }
 
     @Test
-    void decodeThrowsWhenEncodedValueHasNoSeparator() {
+    void shouldThrowIllegalArgumentExceptionWhenCursorHasNoSeparator() {
         var withoutSeparator = Base64.getUrlEncoder().withoutPadding()
             .encodeToString("no-separator-here".getBytes());
 
@@ -32,7 +32,7 @@ class CursorCodecTest {
     }
 
     @Test
-    void decodeThrowsWhenSeparatorIsTheFirstCharacter() {
+    void shouldThrowIllegalArgumentExceptionWhenSeparatorIsFirstCharacter() {
         var separatorAtStart = Base64.getUrlEncoder().withoutPadding()
             .encodeToString("|evt-1".getBytes());
 
