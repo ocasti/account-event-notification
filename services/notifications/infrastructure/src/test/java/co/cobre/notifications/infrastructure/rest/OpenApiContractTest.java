@@ -102,18 +102,34 @@ class OpenApiContractTest extends BootTestSupport {
             .path("/notification_events/{notification_event_id}/replay")
             .path("post")
             .path("responses");
-        assertThat(collectFieldNames(replayResponses)).containsExactlyInAnyOrder("202", "401", "404", "409");
+        assertThat(collectFieldNames(replayResponses)).containsExactlyInAnyOrder("202", "400", "401", "404", "409");
+        assertThat(replayResponses.path("202").path("content").path("*/*").path("schema").path("$ref").asString())
+            .isEqualTo("#/components/schemas/ReplayResponse");
 
         JsonNode listResponses = paths.path("/notification_events").path("get").path("responses");
-        assertThat(collectFieldNames(listResponses)).containsExactlyInAnyOrder("200", "400", "401");
+        assertThat(collectFieldNames(listResponses)).containsExactlyInAnyOrder("200", "400", "401", "404", "409");
 
         JsonNode getResponses = paths
             .path("/notification_events/{notification_event_id}")
             .path("get")
             .path("responses");
-        assertThat(collectFieldNames(getResponses)).containsExactlyInAnyOrder("200", "401", "404");
+        assertThat(collectFieldNames(getResponses)).containsExactlyInAnyOrder("200", "400", "401", "404", "409");
+
+        assertErrorResponsesReferenceErrorSchema(List.of(listResponses, getResponses, replayResponses));
 
         writeSpecToTarget(body);
+    }
+
+    private void assertErrorResponsesReferenceErrorSchema(List<JsonNode> operationResponses) {
+        List<String> errorCodes = List.of("400", "401", "404", "409");
+        for (JsonNode responses : operationResponses) {
+            for (String code : errorCodes) {
+                JsonNode content = responses.path(code).path("content");
+                JsonNode mediaType = content.has("application/json") ? content.path("application/json") : content.path("*/*");
+                assertThat(mediaType.path("schema").path("$ref").asString())
+                    .isEqualTo("#/components/schemas/ErrorResponse");
+            }
+        }
     }
 
     private void writeSpecToTarget(String body) throws Exception {

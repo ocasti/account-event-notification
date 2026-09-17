@@ -1,11 +1,20 @@
 package co.cobre.notifications.infrastructure.config;
 
+import co.cobre.notifications.infrastructure.rest.ErrorResponse;
 import co.cobre.notifications.infrastructure.security.AuthenticatedClient;
+import io.swagger.v3.core.converter.ModelConverters;
+import io.swagger.v3.core.converter.ResolvedSchema;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.MediaType;
+import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import org.springdoc.core.customizers.OpenApiCustomizer;
+import org.springdoc.core.customizers.OperationCustomizer;
 import org.springdoc.core.utils.SpringDocUtils;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,6 +30,8 @@ import org.springframework.context.annotation.Configuration;
 public class OpenApiConfig {
 
     private static final String SECURITY_SCHEME_NAME = "bearerAuth";
+    private static final String ERROR_SCHEMA_NAME = "ErrorResponse";
+    private static final String ERROR_SCHEMA_REF = "#/components/schemas/" + ERROR_SCHEMA_NAME;
 
     static {
         // Hides the @AuthenticatedClient-annotated ClientId argument (resolved server-side
@@ -59,5 +70,47 @@ public class OpenApiConfig {
 
     private String resolveVersion(ObjectProvider<BuildProperties> buildProperties, String fallbackVersion) {
         return buildProperties.stream().map(BuildProperties::getVersion).findFirst().orElse(fallbackVersion);
+    }
+
+    /**
+     * Adds the 401 response every operation can return to Spring Security rejecting a request
+     * before it reaches a controller (no {@code AuthenticationException} is thrown from
+     * application code, so {@link co.cobre.notifications.infrastructure.rest.ApiExceptionHandler}
+     * never sees it and can't document it itself).
+     */
+    @Bean
+    public OperationCustomizer unauthorizedResponseCustomizer() {
+        return (operation, handlerMethod) -> {
+            operation.getResponses().addApiResponse("401", unauthorizedResponse());
+            return operation;
+        };
+    }
+
+    private ApiResponse unauthorizedResponse() {
+        return new ApiResponse()
+            .description("Missing or invalid bearer token")
+            .content(new Content().addMediaType("application/json", errorResponseMediaType()));
+    }
+
+    private MediaType errorResponseMediaType() {
+        return new MediaType().schema(new Schema<>().$ref(ERROR_SCHEMA_REF));
+    }
+
+    /**
+     * Registers the {@link ErrorResponse} schema in {@code components.schemas} even though no
+     * controller method returns it directly from its signature (every error body is produced by
+     * {@code ApiExceptionHandler}), so the {@code $ref} added by
+     * {@link #unauthorizedResponseCustomizer()} resolves.
+     */
+    @Bean
+    public OpenApiCustomizer errorResponseSchemaCustomizer() {
+        return openApi -> {
+            var schemas = openApi.getComponents().getSchemas();
+            boolean alreadyRegistered = schemas != null && schemas.containsKey(ERROR_SCHEMA_NAME);
+            if (!alreadyRegistered) {
+                ResolvedSchema resolved = ModelConverters.getInstance().readAllAsResolvedSchema(ErrorResponse.class);
+                resolved.referencedSchemas.forEach((name, schema) -> openApi.getComponents().addSchemas(name, schema));
+            }
+        };
     }
 }

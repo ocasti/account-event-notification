@@ -1,5 +1,7 @@
 package co.cobre.notifications.infrastructure.rest;
 
+import co.cobre.notifications.application.usecase.ListNotificationEventsQuery;
+import co.cobre.notifications.domain.ClientId;
 import co.cobre.notifications.domain.DeliveryStatus;
 import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.constraints.Max;
@@ -49,5 +51,9 @@ public record ListRequest(
     public Optional<DeliveryStatus> status() {
         return deliveryStatus.map(s -> DeliveryStatus.fromApiValue(s)
             .orElseThrow(() -> new IllegalArgumentException("Invalid delivery status: " + s)));
+    }
+
+    public ListNotificationEventsQuery toQuery(ClientId clientId) {
+        return new ListNotificationEventsQuery(clientId, from, to, status(), limit, cursor);
     }
 }

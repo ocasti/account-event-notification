@@ -2,6 +2,7 @@ package co.cobre.notifications.infrastructure.rest;
 
 import co.cobre.notifications.application.usecase.NotificationEventDetail;
 import co.cobre.notifications.application.usecase.NotificationEventSummaryPage;
+import co.cobre.notifications.application.usecase.ReplayResult;
 import co.cobre.notifications.domain.DeliveryAttempt;
 import co.cobre.notifications.domain.NotificationEvent;
 import org.springframework.stereotype.Component;
@@ -68,5 +69,9 @@ public class NotificationEventResponseMapper {
             attempt.latency().map(Duration::toMillis),
             attempt.origin().toString().toLowerCase()
         );
+    }
+
+    public ReplayResponse toReplay(ReplayResult result) {
+        return new ReplayResponse(result.eventId().value(), result.cycle(), "pending");
     }
 }

@@ -17,52 +17,47 @@ class ApiExceptionHandlerTest {
     private final ApiExceptionHandler handler = new ApiExceptionHandler();
 
     @Test
-    void shouldReturn404WhenNotificationEventNotFound() {
+    void shouldReturnNotFoundErrorBodyWhenNotificationEventNotFound() {
         var exception = new NotificationEventNotFoundException(new EventId("evt-1"));
 
         var response = handler.handleNotFound(exception);
 
-        assertThat(response.getStatusCode().value()).isEqualTo(404);
-        assertThat(response.getBody().code()).isEqualTo("not_found");
+        assertThat(response.code()).isEqualTo("not_found");
     }
 
     @Test
-    void shouldReturn409WhenHandlerReceivesReplayNotAllowed() {
+    void shouldReturnReplayNotAllowedErrorBodyWhenHandlerReceivesReplayNotAllowed() {
         var exception = new ReplayNotAllowedException(new EventId("evt-1"), DeliveryStatus.COMPLETED);
 
         var response = handler.handleReplayNotAllowed(exception);
 
-        assertThat(response.getStatusCode().value()).isEqualTo(409);
-        assertThat(response.getBody().code()).isEqualTo("replay_not_allowed");
+        assertThat(response.code()).isEqualTo("replay_not_allowed");
     }
 
     @Test
-    void shouldReturn409WhenStateTransitionIsIllegal() {
+    void shouldReturnIllegalTransitionErrorBodyWhenStateTransitionIsIllegal() {
         var exception = new IllegalStateTransitionException(DeliveryStatus.COMPLETED, DeliveryStatus.PENDING);
 
         var response = handler.handleIllegalStateTransition(exception);
 
-        assertThat(response.getStatusCode().value()).isEqualTo(409);
-        assertThat(response.getBody().code()).isEqualTo("illegal_transition");
+        assertThat(response.code()).isEqualTo("illegal_transition");
     }
 
     @Test
-    void shouldReturn400WhenArgumentIsIllegal() {
+    void shouldReturnInvalidParameterErrorBodyWhenArgumentIsIllegal() {
         var exception = new IllegalArgumentException("bad value");
 
         var response = handler.handleIllegalArgument(exception);
 
-        assertThat(response.getStatusCode().value()).isEqualTo(400);
-        assertThat(response.getBody().code()).isEqualTo("invalid_parameter");
+        assertThat(response.code()).isEqualTo("invalid_parameter");
     }
 
     @Test
-    void shouldReturn400WhenConstraintIsViolated() {
+    void shouldReturnValidationErrorBodyWhenConstraintIsViolated() {
         var exception = new ConstraintViolationException(Set.of());
 
         var response = handler.handleConstraintViolation(exception);
 
-        assertThat(response.getStatusCode().value()).isEqualTo(400);
-        assertThat(response.getBody().code()).isEqualTo("validation_error");
+        assertThat(response.code()).isEqualTo("validation_error");
     }
 }
