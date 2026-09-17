@@ -35,7 +35,7 @@ public record RetryPolicy(
 
         double jitterFactor = 1.0 + jitterRatio * (2.0 * random.nextDouble() - 1.0);
         long jitteredDelayInSeconds = (long) (delayInSeconds * jitterFactor);
-        jitteredDelayInSeconds = Math.max(0, Math.min(jitteredDelayInSeconds, maxDelayInSeconds));
+        jitteredDelayInSeconds = Math.clamp(jitteredDelayInSeconds, 0, maxDelayInSeconds);
 
         return Duration.ofSeconds(jitteredDelayInSeconds);
     }
