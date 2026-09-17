@@ -112,9 +112,9 @@ class DeliveryAttemptClaimConcurrencyIT extends PersistenceTestSupport {
         throws InterruptedException {
         var barrier = new CyclicBarrier(numWorkers);
         var executor = Executors.newFixedThreadPool(numWorkers);
-        Map<UUID, String> claimedByAttemptId = new ConcurrentHashMap<>();
-        List<String> duplicateClaims = new CopyOnWriteArrayList<>();
-        List<Exception> workerFailures = new CopyOnWriteArrayList<>();
+        var claimedByAttemptId = new ConcurrentHashMap<UUID, String>();
+        var duplicateClaims = new CopyOnWriteArrayList<String>();
+        var workerFailures = new CopyOnWriteArrayList<Exception>();
 
         IntStream.range(0, numWorkers).forEach(w -> {
             var workerId = "worker-" + w;

@@ -8,6 +8,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -71,7 +72,7 @@ public class DeliveryAttemptRepositoryAdapter implements DeliveryAttemptReposito
     }
 
     private List<UUID> capPerClient(List<Map<String, Object>> rows, int maxPerClient) {
-        Map<String, Integer> clientCount = new HashMap<>();
+        var clientCount = new HashMap<String, Integer>();
         return rows.stream()
             .filter(row -> {
                 String clientId = (String) row.get("client_id");
@@ -102,7 +103,7 @@ public class DeliveryAttemptRepositoryAdapter implements DeliveryAttemptReposito
             executed.executedAt().orElse(null),
             executed.responseStatus().orElse(null),
             executed.failureReason().orElse(null),
-            executed.latency().map(d -> d.toMillis()).orElse(null)
+            executed.latency().map(Duration::toMillis).orElse(null)
         );
         return rows == 1;
     }
@@ -114,11 +115,11 @@ public class DeliveryAttemptRepositoryAdapter implements DeliveryAttemptReposito
         }
 
         List<String> eventIdValues = eventIds.stream()
-            .map(id -> id.value())
+            .map(EventId::value)
             .toList();
 
         var results = jpaRepository.countByEventIds(eventIdValues);
-        Map<EventId, Integer> counts = new HashMap<>();
+        var counts = new HashMap<EventId, Integer>();
 
         for (Object[] row : results) {
             String eventId = (String) row[0];

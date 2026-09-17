@@ -42,6 +42,7 @@ public class DeliveryAttemptEntityMapper {
         entity.setFailureReason(domain.failureReason().orElse(null));
         entity.setLatencyMs(domain.latency().map(Duration::toMillis).orElse(null));
         entity.setOrigin(mapOriginToEntity(domain.origin()));
+
         return entity;
     }
 

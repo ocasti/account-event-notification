@@ -39,6 +39,7 @@ public class NotificationEventEntityMapper {
         entity.setSubscriptionId(domain.subscriptionId().orElse(null));
         entity.setCycle(domain.cycle());
         entity.setDeliveredAt(domain.deliveredAt().orElse(null));
+
         return entity;
     }
 

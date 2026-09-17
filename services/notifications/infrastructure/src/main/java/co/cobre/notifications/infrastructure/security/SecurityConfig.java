@@ -4,6 +4,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
@@ -30,7 +31,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain apiSecurity(HttpSecurity http, JwtProperties props) throws Exception {
         http
-            .csrf(csrf -> csrf.disable())
+            .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
@@ -52,7 +53,7 @@ public class SecurityConfig {
                 .replaceAll("\\s", "");
 
             byte[] decodedKey = Base64.getDecoder().decode(publicKeyContent);
-            X509EncodedKeySpec spec = new X509EncodedKeySpec(decodedKey);
+            var spec = new X509EncodedKeySpec(decodedKey);
             KeyFactory factory = KeyFactory.getInstance("RSA");
             RSAPublicKey publicKey = (RSAPublicKey) factory.generatePublic(spec);
 
@@ -79,8 +80,8 @@ public class SecurityConfig {
      * or, when there is a single audience, as a bare string per RFC 7519 4.1.3.
      */
     static boolean audienceMatches(Object aud, String expectedAudience) {
-        if (aud instanceof Collection) {
-            return ((Collection<?>) aud).stream()
+        if (aud instanceof Collection<?> collection) {
+            return collection.stream()
                 .map(Object::toString)
                 .anyMatch(a -> a.equals(expectedAudience));
         }

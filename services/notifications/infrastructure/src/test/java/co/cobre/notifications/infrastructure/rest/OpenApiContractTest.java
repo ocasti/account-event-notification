@@ -129,7 +129,7 @@ class OpenApiContractTest extends BootTestSupport {
     }
 
     private List<String> collectParameterNames(JsonNode parameters) {
-        List<String> names = new java.util.ArrayList<>();
+        var names = new java.util.ArrayList<String>();
         if (parameters.isArray()) {
             parameters.forEach(p -> names.add(p.path("name").asString()));
         }

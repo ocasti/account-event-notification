@@ -80,11 +80,11 @@ public class HttpWebhookSender implements WebhookSender {
             .header("x-cobre-event-id", event.eventId().value())
             .header("x-cobre-attempt", String.valueOf(attempt.attemptNumber()));
 
-        if (subscription.signatureKey().isPresent()) {
-            var sig = signer.sign(subscription.signatureKey().get(), json);
+        subscription.signatureKey().ifPresent(key -> {
+            var sig = signer.sign(key, json);
             requestBuilder.header("event-timestamp", sig.timestamp());
             requestBuilder.header("event-signature", sig.value());
-        }
+        });
         return requestBuilder;
     }
 

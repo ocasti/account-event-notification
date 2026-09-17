@@ -43,11 +43,12 @@ public class EventGenerator {
     }
 
     private String generateNewEventId() {
-        StringBuilder id = new StringBuilder("EVT-");
+        var id = new StringBuilder("EVT-");
         for (int i = 0; i < EVENT_ID_HEX_DIGITS; i++) {
             int digit = random.nextInt(HEX_RADIX);
             id.append(String.format("%X", digit));
         }
+
         return id.toString();
     }
 }

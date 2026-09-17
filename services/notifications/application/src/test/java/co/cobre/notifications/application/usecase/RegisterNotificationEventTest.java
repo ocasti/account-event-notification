@@ -39,9 +39,9 @@ class RegisterNotificationEventTest {
 
     @Test
     void shouldRegisterEventWhenActiveSubscriptionExists() {
-        RegisterNotificationEvent useCase = new RegisterNotificationEvent(events, attempts, subscriptions, Clocks.fixed());
+        var useCase = new RegisterNotificationEvent(events, attempts, subscriptions, Clocks.fixed());
         Subscription subscription = Subscriptions.activeFor(Ids.CLIENT_001);
-        RegisterEventCommand command = new RegisterEventCommand(
+        var command = new RegisterEventCommand(
             Ids.EVT_001, Ids.CLIENT_001, Ids.CREDIT_CARD_PAYMENT, "Credit card payment received for $150.00", OCCURRED_AT
         );
         when(subscriptions.findActive(Ids.CLIENT_001, Ids.CREDIT_CARD_PAYMENT)).thenReturn(Optional.of(subscription));
@@ -74,8 +74,8 @@ class RegisterNotificationEventTest {
 
     @Test
     void shouldSkipEventWhenNoActiveSubscriptionExists() {
-        RegisterNotificationEvent useCase = new RegisterNotificationEvent(events, attempts, subscriptions, Clocks.fixed());
-        RegisterEventCommand command = new RegisterEventCommand(
+        var useCase = new RegisterNotificationEvent(events, attempts, subscriptions, Clocks.fixed());
+        var command = new RegisterEventCommand(
             Ids.EVT_003, Ids.CLIENT_002, Ids.CREDIT_TRANSFER, "Bank transfer received from Account #4567 for $1,500.00", OCCURRED_AT
         );
         when(subscriptions.findActive(Ids.CLIENT_002, Ids.CREDIT_TRANSFER)).thenReturn(Optional.empty());
@@ -96,8 +96,8 @@ class RegisterNotificationEventTest {
 
     @Test
     void shouldReturnDuplicateWhenEventAlreadyExists() {
-        RegisterNotificationEvent useCase = new RegisterNotificationEvent(events, attempts, subscriptions, Clocks.fixed());
-        RegisterEventCommand command = new RegisterEventCommand(
+        var useCase = new RegisterNotificationEvent(events, attempts, subscriptions, Clocks.fixed());
+        var command = new RegisterEventCommand(
             Ids.EVT_001, Ids.CLIENT_001, Ids.CREDIT_CARD_PAYMENT, "Credit card payment received for $150.00", OCCURRED_AT
         );
         when(events.existsById(Ids.EVT_001)).thenReturn(true);

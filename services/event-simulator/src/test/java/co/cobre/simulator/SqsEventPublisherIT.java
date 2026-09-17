@@ -49,7 +49,7 @@ class SqsEventPublisherIT {
 
     @Test
     void shouldLeaveReferenceEventMessageInQueueWithCorrectContractWhenSqsEventPublisherPublishes() throws Exception {
-        ReferenceEvent event = new ReferenceEvent(
+        var event = new ReferenceEvent(
             "EVT001",
             "credit_card_payment",
             "CLIENT001",

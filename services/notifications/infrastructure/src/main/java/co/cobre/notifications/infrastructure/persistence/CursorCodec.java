@@ -12,13 +12,14 @@ final class CursorCodec {
 
     static Cursor decode(String encoded) {
         byte[] decoded = Base64.getUrlDecoder().decode(encoded);
-        String decodedStr = new String(decoded);
+        var decodedStr = new String(decoded);
         int lastPipe = decodedStr.lastIndexOf('|');
         if (lastPipe <= 0) {
             throw new IllegalArgumentException("Invalid cursor format");
         }
         String instantStr = decodedStr.substring(0, lastPipe);
         String eventId = decodedStr.substring(lastPipe + 1);
+
         return new Cursor(Instant.parse(instantStr), eventId);
     }
 

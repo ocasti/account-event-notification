@@ -35,7 +35,7 @@ class ReplayNotificationEventTest {
 
     @Test
     void shouldReplayEventWhenStatusIsFailed() {
-        ReplayNotificationEvent useCase = new ReplayNotificationEvent(events, attempts, Clocks.fixed());
+        var useCase = new ReplayNotificationEvent(events, attempts, Clocks.fixed());
         NotificationEvent failedEvent = NotificationEvents.aPendingEvent()
             .withStatus(DeliveryStatus.FAILED)
             .withCycle(2)
@@ -62,7 +62,7 @@ class ReplayNotificationEventTest {
 
     @Test
     void shouldThrowWhenTransitionToPendingFails() {
-        ReplayNotificationEvent useCase = new ReplayNotificationEvent(events, attempts, Clocks.fixed());
+        var useCase = new ReplayNotificationEvent(events, attempts, Clocks.fixed());
         NotificationEvent failedEvent = NotificationEvents.aPendingEvent()
             .withEventId(Ids.EVT_003)
             .withStatus(DeliveryStatus.FAILED)
@@ -79,7 +79,7 @@ class ReplayNotificationEventTest {
 
     @Test
     void shouldThrowWhenEventStatusIsNotFailed() {
-        ReplayNotificationEvent useCase = new ReplayNotificationEvent(events, attempts, Clocks.fixed());
+        var useCase = new ReplayNotificationEvent(events, attempts, Clocks.fixed());
         NotificationEvent pendingEvent = NotificationEvents.pending();
         when(events.findByClientAndId(Ids.CLIENT_001, Ids.EVT_001)).thenReturn(Optional.of(pendingEvent));
 
@@ -93,7 +93,7 @@ class ReplayNotificationEventTest {
 
     @Test
     void shouldThrowWhenEventNotFoundForReplay() {
-        ReplayNotificationEvent useCase = new ReplayNotificationEvent(events, attempts, Clocks.fixed());
+        var useCase = new ReplayNotificationEvent(events, attempts, Clocks.fixed());
         when(events.findByClientAndId(Ids.CLIENT_001, Ids.EVT_001)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.replay(Ids.CLIENT_001, Ids.EVT_001))

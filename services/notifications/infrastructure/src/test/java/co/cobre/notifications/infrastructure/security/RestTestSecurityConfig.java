@@ -44,7 +44,7 @@ public class RestTestSecurityConfig {
     public static String token(String clientId) {
         try {
             Instant now = Instant.now();
-            JWTClaimsSet claims = new JWTClaimsSet.Builder()
+            var claims = new JWTClaimsSet.Builder()
                 .subject(clientId)
                 .audience(List.of(AUDIENCE))
                 .issueTime(Date.from(now))
@@ -52,7 +52,7 @@ public class RestTestSecurityConfig {
                 .jwtID(UUID.randomUUID().toString())
                 .build();
 
-            SignedJWT jwt = new SignedJWT(
+            var jwt = new SignedJWT(
                 new JWSHeader(JWSAlgorithm.RS256),
                 claims
             );
@@ -71,7 +71,7 @@ public class RestTestSecurityConfig {
 
         try {
             String encoded = Base64.getEncoder().encodeToString(PUBLIC_KEY.getEncoded());
-            StringBuilder pem = new StringBuilder();
+            var pem = new StringBuilder();
             pem.append("-----BEGIN PUBLIC KEY-----\n");
 
             for (int i = 0; i < encoded.length(); i += 64) {

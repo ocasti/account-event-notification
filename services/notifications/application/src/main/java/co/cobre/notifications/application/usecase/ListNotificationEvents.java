@@ -4,6 +4,7 @@ import co.cobre.notifications.application.UseCase;
 import co.cobre.notifications.application.port.DeliveryAttemptRepository;
 import co.cobre.notifications.application.port.NotificationEventRepository;
 import co.cobre.notifications.domain.EventId;
+import co.cobre.notifications.domain.NotificationEvent;
 
 import java.util.List;
 import java.util.Map;
@@ -26,7 +27,7 @@ public final class ListNotificationEvents {
             Map.of() :
             attempts.countByEvents(
                 page.items().stream()
-                    .map(event -> event.eventId())
+                    .map(NotificationEvent::eventId)
                     .toList()
             );
 
