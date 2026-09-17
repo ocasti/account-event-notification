@@ -41,6 +41,8 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.stream.Stream;
+import java.util.Objects;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -86,6 +88,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles({"api", "worker", "local"})
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ReferenceDatasetAcceptanceIT {
+
+    private static final int MAX_PARENT_LEVELS = 8;
 
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
     private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
@@ -348,16 +352,14 @@ class ReferenceDatasetAcceptanceIT {
      * or from a module's own base directory.
      */
     private static Path resolveRepoPath(String relative) {
-        Path dir = Path.of(System.getProperty("user.dir")).toAbsolutePath();
-        for (int i = 0; i < 8 && dir != null; i++) {
-            Path candidate = dir.resolve(relative);
-            if (Files.exists(candidate)) {
-                return candidate;
-            }
-            dir = dir.getParent();
-        }
-        throw new IllegalStateException(
-            "Could not resolve '" + relative + "' walking up from user.dir=" + System.getProperty("user.dir"));
+        Path start = Path.of(System.getProperty("user.dir")).toAbsolutePath();
+        return Stream.iterate(start, Objects::nonNull, Path::getParent)
+            .limit(MAX_PARENT_LEVELS)
+            .map(dir -> dir.resolve(relative))
+            .filter(Files::exists)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException(
+                "Could not resolve '" + relative + "' walking up from user.dir=" + start));
     }
 
     private record ReferenceEvent(

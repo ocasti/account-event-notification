@@ -23,7 +23,7 @@ public class DeliveryAttemptEntityMapper {
             Optional.ofNullable(entity.getExecutedAt()),
             Optional.ofNullable(entity.getResponseStatus()),
             Optional.ofNullable(entity.getFailureReason()),
-            entity.getLatencyMs() != null ? Optional.of(Duration.ofMillis(entity.getLatencyMs())) : Optional.empty(),
+            Optional.ofNullable(entity.getLatencyMs()).map(Duration::ofMillis),
             mapOriginToDomain(entity.getOrigin())
         );
     }

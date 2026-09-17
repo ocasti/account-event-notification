@@ -58,7 +58,6 @@ public class OpenApiConfig {
     }
 
     private String resolveVersion(ObjectProvider<BuildProperties> buildProperties, String fallbackVersion) {
-        BuildProperties properties = buildProperties.getIfAvailable();
-        return properties != null ? properties.getVersion() : fallbackVersion;
+        return buildProperties.stream().map(BuildProperties::getVersion).findFirst().orElse(fallbackVersion);
     }
 }

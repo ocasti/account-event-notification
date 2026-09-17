@@ -42,7 +42,6 @@ public class MeteredWebhookSender implements WebhookSender {
     }
 
     private void logAttempt(AttemptLogFields fields, NotificationEvent event, DeliveryAttempt attempt) {
-        var responseStatus = fields.responseStatus() != null ? fields.responseStatus() : "none";
 
         var logBuilder = log.atInfo()
             .addKeyValue("event_id", event.eventId().value())
@@ -50,7 +49,7 @@ public class MeteredWebhookSender implements WebhookSender {
             .addKeyValue("cycle", attempt.cycle())
             .addKeyValue("attempt_number", attempt.attemptNumber())
             .addKeyValue("outcome", fields.outcomeType())
-            .addKeyValue("response_status", responseStatus)
+            .addKeyValue("response_status", fields.responseStatus())
             .addKeyValue("latency_ms", fields.latency().toMillis());
 
         if (fields.reason() != null) {
@@ -64,13 +63,15 @@ public class MeteredWebhookSender implements WebhookSender {
      * Fields derived from a {@link DeliveryOutcome} needed for metrics and logging.
      * Built from a single switch so the outcome types are inspected only once per attempt.
      */
+    private static final String NO_STATUS = "none";
+
     private record AttemptLogFields(Duration latency, String outcomeType, Object responseStatus, String reason) {
         static AttemptLogFields from(DeliveryOutcome outcome) {
             return switch (outcome) {
                 case DeliveryOutcome.Success s ->
                     new AttemptLogFields(s.latency(), "success", s.responseStatus(), null);
                 case DeliveryOutcome.TransientFailure tf ->
-                    new AttemptLogFields(tf.latency(), "transient_failure", tf.responseStatus().orElse(null), tf.reason());
+                    new AttemptLogFields(tf.latency(), "transient_failure", tf.responseStatus().map(Object.class::cast).orElse(NO_STATUS), tf.reason());
                 case DeliveryOutcome.PermanentFailure pf ->
                     new AttemptLogFields(pf.latency(), "permanent_failure", pf.responseStatus(), pf.reason());
             };
