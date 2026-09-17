@@ -25,6 +25,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -38,118 +39,91 @@ class RegisterNotificationEventTest {
     @Mock
     SubscriptionRepository subscriptions;
 
-    @Test
-    void shouldRegisterEventWithActiveSubscription() {
-        Instant now = Instant.parse("2025-01-01T12:00:00Z");
-        Clock clock = Clock.fixed(now, ZoneId.of("UTC"));
-        RegisterNotificationEvent useCase = new RegisterNotificationEvent(events, attempts, subscriptions, clock);
+    private static final Instant NOW = Instant.parse("2025-01-01T12:00:00Z");
+    private static final Clock CLOCK = Clock.fixed(NOW, ZoneId.of("UTC"));
 
+    @Test
+    void shouldRegisterEventWhenActiveSubscriptionExists() {
+        RegisterNotificationEvent useCase = new RegisterNotificationEvent(events, attempts, subscriptions, CLOCK);
         EventId eventId = new EventId("evt-123");
         ClientId clientId = new ClientId("client-1");
         EventKey eventKey = new EventKey("order.created");
         String content = "Order created";
         Instant occurredAt = Instant.parse("2025-01-01T11:50:00Z");
-
         Subscription subscription = new Subscription(
-            "sub-123",
-            clientId,
-            Set.of(eventKey),
-            WebhookUrl.of("https://example.com/webhook"),
-            Optional.empty(),
-            Optional.empty(),
-            true,
-            Instant.parse("2025-01-01T10:00:00Z")
+            "sub-123", clientId, Set.of(eventKey), WebhookUrl.of("https://example.com/webhook"),
+            Optional.empty(), Optional.empty(), true, Instant.parse("2025-01-01T10:00:00Z")
         );
-
         RegisterEventCommand command = new RegisterEventCommand(eventId, clientId, eventKey, content, occurredAt);
-
         when(subscriptions.findActive(clientId, eventKey)).thenReturn(Optional.of(subscription));
         when(events.existsById(eventId)).thenReturn(false);
 
         RegistrationResult result = useCase.register(command);
 
         assertThat(result).isEqualTo(RegistrationResult.REGISTERED);
-
         ArgumentCaptor<NotificationEvent> eventCaptor = ArgumentCaptor.forClass(NotificationEvent.class);
         verify(events).save(eventCaptor.capture());
-
         NotificationEvent saved = eventCaptor.getValue();
         assertThat(saved.eventId()).isEqualTo(eventId);
         assertThat(saved.clientId()).isEqualTo(clientId);
         assertThat(saved.eventKey()).isEqualTo(eventKey);
         assertThat(saved.content()).isEqualTo(content);
         assertThat(saved.createdAt()).isEqualTo(occurredAt);
-        assertThat(saved.receivedAt()).isEqualTo(now);
+        assertThat(saved.receivedAt()).isEqualTo(NOW);
         assertThat(saved.status()).isEqualTo(DeliveryStatus.PENDING);
         assertThat(saved.subscriptionId()).contains("sub-123");
         assertThat(saved.cycle()).isZero();
-
         ArgumentCaptor<DeliveryAttempt> attemptCaptor = ArgumentCaptor.forClass(DeliveryAttempt.class);
         verify(attempts).save(attemptCaptor.capture());
-
         DeliveryAttempt attempt = attemptCaptor.getValue();
         assertThat(attempt.eventId()).isEqualTo(eventId);
         assertThat(attempt.cycle()).isZero();
         assertThat(attempt.attemptNumber()).isEqualTo(1);
-        assertThat(attempt.nextAttemptAt()).isEqualTo(now);
+        assertThat(attempt.nextAttemptAt()).isEqualTo(NOW);
         assertThat(attempt.origin()).isEqualTo(AttemptOrigin.SYSTEM);
     }
 
     @Test
-    void shouldSkipEventWithoutActiveSubscription() {
-        Instant now = Instant.parse("2025-01-01T12:00:00Z");
-        Clock clock = Clock.fixed(now, ZoneId.of("UTC"));
-        RegisterNotificationEvent useCase = new RegisterNotificationEvent(events, attempts, subscriptions, clock);
-
+    void shouldSkipEventWhenNoActiveSubscriptionExists() {
+        RegisterNotificationEvent useCase = new RegisterNotificationEvent(events, attempts, subscriptions, CLOCK);
         EventId eventId = new EventId("evt-456");
         ClientId clientId = new ClientId("client-2");
         EventKey eventKey = new EventKey("user.deleted");
         String content = "User deleted";
         Instant occurredAt = Instant.parse("2025-01-01T11:50:00Z");
-
         RegisterEventCommand command = new RegisterEventCommand(eventId, clientId, eventKey, content, occurredAt);
-
         when(subscriptions.findActive(clientId, eventKey)).thenReturn(Optional.empty());
         when(events.existsById(eventId)).thenReturn(false);
 
         RegistrationResult result = useCase.register(command);
 
         assertThat(result).isEqualTo(RegistrationResult.SKIPPED);
-
         ArgumentCaptor<NotificationEvent> eventCaptor = ArgumentCaptor.forClass(NotificationEvent.class);
         verify(events).save(eventCaptor.capture());
-
         NotificationEvent saved = eventCaptor.getValue();
         assertThat(saved.status()).isEqualTo(DeliveryStatus.SKIPPED);
         assertThat(saved.subscriptionId()).isEmpty();
         assertThat(saved.createdAt()).isEqualTo(occurredAt);
-        assertThat(saved.receivedAt()).isEqualTo(now);
-
-        verify(attempts, never()).save(org.mockito.ArgumentMatchers.any());
+        assertThat(saved.receivedAt()).isEqualTo(NOW);
+        verify(attempts, never()).save(any());
     }
 
     @Test
-    void shouldReturnDuplicateWhenEventExists() {
-        Instant now = Instant.parse("2025-01-01T12:00:00Z");
-        Clock clock = Clock.fixed(now, ZoneId.of("UTC"));
-        RegisterNotificationEvent useCase = new RegisterNotificationEvent(events, attempts, subscriptions, clock);
-
+    void shouldReturnDuplicateWhenEventAlreadyExists() {
+        RegisterNotificationEvent useCase = new RegisterNotificationEvent(events, attempts, subscriptions, CLOCK);
         EventId eventId = new EventId("evt-789");
         ClientId clientId = new ClientId("client-3");
         EventKey eventKey = new EventKey("payment.completed");
         String content = "Payment completed";
         Instant occurredAt = Instant.parse("2025-01-01T11:50:00Z");
-
         RegisterEventCommand command = new RegisterEventCommand(eventId, clientId, eventKey, content, occurredAt);
-
         when(events.existsById(eventId)).thenReturn(true);
 
         RegistrationResult result = useCase.register(command);
 
         assertThat(result).isEqualTo(RegistrationResult.DUPLICATE);
-
         verify(subscriptions, never()).findActive(clientId, eventKey);
-        verify(events, never()).save(org.mockito.ArgumentMatchers.any());
-        verify(attempts, never()).save(org.mockito.ArgumentMatchers.any());
+        verify(events, never()).save(any());
+        verify(attempts, never()).save(any());
     }
 }

@@ -7,7 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class IllegalStateTransitionExceptionTest {
 
     @Test
-    void shouldExposeFromAndToStatuses() {
+    void shouldExposeFromAndToStatusesWhenTransitionIsIllegal() {
         var exception = new IllegalStateTransitionException(DeliveryStatus.COMPLETED, DeliveryStatus.PENDING);
 
         assertThat(exception.from()).isEqualTo(DeliveryStatus.COMPLETED);

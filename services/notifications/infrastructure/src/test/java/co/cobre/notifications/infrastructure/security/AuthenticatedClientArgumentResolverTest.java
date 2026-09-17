@@ -12,39 +12,40 @@ import java.time.Instant;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class AuthenticatedClientArgumentResolverTest {
 
     @Test
-    void supportsParameter_withClientIdAndAnnotation_returnsTrue() throws NoSuchMethodException {
+    void shouldSupportParameterWhenAnnotatedWithAuthenticatedClient() throws NoSuchMethodException {
         var resolver = new AuthenticatedClientArgumentResolver(mock(ClientIdResolver.class));
-
         var method = TestController.class.getMethod("testMethod", ClientId.class);
         var parameter = new MethodParameter(method, 0);
 
-        assertThat(resolver.supportsParameter(parameter)).isTrue();
+        var result = resolver.supportsParameter(parameter);
+
+        assertThat(result).isTrue();
     }
 
     @Test
-    void supportsParameter_withoutAnnotation_returnsFalse() throws NoSuchMethodException {
+    void shouldNotSupportParameterWhenAnnotationIsAbsent() throws NoSuchMethodException {
         var resolver = new AuthenticatedClientArgumentResolver(mock(ClientIdResolver.class));
-
         var method = TestController.class.getMethod("testMethodWithout", ClientId.class);
         var parameter = new MethodParameter(method, 0);
 
-        assertThat(resolver.supportsParameter(parameter)).isFalse();
+        var result = resolver.supportsParameter(parameter);
+
+        assertThat(result).isFalse();
     }
 
     @Test
-    void resolveArgument_withValidJwt_returnsClientId() throws NoSuchMethodException {
+    void shouldResolveClientIdWhenJwtIsValid() throws NoSuchMethodException {
         var clientIdResolver = mock(ClientIdResolver.class);
         var resolver = new AuthenticatedClientArgumentResolver(clientIdResolver);
-
         var jwt = createJwt("client-123");
         var token = new JwtAuthenticationToken(jwt, null);
-
         var context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(token);
         SecurityContextHolder.setContext(context);
@@ -54,7 +55,6 @@ class AuthenticatedClientArgumentResolverTest {
             var parameter = new MethodParameter(method, 0);
             var webRequest = mock(NativeWebRequest.class);
             var expectedClientId = new ClientId("client-123");
-
             when(clientIdResolver.resolve(jwt)).thenReturn(expectedClientId);
 
             var result = resolver.resolveArgument(parameter, null, webRequest, null);
@@ -66,10 +66,9 @@ class AuthenticatedClientArgumentResolverTest {
     }
 
     @Test
-    void resolveArgument_withoutJwtAuthentication_throwsIllegalStateException() throws NoSuchMethodException {
+    void shouldThrowIllegalStateExceptionWhenJwtAuthenticationIsAbsent() throws NoSuchMethodException {
         var clientIdResolver = mock(ClientIdResolver.class);
         var resolver = new AuthenticatedClientArgumentResolver(clientIdResolver);
-
         var context = SecurityContextHolder.createEmptyContext();
         SecurityContextHolder.setContext(context);
 
@@ -78,9 +77,8 @@ class AuthenticatedClientArgumentResolverTest {
             var parameter = new MethodParameter(method, 0);
             var webRequest = mock(NativeWebRequest.class);
 
-            org.assertj.core.api.Assertions.assertThatThrownBy(
-                () -> resolver.resolveArgument(parameter, null, webRequest, null)
-            ).isInstanceOf(IllegalStateException.class)
+            assertThatThrownBy(() -> resolver.resolveArgument(parameter, null, webRequest, null))
+                .isInstanceOf(IllegalStateException.class)
                 .hasMessage("JWT not found in security context");
         } finally {
             SecurityContextHolder.clearContext();

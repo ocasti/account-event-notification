@@ -17,13 +17,16 @@ class EventGeneratorTest {
     private final Clock clock = Clock.fixed(Instant.parse("2025-01-15T10:00:00Z"), ZoneId.of("UTC"));
     private final EventGenerator generator = new EventGenerator(catalog, random, clock);
 
-    @Test
-    void derivePreservesClientTypeAndContent() {
-        ReferenceEvent template = new ReferenceEvent(
+    private ReferenceEvent aTemplateReferenceEvent() {
+        return new ReferenceEvent(
             "EVT001", "credit_card_payment", "CLIENT001",
             "Test payment", Instant.parse("2024-03-15T09:30:22Z")
         );
-        Mockito.when(catalog.pick(random)).thenReturn(template);
+    }
+
+    @Test
+    void shouldPreserveClientTypeAndContentWhenEventGeneratorDerivesFromTemplate() {
+        Mockito.when(catalog.pick(random)).thenReturn(aTemplateReferenceEvent());
 
         ReferenceEvent derived = generator.derive();
 
@@ -33,12 +36,8 @@ class EventGeneratorTest {
     }
 
     @Test
-    void deriveGeneratesNewEventIdStartingWithEvtPrefix() {
-        ReferenceEvent template = new ReferenceEvent(
-            "EVT001", "credit_card_payment", "CLIENT001",
-            "Test payment", Instant.parse("2024-03-15T09:30:22Z")
-        );
-        Mockito.when(catalog.pick(random)).thenReturn(template);
+    void shouldGenerateEventIdWithEvtPrefixWhenEventGeneratorDerives() {
+        Mockito.when(catalog.pick(random)).thenReturn(aTemplateReferenceEvent());
 
         ReferenceEvent derived = generator.derive();
 
@@ -47,12 +46,8 @@ class EventGeneratorTest {
     }
 
     @Test
-    void deriveOccurredAtUsesClockTime() {
-        ReferenceEvent template = new ReferenceEvent(
-            "EVT001", "credit_card_payment", "CLIENT001",
-            "Test payment", Instant.parse("2024-03-15T09:30:22Z")
-        );
-        Mockito.when(catalog.pick(random)).thenReturn(template);
+    void shouldSetOccurredAtFromClockWhenEventGeneratorDerives() {
+        Mockito.when(catalog.pick(random)).thenReturn(aTemplateReferenceEvent());
 
         ReferenceEvent derived = generator.derive();
 
@@ -60,12 +55,8 @@ class EventGeneratorTest {
     }
 
     @Test
-    void twoConsecutiveDerivesProduceDifferentEventIds() {
-        ReferenceEvent template = new ReferenceEvent(
-            "EVT001", "credit_card_payment", "CLIENT001",
-            "Test payment", Instant.parse("2024-03-15T09:30:22Z")
-        );
-        Mockito.when(catalog.pick(random)).thenReturn(template);
+    void shouldGenerateDifferentEventIdsWhenEventGeneratorDerivesTwiceConsecutively() {
+        Mockito.when(catalog.pick(random)).thenReturn(aTemplateReferenceEvent());
 
         ReferenceEvent derived1 = generator.derive();
         ReferenceEvent derived2 = generator.derive();
@@ -74,7 +65,7 @@ class EventGeneratorTest {
     }
 
     @Test
-    void fromRequestRespectAllThreeValuesAndUsesClock() {
+    void shouldBuildReferenceEventFromRequestValuesWhenEventGeneratorFromRequestCalled() {
         ReferenceEvent event = generator.fromRequest("CLIENT456", "account.updated", "Account updated");
 
         assertThat(event.clientId()).isEqualTo("CLIENT456");
@@ -84,7 +75,7 @@ class EventGeneratorTest {
     }
 
     @Test
-    void fromRequestGeneratesEventIdWithEvtPrefix() {
+    void shouldGenerateEventIdWithEvtPrefixWhenEventGeneratorBuildsFromRequest() {
         ReferenceEvent event = generator.fromRequest("CLIENT456", "account.updated", "Account updated");
 
         assertThat(event.eventId()).startsWith("EVT-");

@@ -30,14 +30,16 @@ class EventCatalogTest {
     }
 
     @Test
-    void loadsAllTenEventsFromJson() {
+    void shouldLoadAllTenReferenceEventsWhenEventCatalogInitializedFromJson() {
         List<ReferenceEvent> events = catalog.all();
+
         assertThat(events).hasSize(10);
     }
 
     @Test
-    void eventIdsAreSequentialEvt001ToEvt010() {
+    void shouldReturnSequentialReferenceEventIdsWhenEventCatalogListsAll() {
         List<ReferenceEvent> events = catalog.all();
+
         assertThat(events)
             .extracting(ReferenceEvent::eventId)
             .containsExactly("EVT001", "EVT002", "EVT003", "EVT004", "EVT005",
@@ -45,18 +47,20 @@ class EventCatalogTest {
     }
 
     @Test
-    void evt003OccurredAtIsMarc15At11_20_18Z() {
+    void shouldHaveExpectedOccurredAtWhenEvt003LoadedFromCatalog() {
         List<ReferenceEvent> events = catalog.all();
-        ReferenceEvent evt003 = events.stream()
-            .filter(e -> e.eventId().equals("EVT003"))
-            .findFirst()
-            .orElseThrow();
-        assertThat(evt003.occurredAt()).isEqualTo(Instant.parse("2024-03-15T11:20:18Z"));
+
+        assertThat(events)
+            .filteredOn(event -> event.eventId().equals("EVT003"))
+            .singleElement()
+            .extracting(ReferenceEvent::occurredAt)
+            .isEqualTo(Instant.parse("2024-03-15T11:20:18Z"));
     }
 
     @Test
-    void hasThreeClientsClientTypesAsExpected() {
+    void shouldMapReferenceEventsToThreeClientIdsWhenEventCatalogLoaded() {
         List<ReferenceEvent> events = catalog.all();
+
         assertThat(events)
             .extracting(ReferenceEvent::clientId)
             .containsExactlyInAnyOrder(
@@ -67,9 +71,11 @@ class EventCatalogTest {
     }
 
     @Test
-    void pickWithFixedRandomReturnsConsistentIndex() {
+    void shouldReturnCatalogReferenceEventWhenPickedWithRandomGenerator() {
         RandomGenerator random = RandomGenerator.getDefault();
+
         ReferenceEvent picked = catalog.pick(random);
+
         assertThat(picked).isNotNull();
         assertThat(picked.eventId()).isIn("EVT001", "EVT002", "EVT003", "EVT004", "EVT005",
             "EVT006", "EVT007", "EVT008", "EVT009", "EVT010");

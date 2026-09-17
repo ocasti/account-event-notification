@@ -1,5 +1,6 @@
 package co.cobre.simulator;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -34,17 +35,23 @@ class SimulatorControllerValidationTest {
     @MockitoBean
     private Clock clock;
 
-    @Test
-    void postWithoutClientIdReturns400ValidationError() throws Exception {
+    @BeforeEach
+    void setUp() {
         mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenSimulatorEmitRequestMissingClientId() throws Exception {
+        String requestBody = """
+            {
+                "event_type": "credit_deposit",
+                "content": "x"
+            }
+            """;
+
         mockMvc.perform(post("/simulator/events")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                    {
-                        "event_type": "credit_deposit",
-                        "content": "x"
-                    }
-                    """))
+                .content(requestBody))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("validation_error"));
     }

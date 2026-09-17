@@ -4,56 +4,42 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AccountEventMessageMapperTest {
+
+    private static final Instant OCCURRED_AT = Instant.parse("2025-01-01T10:00:00Z");
 
     private final AccountEventMessageMapper mapper = new AccountEventMessageMapper();
 
     @Test
-    void mapsValidMessageToCommand() {
-        var message = new AccountEventMessage(
-            "EVT001",
-            "account.updated",
-            "CLIENT123",
-            "user updated",
-            Instant.parse("2025-01-01T10:00:00Z")
-        );
+    void shouldCopyEveryFieldIntoCommandWhenMessageIsValid() {
+        var message = new AccountEventMessage("EVT001", "account.updated", "CLIENT123", "user updated", OCCURRED_AT);
 
         var command = mapper.toCommand(message);
 
-        assertEquals("EVT001", command.eventId().value());
-        assertEquals("CLIENT123", command.clientId().value());
-        assertEquals("account.updated", command.eventKey().value());
-        assertEquals("user updated", command.content());
-        assertEquals(Instant.parse("2025-01-01T10:00:00Z"), command.occurredAt());
+        assertThat(command.eventId().value()).isEqualTo("EVT001");
+        assertThat(command.clientId().value()).isEqualTo("CLIENT123");
+        assertThat(command.eventKey().value()).isEqualTo("account.updated");
+        assertThat(command.content()).isEqualTo("user updated");
+        assertThat(command.occurredAt()).isEqualTo(OCCURRED_AT);
     }
 
     @Test
-    void throwsOnInvalidEventType() {
-        var message = new AccountEventMessage(
-            "EVT002",
-            "INVALID-TYPE",
-            "CLIENT456",
-            "content",
-            Instant.parse("2025-01-01T10:00:00Z")
-        );
+    void shouldRejectMessageWhenEventTypeIsNotAValidEventKey() {
+        var message = new AccountEventMessage("EVT002", "INVALID-TYPE", "CLIENT456", "content", OCCURRED_AT);
 
-        assertThrows(IllegalArgumentException.class, () -> mapper.toCommand(message));
+        assertThatThrownBy(() -> mapper.toCommand(message))
+            .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    void mapsWildcardEventType() {
-        var message = new AccountEventMessage(
-            "EVT003",
-            "*",
-            "CLIENT789",
-            "content",
-            Instant.parse("2025-01-01T10:00:00Z")
-        );
+    void shouldProduceWildcardEventKeyWhenEventTypeIsAsterisk() {
+        var message = new AccountEventMessage("EVT003", "*", "CLIENT789", "content", OCCURRED_AT);
 
         var command = mapper.toCommand(message);
 
-        assertTrue(command.eventKey().isWildcard());
+        assertThat(command.eventKey().isWildcard()).isTrue();
     }
 }

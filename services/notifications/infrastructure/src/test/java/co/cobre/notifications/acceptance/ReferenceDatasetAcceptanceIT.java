@@ -90,6 +90,7 @@ class ReferenceDatasetAcceptanceIT {
     private static final JsonMapper JSON_MAPPER = JsonMapper.builder().build();
     private static final HttpClient HTTP_CLIENT = HttpClient.newHttpClient();
     private static final String QUEUE_NAME = "account-events-acceptance";
+    private static final String COMPLETED_STATUS = "completed";
 
     private static final PostgreSQLContainer<?> POSTGRES =
         new PostgreSQLContainer<>("postgres:16-alpine")
@@ -175,75 +176,32 @@ class ReferenceDatasetAcceptanceIT {
 
     @Test
     @Order(1)
-    void referenceDatasetEndsWithExpectedDeliveryStatuses() throws Exception {
+    void shouldEndWithExpectedDeliveryStatusesWhenReferenceDatasetIsProcessed() throws Exception {
         List<ReferenceEvent> events = loadReferenceEvents();
+
+        publishReferenceEvents(events);
+        awaitNoPendingOrRetrying(eventIdsOf(events), Duration.ofSeconds(90));
+        List<EventOutcome> outcomes = loadOutcomes(events);
+
         assertThat(events).hasSize(10);
-
-        for (ReferenceEvent event : events) {
-            var message = new AccountEventMessage(
-                event.eventId(), event.eventType(), event.clientId(), event.content(), event.deliveryDate()
-            );
-            sqsTemplate.send(QUEUE_NAME, JSON_MAPPER.writeValueAsString(message));
-        }
-
-        List<String> eventIds = events.stream().map(ReferenceEvent::eventId).toList();
-        awaitNoPendingOrRetrying(eventIds, Duration.ofSeconds(90));
-
-        Map<String, NotificationEventEntity> byId = notificationEventJpaRepository.findAllById(eventIds).stream()
-            .collect(Collectors.toMap(NotificationEventEntity::getEventId, e -> e));
-
-        for (ReferenceEvent event : events) {
-            NotificationEventEntity entity = byId.get(event.eventId());
-            assertThat(entity)
-                .as("event %s must be registered", event.eventId())
-                .isNotNull();
-            assertThat(entity.getStatus())
-                .as("delivery_status of %s", event.eventId())
-                .isEqualTo(DeliveryStatusEntity.valueOf(event.deliveryStatus().toUpperCase()));
-
-            List<DeliveryAttemptEntity> attempts = deliveryAttemptJpaRepository.findByEventId(
-                event.eventId(), Sort.by(Sort.Direction.ASC, "attemptNumber")
-            );
-
-            if ("completed".equals(event.deliveryStatus())) {
-                assertThat(attempts).as("attempts of completed %s", event.eventId()).hasSize(1);
-                assertThat(attempts.get(0).getCycle()).isZero();
-                assertThat(attempts.get(0).getAttemptNumber()).isEqualTo(1);
-                assertThat(attempts.get(0).getResponseStatus()).isEqualTo(200);
-            } else {
-                assertThat(attempts).as("attempts of failed %s", event.eventId()).hasSize(5);
-                for (int i = 0; i < attempts.size(); i++) {
-                    DeliveryAttemptEntity attempt = attempts.get(i);
-                    assertThat(attempt.getCycle()).isZero();
-                    assertThat(attempt.getAttemptNumber()).isEqualTo(i + 1);
-                    assertThat(attempt.getResponseStatus()).isEqualTo(503);
-                }
-            }
-        }
-
+        assertThat(outcomes).allSatisfy(outcome -> assertThat(outcome.entity())
+            .as("event %s must be registered", outcome.event().eventId())
+            .isNotNull());
+        assertThat(outcomes).allSatisfy(outcome -> assertThat(outcome.entity().getStatus())
+            .as("delivery_status of %s", outcome.event().eventId())
+            .isEqualTo(DeliveryStatusEntity.valueOf(outcome.event().deliveryStatus().toUpperCase())));
+        assertThat(completedOutcomes(outcomes)).allSatisfy(outcome -> assertSingleSuccessfulAttempt(outcome.attempts()));
+        assertThat(failedOutcomes(outcomes)).allSatisfy(outcome -> assertFiveFailedAttempts(outcome.attempts()));
         assertThat(countWiremockWebhookRequests())
             .as("WireMock POST /webhook count: 7 completed x1 + 3 failed x5")
             .isEqualTo(22);
-
-        String client001Token = RestTestSecurityConfig.token("CLIENT001");
-
-        // EVT003 belongs to CLIENT002: CLIENT001's token must not be able to see it.
-        mockMvc.perform(get("/notification_events/EVT003")
-                .header("Authorization", "Bearer " + client001Token))
-            .andExpect(status().isNotFound());
-
-        mockMvc.perform(get("/notification_events")
-                .header("Authorization", "Bearer " + client001Token)
-                .param("limit", "50"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.items[?(@.event_id == 'EVT003')]").doesNotExist());
+        assertEvt003HiddenFromClient(RestTestSecurityConfig.token("CLIENT001"));
     }
 
     @Test
     @Order(2)
-    void replayOfFailedEventOpensNewCycleAndEndsFailedAgain() throws Exception {
+    void shouldOpenNewCycleAndEndFailedAgainWhenFailedEventIsReplayed() throws Exception {
         long requestsBeforeReplay = countWiremockWebhookRequests();
-
         String client002Token = RestTestSecurityConfig.token("CLIENT002");
 
         mockMvc.perform(post("/notification_events/EVT003/replay")
@@ -252,35 +210,97 @@ class ReferenceDatasetAcceptanceIT {
             .andExpect(jsonPath("$.event_id").value("EVT003"))
             .andExpect(jsonPath("$.cycle").value(1))
             .andExpect(jsonPath("$.delivery_status").value("pending"));
-
         awaitNoPendingOrRetrying(List.of("EVT003"), Duration.ofSeconds(30));
-
         NotificationEventEntity entity = notificationEventJpaRepository.findById("EVT003").orElseThrow();
+        List<DeliveryAttemptEntity> attempts = deliveryAttemptJpaRepository.findByEventId(
+            "EVT003", Sort.by(Sort.Direction.ASC, "cycle").and(Sort.by(Sort.Direction.ASC, "attemptNumber")));
+        List<DeliveryAttemptEntity> cycle1 = attemptsInCycle(attempts, 1);
+
         assertThat(entity.getStatus()).isEqualTo(DeliveryStatusEntity.FAILED);
         assertThat(entity.getCycle()).isEqualTo(1);
-
-        List<DeliveryAttemptEntity> attempts = deliveryAttemptJpaRepository.findByEventId(
-            "EVT003", Sort.by(Sort.Direction.ASC, "cycle").and(Sort.by(Sort.Direction.ASC, "attemptNumber"))
-        );
         assertThat(attempts).hasSize(10);
-
-        List<DeliveryAttemptEntity> cycle0 = attempts.stream().filter(a -> a.getCycle() == 0).toList();
-        List<DeliveryAttemptEntity> cycle1 = attempts.stream().filter(a -> a.getCycle() == 1).toList();
-        assertThat(cycle0).hasSize(5);
+        assertThat(attemptsInCycle(attempts, 0)).hasSize(5);
         assertThat(cycle1).hasSize(5);
-        attempts.forEach(a -> assertThat(a.getResponseStatus()).isEqualTo(503));
-
-        assertThat(cycle1.get(0).getOrigin()).isEqualTo(AttemptOriginEntity.REPLAY);
-        for (int i = 1; i < cycle1.size(); i++) {
-            assertThat(cycle1.get(i).getOrigin()).isEqualTo(AttemptOriginEntity.SYSTEM);
-        }
-
+        assertThat(attempts).extracting(DeliveryAttemptEntity::getResponseStatus).containsOnly(503);
+        assertThat(cycle1).extracting(DeliveryAttemptEntity::getOrigin)
+            .containsExactly(
+                AttemptOriginEntity.REPLAY,
+                AttemptOriginEntity.SYSTEM,
+                AttemptOriginEntity.SYSTEM,
+                AttemptOriginEntity.SYSTEM,
+                AttemptOriginEntity.SYSTEM);
         assertThat(countWiremockWebhookRequests() - requestsBeforeReplay)
             .as("cycle 1 must have delivered exactly 5 more POSTs to /webhook")
             .isEqualTo(5);
+        assertEvt003ReplayDetailResponse(client002Token);
+    }
 
+    private void publishReferenceEvents(List<ReferenceEvent> events) {
+        events.forEach(event -> sqsTemplate.send(QUEUE_NAME, JSON_MAPPER.writeValueAsString(
+            new AccountEventMessage(
+                event.eventId(), event.eventType(), event.clientId(), event.content(), event.deliveryDate()))));
+    }
+
+    private List<String> eventIdsOf(List<ReferenceEvent> events) {
+        return events.stream().map(ReferenceEvent::eventId).toList();
+    }
+
+    private List<EventOutcome> loadOutcomes(List<ReferenceEvent> events) {
+        Map<String, NotificationEventEntity> byId = notificationEventJpaRepository.findAllById(eventIdsOf(events))
+            .stream()
+            .collect(Collectors.toMap(NotificationEventEntity::getEventId, e -> e));
+        return events.stream()
+            .map(event -> new EventOutcome(
+                event,
+                byId.get(event.eventId()),
+                deliveryAttemptJpaRepository.findByEventId(
+                    event.eventId(), Sort.by(Sort.Direction.ASC, "attemptNumber"))))
+            .toList();
+    }
+
+    private List<EventOutcome> completedOutcomes(List<EventOutcome> outcomes) {
+        return outcomes.stream().filter(outcome -> COMPLETED_STATUS.equals(outcome.event().deliveryStatus())).toList();
+    }
+
+    private List<EventOutcome> failedOutcomes(List<EventOutcome> outcomes) {
+        return outcomes.stream()
+            .filter(outcome -> !COMPLETED_STATUS.equals(outcome.event().deliveryStatus()))
+            .toList();
+    }
+
+    private void assertSingleSuccessfulAttempt(List<DeliveryAttemptEntity> attempts) {
+        assertThat(attempts).hasSize(1);
+        assertThat(attempts.get(0).getCycle()).isZero();
+        assertThat(attempts.get(0).getAttemptNumber()).isEqualTo(1);
+        assertThat(attempts.get(0).getResponseStatus()).isEqualTo(200);
+    }
+
+    private void assertFiveFailedAttempts(List<DeliveryAttemptEntity> attempts) {
+        assertThat(attempts).hasSize(5);
+        assertThat(attempts).extracting(DeliveryAttemptEntity::getCycle).containsOnly(0);
+        assertThat(attempts).extracting(DeliveryAttemptEntity::getAttemptNumber).containsExactly(1, 2, 3, 4, 5);
+        assertThat(attempts).extracting(DeliveryAttemptEntity::getResponseStatus).containsOnly(503);
+    }
+
+    private List<DeliveryAttemptEntity> attemptsInCycle(List<DeliveryAttemptEntity> attempts, int cycle) {
+        return attempts.stream().filter(a -> a.getCycle() == cycle).toList();
+    }
+
+    private void assertEvt003HiddenFromClient(String bearerToken) throws Exception {
         mockMvc.perform(get("/notification_events/EVT003")
-                .header("Authorization", "Bearer " + client002Token))
+                .header("Authorization", "Bearer " + bearerToken))
+            .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/notification_events")
+                .header("Authorization", "Bearer " + bearerToken)
+                .param("limit", "50"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items[?(@.event_id == 'EVT003')]").doesNotExist());
+    }
+
+    private void assertEvt003ReplayDetailResponse(String bearerToken) throws Exception {
+        mockMvc.perform(get("/notification_events/EVT003")
+                .header("Authorization", "Bearer " + bearerToken))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.delivery_status").value("failed"))
             .andExpect(jsonPath("$.attempts_count").value(10))
@@ -352,4 +372,10 @@ class ReferenceDatasetAcceptanceIT {
     private record ReferenceDataset(@JsonProperty("events") List<ReferenceEvent> events) {}
 
     private record RequestCountResponse(@JsonProperty("count") long count) {}
+
+    private record EventOutcome(
+        ReferenceEvent event,
+        NotificationEventEntity entity,
+        List<DeliveryAttemptEntity> attempts
+    ) {}
 }

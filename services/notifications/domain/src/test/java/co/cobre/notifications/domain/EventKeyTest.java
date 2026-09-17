@@ -1,86 +1,56 @@
 package co.cobre.notifications.domain;
 
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.api.Test;
+
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class EventKeyTest {
 
-    @Test
-    void shouldAcceptSimpleKey() {
-        var key = new EventKey("user_created");
+    @ParameterizedTest(name = "shouldAcceptEventKeyWhenValueIs{0}")
+    @CsvSource({
+        "user_created,false",
+        "user.account.created,false",
+        "*,true",
+        "order123.item_456.created,false"
+    })
+    void shouldAcceptEventKeyWhenValueMatchesPattern(String value, boolean expectedWildcard) {
+        var key = new EventKey(value);
 
-        assertThat(key.value()).isEqualTo("user_created");
-        assertThat(key.isWildcard()).isFalse();
+        assertThat(key.value()).isEqualTo(value);
+        assertThat(key.isWildcard()).isEqualTo(expectedWildcard);
     }
 
     @Test
-    void shouldAcceptDotNotationKey() {
-        var key = new EventKey("user.account.created");
-
-        assertThat(key.value()).isEqualTo("user.account.created");
-        assertThat(key.isWildcard()).isFalse();
-    }
-
-    @Test
-    void shouldAcceptWildcard() {
-        var key = new EventKey("*");
-
-        assertThat(key.value()).isEqualTo("*");
-        assertThat(key.isWildcard()).isTrue();
-    }
-
-    @Test
-    void shouldRejectNullValue() {
-        assertThatThrownBy(() -> new EventKey(null))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("cannot be null");
-    }
-
-    @Test
-    void shouldRejectInvalidPattern() {
-        assertThatThrownBy(() -> new EventKey("User.Created"))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("must be either");
-    }
-
-    @Test
-    void shouldRejectMixedCaseInKey() {
-        assertThatThrownBy(() -> new EventKey("user.Account.created"))
-            .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void shouldRejectKeyStartingWithDot() {
-        assertThatThrownBy(() -> new EventKey(".user.created"))
-            .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void shouldRejectKeyWithConsecutiveDots() {
-        assertThatThrownBy(() -> new EventKey("user..created"))
-            .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void shouldRejectKeyWithSpecialCharacters() {
-        assertThatThrownBy(() -> new EventKey("user@created"))
-            .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void shouldAcceptNumbersInKey() {
-        var key = new EventKey("order123.item_456.created");
-
-        assertThat(key.value()).isEqualTo("order123.item_456.created");
-    }
-
-    @Test
-    void shouldProvideWildcardFactory() {
+    void shouldCreateWildcardEventKeyWhenUsingFactoryMethod() {
         var key = EventKey.wildcard();
 
         assertThat(key.value()).isEqualTo("*");
         assertThat(key.isWildcard()).isTrue();
+    }
+
+    @ParameterizedTest(name = "shouldRejectEventKeyWhenValueIs{0}")
+    @MethodSource("invalidEventKeyValues")
+    void shouldRejectEventKeyWhenValueIsInvalid(String label, String value, String expectedMessageFragment) {
+        assertThatThrownBy(() -> new EventKey(value))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining(expectedMessageFragment);
+    }
+
+    private static Stream<Arguments> invalidEventKeyValues() {
+        return Stream.of(
+            Arguments.of("Null", null, "cannot be null"),
+            Arguments.of("MixedCaseSegment", "User.Created", "must be either"),
+            Arguments.of("MixedCaseInMiddleSegment", "user.Account.created", "must be either"),
+            Arguments.of("StartingWithDot", ".user.created", "must be either"),
+            Arguments.of("ContainingConsecutiveDots", "user..created", "must be either"),
+            Arguments.of("ContainingSpecialCharacters", "user@created", "must be either")
+        );
     }
 }

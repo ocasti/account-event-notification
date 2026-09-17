@@ -12,32 +12,12 @@ public record DeliveryClaim(
     Duration lease
 ) {
     public DeliveryClaim {
-        requireNow(now);
-        requirePositiveLimit(limit);
-        requirePositiveMaxPerClient(maxPerClient);
-        requireWorkerId(workerId);
-        requirePositiveLease(lease);
-    }
-
-    private static void requireNow(Instant now) {
         Objects.requireNonNull(now);
-    }
-
-    private static void requirePositiveLimit(int limit) {
-        if (limit <= 0) throw new IllegalArgumentException("limit must be positive");
-    }
-
-    private static void requirePositiveMaxPerClient(int maxPerClient) {
-        if (maxPerClient <= 0) throw new IllegalArgumentException("maxPerClient must be positive");
-    }
-
-    private static void requireWorkerId(String workerId) {
         Objects.requireNonNull(workerId);
-        if (workerId.isBlank()) throw new IllegalArgumentException("workerId cannot be blank");
-    }
-
-    private static void requirePositiveLease(Duration lease) {
         Objects.requireNonNull(lease);
+        if (limit <= 0) throw new IllegalArgumentException("limit must be positive");
+        if (maxPerClient <= 0) throw new IllegalArgumentException("maxPerClient must be positive");
+        if (workerId.isBlank()) throw new IllegalArgumentException("workerId cannot be blank");
         if (lease.isNegative() || lease.isZero()) throw new IllegalArgumentException("lease must be positive");
     }
 }

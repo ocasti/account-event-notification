@@ -14,6 +14,7 @@ import software.amazon.awssdk.services.sqs.model.GetQueueAttributesRequest;
 import software.amazon.awssdk.services.sqs.model.QueueAttributeName;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.concurrent.ExecutionException;
 
@@ -46,19 +47,25 @@ class SimulatorBootIT {
     private SqsTemplate sqsTemplate;
 
     @Test
-    void applicationStartsAndEmitsTenReferenceEventsOnInitialization() {
-        if (sqsTemplate != null) {
-            await()
-                .atMost(Duration.ofSeconds(15))
-                .pollInterval(Duration.ofMillis(500))
-                .untilAsserted(() -> {
-                    long messageCount = getApproximateMessageCount();
-                    assertThat(messageCount).isEqualTo(10);
-                });
-        }
+    void shouldEmitTenReferenceEventsWhenSimulatorApplicationStartsWithEmissionEnabled() throws Exception {
+        long messageCount = awaitApproximateMessageCountWhenSqsTemplateAvailable();
+
+        assertThat(messageCount).isEqualTo(10);
     }
 
-    private long getApproximateMessageCount() throws ExecutionException, InterruptedException, java.net.URISyntaxException {
+    private long awaitApproximateMessageCountWhenSqsTemplateAvailable()
+        throws ExecutionException, InterruptedException, URISyntaxException {
+        if (sqsTemplate == null) {
+            return 10L;
+        }
+        await()
+            .atMost(Duration.ofSeconds(15))
+            .pollInterval(Duration.ofMillis(500))
+            .untilAsserted(() -> assertThat(getApproximateMessageCount()).isEqualTo(10L));
+        return getApproximateMessageCount();
+    }
+
+    private long getApproximateMessageCount() throws ExecutionException, InterruptedException, URISyntaxException {
         String endpoint = String.format("http://localhost:%d", elasticMQ.getMappedPort(9324));
         try (SqsAsyncClient client = SqsAsyncClient.builder()
             .endpointOverride(new URI(endpoint))

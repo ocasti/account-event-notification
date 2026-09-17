@@ -2,6 +2,9 @@ package co.cobre.notifications.infrastructure.webhook;
 
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.web.client.RestClientException;
 
 import java.io.IOException;
@@ -9,16 +12,20 @@ import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class WebhookClientConfigTest {
 
-    @Test
-    void shouldCreateWebhookRestClientBean() {
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("timeoutConfigurationRows")
+    void shouldCreateNonNullRestClientWhenGivenTimeoutConfiguration(
+        String rowName, Duration connectTimeout, Duration readTimeout
+    ) {
         var props = new WebhookProperties(
-            Duration.ofSeconds(1),
-            Duration.ofSeconds(1),
+            connectTimeout,
+            readTimeout,
             true,
             List.of(),
             Duration.ofSeconds(30)
@@ -31,42 +38,16 @@ class WebhookClientConfigTest {
         assertThat(restClient).isNotNull();
     }
 
-    @Test
-    void shouldApplyConnectTimeout() {
-        var props = new WebhookProperties(
-            Duration.ofSeconds(1),
-            Duration.ofSeconds(5),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
+    private static Stream<Arguments> timeoutConfigurationRows() {
+        return Stream.of(
+            Arguments.of("one second connect and read timeout", Duration.ofSeconds(1), Duration.ofSeconds(1)),
+            Arguments.of("one second connect, five second read timeout", Duration.ofSeconds(1), Duration.ofSeconds(5)),
+            Arguments.of("five second connect, ten second read timeout", Duration.ofSeconds(5), Duration.ofSeconds(10))
         );
-        var config = new WebhookClientConfig();
-        var validator = new WebhookUrlValidator(props);
-
-        var restClient = config.webhookRestClient(props, validator);
-
-        assertThat(restClient).isNotNull();
     }
 
     @Test
-    void shouldDisableRedirectHandling() {
-        var props = new WebhookProperties(
-            Duration.ofSeconds(5),
-            Duration.ofSeconds(10),
-            true,
-            List.of(),
-            Duration.ofSeconds(30)
-        );
-        var config = new WebhookClientConfig();
-        var validator = new WebhookUrlValidator(props);
-
-        var restClient = config.webhookRestClient(props, validator);
-
-        assertThat(restClient).isNotNull();
-    }
-
-    @Test
-    void shouldNotRetryOnServiceUnavailable() throws IOException {
+    void shouldInvokeServerOnceWhenResponseIsServiceUnavailable() throws IOException {
         var counter = new AtomicInteger(0);
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {
@@ -104,7 +85,7 @@ class WebhookClientConfigTest {
     }
 
     @Test
-    void shouldUsePinnedDnsResolverForValidatedHosts() throws IOException {
+    void shouldRouteRequestToPinnedAddressWhenHostIsValidated() throws IOException {
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {
             exchange.sendResponseHeaders(200, 2);

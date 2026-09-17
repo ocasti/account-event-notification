@@ -60,21 +60,20 @@ class OpenApiContractTest extends BootTestSupport {
     }
 
     @Test
-    void apiDocsMatchTheRealApiSurface() throws Exception {
+    void shouldMatchRealApiSurfaceWhenOpenApiSpecIsGenerated() throws Exception {
         String jwtToken = RestTestSecurityConfig.token("CLIENT001");
 
         MvcResult result = mockMvc.perform(get("/v3/api-docs")
                 .header("Authorization", "Bearer " + jwtToken))
             .andExpect(status().isOk())
             .andReturn();
-
         String body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
         JsonNode spec = JSON_MAPPER.readTree(body);
+        JsonNode paths = spec.path("paths");
 
         assertThat(spec.path("info").path("title").asString())
             .isEqualTo("Account Event Notification API");
 
-        JsonNode paths = spec.path("paths");
         List<String> pathNames = collectFieldNames(paths);
         assertThat(pathNames).containsExactlyInAnyOrder(
             "/notification_events",

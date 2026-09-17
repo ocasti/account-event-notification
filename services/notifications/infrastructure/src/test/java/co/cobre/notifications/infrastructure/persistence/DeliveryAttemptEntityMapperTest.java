@@ -4,21 +4,22 @@ import co.cobre.notifications.domain.AttemptOrigin;
 import co.cobre.notifications.domain.DeliveryAttempt;
 import co.cobre.notifications.domain.EventId;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class DeliveryAttemptEntityMapperTest {
 
     private final DeliveryAttemptEntityMapper mapper = new DeliveryAttemptEntityMapper();
 
     @Test
-    void testRoundTripPreservesAllFields() {
+    void shouldPreserveAllDeliveryAttemptFieldsWhenMappingRoundTrip() {
         var id = UUID.randomUUID();
         var eventId = new EventId("evt-789");
         var cycle = 1;
@@ -30,7 +31,6 @@ class DeliveryAttemptEntityMapperTest {
         var responseStatus = Optional.of(200);
         var failureReason = Optional.<String>empty();
         var latency = Optional.of(Duration.ofMillis(150));
-
         var domain = new DeliveryAttempt(
             id,
             eventId,
@@ -49,22 +49,22 @@ class DeliveryAttemptEntityMapperTest {
         var entity = mapper.toEntity(domain);
         var mapped = mapper.toDomain(entity);
 
-        assertEquals(domain.id(), mapped.id());
-        assertEquals(domain.eventId(), mapped.eventId());
-        assertEquals(domain.cycle(), mapped.cycle());
-        assertEquals(domain.attemptNumber(), mapped.attemptNumber());
-        assertEquals(domain.nextAttemptAt(), mapped.nextAttemptAt());
-        assertEquals(domain.claimedAt(), mapped.claimedAt());
-        assertEquals(domain.claimedBy(), mapped.claimedBy());
-        assertEquals(domain.executedAt(), mapped.executedAt());
-        assertEquals(domain.responseStatus(), mapped.responseStatus());
-        assertEquals(domain.failureReason(), mapped.failureReason());
-        assertEquals(domain.latency(), mapped.latency());
-        assertEquals(domain.origin(), mapped.origin());
+        assertThat(mapped.id()).isEqualTo(domain.id());
+        assertThat(mapped.eventId()).isEqualTo(domain.eventId());
+        assertThat(mapped.cycle()).isEqualTo(domain.cycle());
+        assertThat(mapped.attemptNumber()).isEqualTo(domain.attemptNumber());
+        assertThat(mapped.nextAttemptAt()).isEqualTo(domain.nextAttemptAt());
+        assertThat(mapped.claimedAt()).isEqualTo(domain.claimedAt());
+        assertThat(mapped.claimedBy()).isEqualTo(domain.claimedBy());
+        assertThat(mapped.executedAt()).isEqualTo(domain.executedAt());
+        assertThat(mapped.responseStatus()).isEqualTo(domain.responseStatus());
+        assertThat(mapped.failureReason()).isEqualTo(domain.failureReason());
+        assertThat(mapped.latency()).isEqualTo(domain.latency());
+        assertThat(mapped.origin()).isEqualTo(domain.origin());
     }
 
     @Test
-    void testRoundTripPreservesEmptyOptionals() {
+    void shouldMapEmptyDeliveryAttemptOptionalsWhenMappingRoundTrip() {
         var domain = new DeliveryAttempt(
             UUID.randomUUID(),
             new EventId("evt-000"),
@@ -83,41 +83,40 @@ class DeliveryAttemptEntityMapperTest {
         var entity = mapper.toEntity(domain);
         var mapped = mapper.toDomain(entity);
 
-        assertFalse(mapped.claimedAt().isPresent());
-        assertFalse(mapped.claimedBy().isPresent());
-        assertFalse(mapped.executedAt().isPresent());
-        assertFalse(mapped.responseStatus().isPresent());
-        assertFalse(mapped.failureReason().isPresent());
-        assertFalse(mapped.latency().isPresent());
+        assertThat(mapped.claimedAt()).isEmpty();
+        assertThat(mapped.claimedBy()).isEmpty();
+        assertThat(mapped.executedAt()).isEmpty();
+        assertThat(mapped.responseStatus()).isEmpty();
+        assertThat(mapped.failureReason()).isEmpty();
+        assertThat(mapped.latency()).isEmpty();
+    }
+
+    @ParameterizedTest(name = "origin {0}")
+    @EnumSource(AttemptOrigin.class)
+    void shouldRoundTripEveryOriginWhenMappingAttempt(AttemptOrigin origin) {
+        var domain = new DeliveryAttempt(
+            UUID.randomUUID(),
+            new EventId("evt-enum"),
+            0,
+            1,
+            Instant.now(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            origin
+        );
+
+        var entity = mapper.toEntity(domain);
+        var mapped = mapper.toDomain(entity);
+
+        assertThat(mapped.origin()).isEqualTo(origin);
     }
 
     @Test
-    void testEnumMappingForOrigins() {
-        for (AttemptOrigin origin : AttemptOrigin.values()) {
-            var domain = new DeliveryAttempt(
-                UUID.randomUUID(),
-                new EventId("evt-enum"),
-                0,
-                1,
-                Instant.now(),
-                Optional.empty(),
-                Optional.empty(),
-                Optional.empty(),
-                Optional.empty(),
-                Optional.empty(),
-                Optional.empty(),
-                origin
-            );
-
-            var entity = mapper.toEntity(domain);
-            var mapped = mapper.toDomain(entity);
-
-            assertEquals(origin, mapped.origin());
-        }
-    }
-
-    @Test
-    void testLatencyAsMilliseconds() {
+    void shouldPreserveLatencyInMillisecondsWhenMappingRoundTrip() {
         var domain = new DeliveryAttempt(
             UUID.randomUUID(),
             new EventId("evt-latency"),
@@ -136,6 +135,6 @@ class DeliveryAttemptEntityMapperTest {
         var entity = mapper.toEntity(domain);
         var mapped = mapper.toDomain(entity);
 
-        assertEquals(domain.latency(), mapped.latency());
+        assertThat(mapped.latency()).isEqualTo(domain.latency());
     }
 }
