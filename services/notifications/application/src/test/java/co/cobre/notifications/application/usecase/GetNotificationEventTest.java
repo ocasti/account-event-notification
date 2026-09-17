@@ -30,7 +30,7 @@ class GetNotificationEventTest {
 
     @Test
     void shouldReturnEventDetailWhenAttemptsExist() {
-        GetNotificationEvent useCase = new GetNotificationEvent(events, attempts);
+        var useCase = new GetNotificationEvent(events, attempts);
         NotificationEvent event = NotificationEvents.pending();
         var recordedAttempt = DeliveryAttempts.due();
         when(events.findByClientAndId(Ids.CLIENT_001, Ids.EVT_001)).thenReturn(Optional.of(event));
@@ -46,7 +46,7 @@ class GetNotificationEventTest {
 
     @Test
     void shouldThrowWhenEventDoesNotExistForClient() {
-        GetNotificationEvent useCase = new GetNotificationEvent(events, attempts);
+        var useCase = new GetNotificationEvent(events, attempts);
         when(events.findByClientAndId(Ids.CLIENT_001, Ids.EVT_001)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> useCase.get(Ids.CLIENT_001, Ids.EVT_001))

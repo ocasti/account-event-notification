@@ -39,10 +39,10 @@ public class EventCatalog {
         try {
             JsonNode root = mapper.readTree(properties.eventsFile().getInputStream());
             JsonNode eventsArray = root.get("events");
-            List<ReferenceEvent> result = new ArrayList<>();
+            var result = new ArrayList<ReferenceEvent>();
 
             for (JsonNode node : eventsArray) {
-                ReferenceEvent event = new ReferenceEvent(
+                var event = new ReferenceEvent(
                     node.get("event_id").asText(),
                     node.get("event_type").asText(),
                     node.get("client_id").asText(),

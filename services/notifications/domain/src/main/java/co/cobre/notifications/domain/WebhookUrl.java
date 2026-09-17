@@ -21,7 +21,7 @@ public record WebhookUrl(URI value) {
 
     public static WebhookUrl of(String raw) {
         try {
-            URI uri = new URI(raw);
+            var uri = new URI(raw);
             return new WebhookUrl(uri);
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException("Invalid webhook URL: " + raw, e);

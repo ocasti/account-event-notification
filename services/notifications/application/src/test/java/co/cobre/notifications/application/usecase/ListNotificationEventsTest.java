@@ -42,12 +42,12 @@ class ListNotificationEventsTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("attemptsCountCases")
     void shouldAttachAttemptsCountWhenPageIsReturned(String caseLabel, Map<EventId, Integer> countsByEvent, int expectedCount) {
-        ListNotificationEvents useCase = new ListNotificationEvents(events, attempts);
-        ListNotificationEventsQuery query = new ListNotificationEventsQuery(
+        var useCase = new ListNotificationEvents(events, attempts);
+        var query = new ListNotificationEventsQuery(
             Ids.CLIENT_001, Optional.empty(), Optional.empty(), Optional.empty(), 20, Optional.empty()
         );
         NotificationEvent skippedEvent = NotificationEvents.skipped();
-        NotificationEventPage expectedPage = new NotificationEventPage(List.of(skippedEvent), Optional.empty());
+        var expectedPage = new NotificationEventPage(List.of(skippedEvent), Optional.empty());
         when(events.search(query)).thenReturn(expectedPage);
         when(attempts.countByEvents(List.of(Ids.EVT_001))).thenReturn(countsByEvent);
 
@@ -63,11 +63,11 @@ class ListNotificationEventsTest {
 
     @Test
     void shouldSkipAttemptsLookupWhenPageIsEmpty() {
-        ListNotificationEvents useCase = new ListNotificationEvents(events, attempts);
-        ListNotificationEventsQuery query = new ListNotificationEventsQuery(
+        var useCase = new ListNotificationEvents(events, attempts);
+        var query = new ListNotificationEventsQuery(
             Ids.CLIENT_001, Optional.empty(), Optional.empty(), Optional.empty(), 20, Optional.empty()
         );
-        NotificationEventPage emptyPage = new NotificationEventPage(List.of(), Optional.empty());
+        var emptyPage = new NotificationEventPage(List.of(), Optional.empty());
         when(events.search(query)).thenReturn(emptyPage);
 
         NotificationEventSummaryPage result = useCase.list(query);

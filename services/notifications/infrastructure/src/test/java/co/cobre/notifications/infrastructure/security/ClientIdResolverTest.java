@@ -15,11 +15,11 @@ class ClientIdResolverTest {
 
     @Test
     void shouldExtractClientIdWhenClaimIsConfigured() {
-        JwtProperties props = new JwtProperties(null, "account-event-notification", "sub");
-        ClientIdResolver resolver = new ClientIdResolver(props);
-        Map<String, Object> claims = new HashMap<>();
+        var props = new JwtProperties(null, "account-event-notification", "sub");
+        var resolver = new ClientIdResolver(props);
+        var claims = new HashMap<String, Object>();
         claims.put("sub", "CLIENT002");
-        Jwt jwt = new Jwt("token", Clocks.NOW, Clocks.NOW.plusSeconds(3600), Map.of("alg", "RS256"), claims);
+        var jwt = new Jwt("token", Clocks.NOW, Clocks.NOW.plusSeconds(3600), Map.of("alg", "RS256"), claims);
 
         ClientId result = resolver.resolve(jwt);
 
@@ -28,11 +28,11 @@ class ClientIdResolverTest {
 
     @Test
     void shouldThrowIllegalArgumentExceptionWhenClaimIsAbsent() {
-        JwtProperties props = new JwtProperties(null, "account-event-notification", "sub");
-        ClientIdResolver resolver = new ClientIdResolver(props);
-        Map<String, Object> claims = new HashMap<>();
+        var props = new JwtProperties(null, "account-event-notification", "sub");
+        var resolver = new ClientIdResolver(props);
+        var claims = new HashMap<String, Object>();
         claims.put("other", "value");
-        Jwt jwt = new Jwt("token", Clocks.NOW, Clocks.NOW.plusSeconds(3600), Map.of("alg", "RS256"), claims);
+        var jwt = new Jwt("token", Clocks.NOW, Clocks.NOW.plusSeconds(3600), Map.of("alg", "RS256"), claims);
 
         assertThatThrownBy(() -> resolver.resolve(jwt))
             .isInstanceOf(IllegalArgumentException.class);

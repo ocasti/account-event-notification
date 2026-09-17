@@ -29,7 +29,7 @@ class SimulatorControllerTest {
 
     @Test
     void shouldPublishGeneratedReferenceEventWhenSimulatorControllerEmitCalled() {
-        ReferenceEvent event = new ReferenceEvent("EVT-NEW123", "account.created", "CLIENT123", "Account created", Clocks.NOW);
+        var event = new ReferenceEvent("EVT-NEW123", "account.created", "CLIENT123", "Account created", Clocks.NOW);
         when(generator.fromRequest("CLIENT123", "account.created", "Account created"))
             .thenReturn(event);
         SimulatorController.EmitRequest request = new SimulatorController.EmitRequest("CLIENT123", "account.created", "Account created");

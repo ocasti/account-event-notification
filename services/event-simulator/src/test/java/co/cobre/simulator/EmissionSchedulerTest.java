@@ -33,7 +33,7 @@ class EmissionSchedulerTest {
     @Test
     void shouldPublishAllTenReferenceEventsWhenEmissionSchedulerEmitsReferenceOnActiveStart() {
         when(catalog.all()).thenReturn(ReferenceEvents.all());
-        EmissionScheduler scheduler = new EmissionScheduler(catalog, generator, publisher, TestProperties.withEmissionActive(true));
+        var scheduler = new EmissionScheduler(catalog, generator, publisher, TestProperties.withEmissionActive(true));
 
         scheduler.emitReference();
 
@@ -43,7 +43,7 @@ class EmissionSchedulerTest {
 
     @Test
     void shouldPublishNothingWhenEmissionSchedulerEmitsReferenceWhileInactive() {
-        EmissionScheduler scheduler = new EmissionScheduler(catalog, generator, publisher, TestProperties.withEmissionActive(false));
+        var scheduler = new EmissionScheduler(catalog, generator, publisher, TestProperties.withEmissionActive(false));
 
         scheduler.emitReference();
 
@@ -54,7 +54,7 @@ class EmissionSchedulerTest {
     void shouldPublishOneDerivedEventWhenEmissionSchedulerEmitsDerived() {
         ReferenceEvent derived = ReferenceEvents.evt001();
         when(generator.derive()).thenReturn(derived);
-        EmissionScheduler scheduler = new EmissionScheduler(catalog, generator, publisher, TestProperties.withEmissionActive(true));
+        var scheduler = new EmissionScheduler(catalog, generator, publisher, TestProperties.withEmissionActive(true));
 
         scheduler.emitDerived();
 
