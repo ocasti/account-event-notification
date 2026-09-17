@@ -355,7 +355,7 @@ monitoring reflects what happened. It runs inside a `python:3.12-alpine` contain
    request journal, and registers a temporary priority-1 stub that returns 503
    for the events marked as failures for this run.
 2. Publishes `--events` events (`LOAD-<run>-<n>` for the ones that should complete, `LOAD-<run>-F-<n>` the
-   ones that should fail; `--fail-ratio` sets the proportion), spreading client (`CLIENT001..3`) and
+   ones that should fail; `--fail-ratio` sets the proportion: a number, or `random`, the default, which draws a value between 0.1 % and 2 % per run, the order of magnitude a real fleet of receivers shows on a bad day; the chosen value and the number of induced failures are printed in the run header), spreading client (`CLIENT001..3`) and
    type (`credit_deposit`, `debit_purchase`, `credit_transfer`) round-robin, in batches of 10
    (`SendMessageBatch`) with `--concurrency` threads publishing in parallel.
 3. Waits for the backlog to drain **without** querying each id per round: with 50,000 events, a
@@ -425,7 +425,7 @@ limit).
 
 ```bash
 make load                                          # 2000 events, 10% failure, 20 req/s of API
-make load EVENTS=200 FAIL_RATIO=0.20 TIMEOUT=120    # explicit parameters
+make load EVENTS=200 FAIL_RATIO=0.20 TIMEOUT=120    # explicit parameters (FAIL_RATIO=random by default)
 make load CONCURRENCY=16                            # more publishing threads
 make load API_RPS=0                                 # no REST load phase
 make load API_RPS=50 API_CLIENTS=8                  # more load on the REST API

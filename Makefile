@@ -2,7 +2,7 @@ SHELL := /bin/bash
 COMPOSE := docker compose -f deploy/local/compose.yaml --env-file .env
 
 EVENTS ?= 2000
-FAIL_RATIO ?= 0.10
+FAIL_RATIO ?= random
 CONCURRENCY ?= 8
 TIMEOUT ?= 300
 WIREMOCK_JOURNAL_LIMIT ?= 5000
@@ -74,7 +74,7 @@ openapi: ## Export the OpenAPI spec from the running API to docs/api/openapi.jso
 	  -H "Authorization: Bearer $$(scripts/token.sh CLIENT001)" \
 	  | python3 -m json.tool > docs/api/openapi.json
 
-load: ## Load test against the running stack: make load EVENTS=2000 FAIL_RATIO=0.10 CONCURRENCY=8 TIMEOUT=300 WIREMOCK_JOURNAL_LIMIT=5000 API_RPS=20 API_CLIENTS=4
+load: ## Load test against the running stack: make load EVENTS=2000 FAIL_RATIO=random|0.05 CONCURRENCY=8 TIMEOUT=300 WIREMOCK_JOURNAL_LIMIT=5000 API_RPS=20 API_CLIENTS=4
 	@export TOKEN_TTL_SECONDS=$$(( $(TIMEOUT) + 1800 )) && \
 	TOKEN_CLIENT001=$$(scripts/token.sh CLIENT001) && \
 	TOKEN_CLIENT002=$$(scripts/token.sh CLIENT002) && \
