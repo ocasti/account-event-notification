@@ -1,19 +1,21 @@
 package co.cobre.notifications.infrastructure.persistence;
 
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 public interface NotificationEventJpaRepository extends JpaRepository<NotificationEventEntity, String>, JpaSpecificationExecutor<NotificationEventEntity> {
 
@@ -21,43 +23,28 @@ public interface NotificationEventJpaRepository extends JpaRepository<Notificati
 
     default Page<NotificationEventEntity> search(SearchCriteria criteria) {
         Specification<NotificationEventEntity> spec = (root, query, cb) -> {
-            List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
-
-            predicates.add(cb.equal(root.get("clientId"), criteria.clientId()));
-
-            if (criteria.status().isPresent()) {
-                predicates.add(cb.equal(root.get("status"), criteria.status().get()));
-            }
-
-            if (criteria.from().isPresent()) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), criteria.from().get()));
-            }
-
-            if (criteria.to().isPresent()) {
-                predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), criteria.to().get()));
-            }
-
-            if (criteria.cursorCreatedAt().isPresent() && criteria.cursorEventId().isPresent()) {
-                jakarta.persistence.criteria.Predicate keysetPredicate = cb.or(
-                    cb.lessThan(root.get("createdAt"), criteria.cursorCreatedAt().get()),
-                    cb.and(
-                        cb.equal(root.get("createdAt"), criteria.cursorCreatedAt().get()),
-                        cb.lessThan(root.get("eventId"), criteria.cursorEventId().get())
-                    )
-                );
-                predicates.add(keysetPredicate);
-            }
-
-            query.orderBy(
-                cb.desc(root.get("createdAt")),
-                cb.desc(root.get("eventId"))
-            );
-
-            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+            query.orderBy(cb.desc(root.get("createdAt")), cb.desc(root.get("eventId")));
+            Predicate[] predicates = Stream.of(
+                    Optional.of(cb.equal(root.get("clientId"), criteria.clientId())),
+                    criteria.status().map(status -> cb.equal(root.get("status"), status)),
+                    criteria.from().map(from -> cb.greaterThanOrEqualTo(root.get("createdAt"), from)),
+                    criteria.to().map(to -> cb.lessThanOrEqualTo(root.get("createdAt"), to)),
+                    keysetAfterCursor(criteria, root, cb))
+                .flatMap(Optional::stream)
+                .toArray(Predicate[]::new);
+            return cb.and(predicates);
         };
-
         Pageable pageable = PageRequest.of(0, criteria.limit() + 1);
         return findAll(spec, pageable);
+    }
+
+    private static Optional<Predicate> keysetAfterCursor(
+        SearchCriteria criteria, Root<NotificationEventEntity> root, CriteriaBuilder cb
+    ) {
+        return criteria.cursorCreatedAt().flatMap(createdAt -> criteria.cursorEventId().map(eventId -> cb.or(
+            cb.lessThan(root.get("createdAt"), createdAt),
+            cb.and(cb.equal(root.get("createdAt"), createdAt), cb.lessThan(root.get("eventId"), eventId))
+        )));
     }
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)

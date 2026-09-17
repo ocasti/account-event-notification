@@ -5,8 +5,9 @@
          xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
 
     <description>
-        Gate for unused code and for generic or silent exception handling.
-        Scope kept intentionally narrow: only the rules this refactor set out to enforce.
+        Gate for unused code, generic or silent exception handling, and complexity:
+        one nesting level per method, guard clauses instead of else, small cyclomatic and
+        cognitive complexity. Applies to production and test code alike.
     </description>
 
     <rule ref="category/java/codestyle.xml/UnnecessaryImport"/>
@@ -18,5 +19,29 @@
     <rule ref="category/java/design.xml/AvoidCatchingGenericException"/>
     <rule ref="category/java/errorprone.xml/AvoidCatchingThrowable"/>
     <rule ref="category/java/bestpractices.xml/PreserveStackTrace"/>
+
+    <!-- Complexity: an if inside an if (depth 2) is already a violation. -->
+    <rule ref="category/java/design.xml/AvoidDeeplyNestedIfStmts">
+        <properties>
+            <property name="problemDepth" value="2"/>
+        </properties>
+    </rule>
+    <rule ref="category/java/design.xml/CyclomaticComplexity">
+        <properties>
+            <property name="methodReportLevel" value="8"/>
+            <property name="classReportLevel" value="40"/>
+        </properties>
+    </rule>
+    <rule ref="category/java/design.xml/CognitiveComplexity">
+        <properties>
+            <property name="reportLevel" value="8"/>
+        </properties>
+    </rule>
+    <rule ref="category/java/design.xml/NPathComplexity">
+        <properties>
+            <property name="reportLevel" value="50"/>
+        </properties>
+    </rule>
+    <rule ref="category/java/codestyle.xml/ConfusingTernary"/>
 
 </ruleset>

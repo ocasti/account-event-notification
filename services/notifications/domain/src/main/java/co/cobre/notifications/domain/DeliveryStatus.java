@@ -1,5 +1,6 @@
 package co.cobre.notifications.domain;
 
+import java.util.Arrays;
 import java.util.Optional;
 
 public enum DeliveryStatus {
@@ -28,11 +29,8 @@ public enum DeliveryStatus {
      */
     public static Optional<DeliveryStatus> fromApiValue(String value) {
         var upper = value.toUpperCase();
-        for (var status : values()) {
-            if (status.name().equals(upper)) {
-                return Optional.of(status);
-            }
-        }
-        return Optional.empty();
+        return Arrays.stream(values())
+            .filter(status -> status.name().equals(upper))
+            .findFirst();
     }
 }

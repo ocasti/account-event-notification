@@ -101,17 +101,27 @@ public final class ProcessDueDeliveries {
     private void handleOutcome(NotificationEvent event, DeliveryAttempt attempt, DeliveryOutcome outcome, Instant now) {
         switch (outcome) {
             case DeliveryOutcome.Success s -> event.complete(now);
-            case DeliveryOutcome.TransientFailure tf -> {
-                if (retryPolicy.isExhausted(attempt.attemptNumber() + 1)) {
-                    event.fail();
-                } else {
-                    var delay = retryPolicy.delayBefore(attempt.attemptNumber() + 1, random);
-                    var nextAttempt = attempt.next(now.plus(delay));
-                    attempts.save(nextAttempt);
-                    event.scheduleRetry();
-                }
-            }
+            case DeliveryOutcome.TransientFailure tf -> handleTransientFailure(event, attempt, now);
             case DeliveryOutcome.PermanentFailure pf -> event.fail();
         }
+    }
+
+    private void handleTransientFailure(NotificationEvent event, DeliveryAttempt attempt, Instant now) {
+        if (retryPolicy.isExhausted(attempt.attemptNumber() + 1)) {
+            failExhausted(event);
+            return;
+        }
+        scheduleRetry(event, attempt, now);
+    }
+
+    private void failExhausted(NotificationEvent event) {
+        event.fail();
+    }
+
+    private void scheduleRetry(NotificationEvent event, DeliveryAttempt attempt, Instant now) {
+        var delay = retryPolicy.delayBefore(attempt.attemptNumber() + 1, random);
+        var nextAttempt = attempt.next(now.plus(delay));
+        attempts.save(nextAttempt);
+        event.scheduleRetry();
     }
 }

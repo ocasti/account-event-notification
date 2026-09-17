@@ -27,10 +27,11 @@ public class EmissionScheduler {
 
     @EventListener(ApplicationReadyEvent.class)
     public void emitReference() {
-        if (properties.emitReferenceOnStart()) {
-            for (ReferenceEvent event : catalog.all()) {
-                publisher.publish(event);
-            }
+        if (!properties.emitReferenceOnStart()) {
+            return;
+        }
+        for (ReferenceEvent event : catalog.all()) {
+            publisher.publish(event);
         }
     }
 

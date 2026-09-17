@@ -8,6 +8,9 @@ import java.util.random.RandomGenerator;
 @Component
 public class EventGenerator {
 
+    private static final int EVENT_ID_HEX_DIGITS = 8;
+    private static final int HEX_RADIX = 16;
+
     private final EventCatalog catalog;
     private final RandomGenerator random;
     private final Clock clock;
@@ -41,8 +44,8 @@ public class EventGenerator {
 
     private String generateNewEventId() {
         StringBuilder id = new StringBuilder("EVT-");
-        for (int i = 0; i < 8; i++) {
-            int digit = random.nextInt(16);
+        for (int i = 0; i < EVENT_ID_HEX_DIGITS; i++) {
+            int digit = random.nextInt(HEX_RADIX);
             id.append(String.format("%X", digit));
         }
         return id.toString();

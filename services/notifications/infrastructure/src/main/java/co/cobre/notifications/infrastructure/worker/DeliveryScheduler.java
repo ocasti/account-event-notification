@@ -36,9 +36,15 @@ public class DeliveryScheduler {
             int processed = processDueDeliveries.processBatch();
             metrics.batchProcessed(processed);
         } catch (Exception e) {
-            var cause = (e instanceof CompletionException && e.getCause() != null) ? e.getCause() : e;
-            logger.error("Scheduler error processing batch: {}", cause.getMessage(), e);
+            logger.error("Scheduler error processing batch: {}", rootCause(e).getMessage(), e);
             metrics.schedulerError();
         }
+    }
+
+    private static Throwable rootCause(Exception e) {
+        if (!(e instanceof CompletionException) || e.getCause() == null) {
+            return e;
+        }
+        return e.getCause();
     }
 }
