@@ -65,7 +65,6 @@ public class NotificationEventController {
         @AuthenticatedClient ClientId clientId,
         @PathVariable("notification_event_id") String id
     ) {
-        var result = replayNotificationEvent.replay(clientId, new EventId(id));
-        return new ReplayResponse(result.eventId().value(), result.cycle(), "pending");
+        return mapper.toReplay(replayNotificationEvent.replay(clientId, new EventId(id)));
     }
 }
