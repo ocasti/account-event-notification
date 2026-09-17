@@ -35,6 +35,7 @@ public interface NotificationEventJpaRepository extends JpaRepository<Notificati
             return cb.and(predicates);
         };
         Pageable pageable = PageRequest.of(0, criteria.limit() + 1);
+
         return findAll(spec, pageable);
     }
 

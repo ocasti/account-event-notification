@@ -35,6 +35,7 @@ public class SubscriptionEntityMapper {
         entity.setEventSignatureKey(domain.signatureKey().orElse(null));
         entity.setActive(domain.active());
         entity.setCreatedAt(domain.createdAt());
+
         return entity;
     }
 

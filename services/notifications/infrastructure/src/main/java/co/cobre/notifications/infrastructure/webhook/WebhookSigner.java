@@ -24,6 +24,7 @@ public class WebhookSigner {
         var timestamp = clock.instant().toString();
         var signatureData = timestamp + "." + body;
         var signature = computeHmacSha256(signatureKey, signatureData);
+
         return new Signature(timestamp, signature);
     }
 
