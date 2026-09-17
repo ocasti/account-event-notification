@@ -125,7 +125,7 @@ The summary counters use `$__range`, i.e. the time range selected in Grafana, an
 
 | Panel | Query | What it means |
 |---|---|---|
-| Completed deliveries (range) | `sum(increase(notifications_deliveries_total{status="completed"}[$__range]))` | Attempts that finished successfully in the last hour. |
+| Completed deliveries (range) | `round(sum(increase(...{status="completed"}[$__range])))` | Completed transitions in the selected range. Rounded: `increase()` extrapolates between scrapes and yields fractions on sparse counters (a value such as 8.94 for nine events). |
 | Failed deliveries (range) | `sum(increase(notifications_deliveries_total{status="failed"}[$__range]))` | Attempts that exhausted retries in the last hour. |
 | Success rate (range) | `sum(increase(...{status="completed"}[$__range])) / (sum(increase(...{status="completed"}[$__range])) + sum(increase(...{status="failed"}[$__range])))` | Completed over final outcomes. The counter records state transitions, so `retrying` is excluded: an event that fails after five attempts counts once as failed, not five times. |
 | Webhook latency p95 (range) | `histogram_quantile(0.95, sum by (le) (increase(notifications_webhook_latency_seconds_bucket[$__range])))` | p95 of the webhook POST, all clients. |

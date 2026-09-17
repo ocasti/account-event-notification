@@ -93,7 +93,7 @@
       "id": 1,
       "type": "stat",
       "title": "Completed deliveries (range)",
-      "description": "Delivery attempts that ended in completed status in the last hour (notifications_deliveries_total). Computed over the time range selected in Grafana ($__range) and the client filter; recalculated when the range or client changes.",
+      "description": "Delivery attempts that ended in completed status in the last hour (notifications_deliveries_total). Computed over the time range selected in Grafana ($__range) and the client filter; recalculated when the range or client changes. Rounded: increase() extrapolates between scrapes and yields fractions on sparse counters.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -111,7 +111,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(notifications_deliveries_total{client_id=~\"$client_id\",status=\"completed\"}[$__range]))",
+          "expr": "round(sum(increase(notifications_deliveries_total{client_id=~\"$client_id\",status=\"completed\"}[$__range])))",
           "range": true
         }
       ],
@@ -152,7 +152,7 @@
       "id": 2,
       "type": "stat",
       "title": "Failed deliveries (range)",
-      "description": "Delivery attempts that ended in failed status in the last hour (notifications_deliveries_total). Computed over the time range selected in Grafana ($__range) and the client filter; recalculated when the range or client changes.",
+      "description": "Delivery attempts that ended in failed status in the last hour (notifications_deliveries_total). Computed over the time range selected in Grafana ($__range) and the client filter; recalculated when the range or client changes. Rounded: increase() extrapolates between scrapes and yields fractions on sparse counters.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -170,7 +170,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(notifications_deliveries_total{client_id=~\"$client_id\",status=\"failed\"}[$__range]))",
+          "expr": "round(sum(increase(notifications_deliveries_total{client_id=~\"$client_id\",status=\"failed\"}[$__range])))",
           "range": true
         }
       ],
@@ -478,7 +478,7 @@
       "id": 7,
       "type": "stat",
       "title": "Duplicates (range)",
-      "description": "Received events that already existed (same idempotency key) in the last hour (notifications_duplicates_total). Computed over the time range selected in Grafana ($__range) and the client filter; recalculated when the range or client changes.",
+      "description": "Received events that already existed (same idempotency key) in the last hour (notifications_duplicates_total). Computed over the time range selected in Grafana ($__range) and the client filter; recalculated when the range or client changes. Rounded: increase() extrapolates between scrapes and yields fractions on sparse counters.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -496,7 +496,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(notifications_duplicates_total{client_id=~\"$client_id\"}[$__range]))",
+          "expr": "round(sum(increase(notifications_duplicates_total{client_id=~\"$client_id\"}[$__range])))",
           "range": true
         }
       ],
@@ -537,7 +537,7 @@
       "id": 8,
       "type": "stat",
       "title": "Skipped (range)",
-      "description": "Received events that the service decided not to record in the last hour (notifications_skipped_total): e.g. no active subscription for the event_key. Computed over the time range selected in Grafana ($__range) and the client filter; recalculated when the range or client changes.",
+      "description": "Received events that the service decided not to record in the last hour (notifications_skipped_total): e.g. no active subscription for the event_key. Computed over the time range selected in Grafana ($__range) and the client filter; recalculated when the range or client changes. Rounded: increase() extrapolates between scrapes and yields fractions on sparse counters.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -555,7 +555,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(notifications_skipped_total{client_id=~\"$client_id\"}[$__range]))",
+          "expr": "round(sum(increase(notifications_skipped_total{client_id=~\"$client_id\"}[$__range])))",
           "range": true
         }
       ],
