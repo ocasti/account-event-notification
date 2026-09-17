@@ -2,25 +2,18 @@ package co.cobre.notifications.application.usecase;
 
 import co.cobre.notifications.application.port.DeliveryAttemptRepository;
 import co.cobre.notifications.application.port.NotificationEventRepository;
-import co.cobre.notifications.domain.AttemptOrigin;
-import co.cobre.notifications.domain.ClientId;
-import co.cobre.notifications.domain.DeliveryAttempt;
-import co.cobre.notifications.domain.EventData;
-import co.cobre.notifications.domain.EventId;
-import co.cobre.notifications.domain.EventKey;
 import co.cobre.notifications.domain.NotificationEvent;
 import co.cobre.notifications.domain.NotificationEventNotFoundException;
-import co.cobre.notifications.domain.Subscription;
-import co.cobre.notifications.domain.WebhookUrl;
+import co.cobre.notifications.domain.fixtures.DeliveryAttempts;
+import co.cobre.notifications.domain.fixtures.Ids;
+import co.cobre.notifications.domain.fixtures.NotificationEvents;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,39 +31,27 @@ class GetNotificationEventTest {
     @Test
     void shouldReturnEventDetailWhenAttemptsExist() {
         GetNotificationEvent useCase = new GetNotificationEvent(events, attempts);
-        ClientId clientId = new ClientId("client-1");
-        EventId eventId = new EventId("evt-123");
-        var data = new EventData(
-            eventId, clientId, new EventKey("order.created"), "Order created", Instant.parse("2025-01-01T11:00:00Z")
-        );
-        var subscription = new Subscription(
-            "sub-123", clientId, Set.of(new EventKey("order.created")),
-            WebhookUrl.of("https://example.com/webhook"),
-            Optional.empty(), Optional.empty(), true, Instant.parse("2025-01-01T10:00:00Z")
-        );
-        NotificationEvent event = NotificationEvent.register(data, Instant.parse("2025-01-01T11:00:01Z"), subscription);
-        DeliveryAttempt attempt1 = DeliveryAttempt.first(eventId, 0, Instant.parse("2025-01-01T11:00:01Z"), AttemptOrigin.SYSTEM);
-        when(events.findByClientAndId(clientId, eventId)).thenReturn(Optional.of(event));
-        when(attempts.findByEvent(eventId)).thenReturn(List.of(attempt1));
+        NotificationEvent event = NotificationEvents.pending();
+        var recordedAttempt = DeliveryAttempts.due();
+        when(events.findByClientAndId(Ids.CLIENT_001, Ids.EVT_001)).thenReturn(Optional.of(event));
+        when(attempts.findByEvent(Ids.EVT_001)).thenReturn(List.of(recordedAttempt));
 
-        NotificationEventDetail result = useCase.get(clientId, eventId);
+        NotificationEventDetail result = useCase.get(Ids.CLIENT_001, Ids.EVT_001);
 
         assertThat(result.event()).isEqualTo(event);
-        assertThat(result.attempts()).containsExactly(attempt1);
-        verify(events).findByClientAndId(clientId, eventId);
-        verify(attempts).findByEvent(eventId);
+        assertThat(result.attempts()).containsExactly(recordedAttempt);
+        verify(events).findByClientAndId(Ids.CLIENT_001, Ids.EVT_001);
+        verify(attempts).findByEvent(Ids.EVT_001);
     }
 
     @Test
     void shouldThrowWhenEventDoesNotExistForClient() {
         GetNotificationEvent useCase = new GetNotificationEvent(events, attempts);
-        ClientId clientId = new ClientId("client-1");
-        EventId eventId = new EventId("evt-nonexistent");
-        when(events.findByClientAndId(clientId, eventId)).thenReturn(Optional.empty());
+        when(events.findByClientAndId(Ids.CLIENT_001, Ids.EVT_001)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> useCase.get(clientId, eventId))
+        assertThatThrownBy(() -> useCase.get(Ids.CLIENT_001, Ids.EVT_001))
             .isInstanceOf(NotificationEventNotFoundException.class);
 
-        verify(attempts, never()).findByEvent(eventId);
+        verify(attempts, never()).findByEvent(Ids.EVT_001);
     }
 }
