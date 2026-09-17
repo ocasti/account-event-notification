@@ -3,6 +3,8 @@ package co.cobre.notifications.domain;
 import java.time.Instant;
 import java.util.stream.Stream;
 
+import co.cobre.notifications.domain.fixtures.Clocks;
+
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -15,7 +17,7 @@ class EventDataTest {
     private static final ClientId CLIENT_ID = new ClientId("test-client");
     private static final EventKey EVENT_KEY = new EventKey("test.event.key");
     private static final String CONTENT = "test content";
-    private static final Instant OCCURRED_AT = Instant.now();
+    private static final Instant OCCURRED_AT = Clocks.NOW;
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("missingRequiredFields")

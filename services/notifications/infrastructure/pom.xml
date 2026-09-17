@@ -26,6 +26,13 @@
       <artifactId>application</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <dependency>
+      <groupId>co.cobre</groupId>
+      <artifactId>domain</artifactId>
+      <version>${project.version}</version>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
 
     <!-- Web, HTTP client, validation, docs -->
     <dependency>

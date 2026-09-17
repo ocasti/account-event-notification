@@ -1,6 +1,5 @@
 package co.cobre.simulator;
 
-import co.cobre.simulator.fixtures.Clocks;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -8,6 +7,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Clock;
+import java.time.Instant;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -29,7 +29,7 @@ class SimulatorControllerTest {
 
     @Test
     void shouldPublishGeneratedReferenceEventWhenSimulatorControllerEmitCalled() {
-        ReferenceEvent event = new ReferenceEvent("EVT-NEW123", "account.created", "CLIENT123", "Account created", Clocks.NOW);
+        ReferenceEvent event = new ReferenceEvent("EVT-NEW123", "account.created", "CLIENT123", "Account created", Instant.now());
         when(generator.fromRequest("CLIENT123", "account.created", "Account created"))
             .thenReturn(event);
         SimulatorController.EmitRequest request = new SimulatorController.EmitRequest("CLIENT123", "account.created", "Account created");
