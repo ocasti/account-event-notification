@@ -3,6 +3,7 @@ springdoc:
     enabled: true
   swagger-ui:
     enabled: true
+  override-with-generic-response: true
 
 notifications:
   retry:
