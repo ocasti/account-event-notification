@@ -23,7 +23,6 @@
                     "Notification events"
                 ],
                 "summary": "Replay a notification event",
-                "description": "Schedules a new delivery cycle for a failed notification event owned by the authenticated client.",
                 "operationId": "replay",
                 "parameters": [
                     {
@@ -36,8 +35,47 @@
                     }
                 ],
                 "responses": {
+                    "409": {
+                        "description": "The event is not in a state that allows a replay",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        },
+                        "x-exception-class": [
+                            "co.cobre.notifications.domain.IllegalStateTransitionException"
+                        ]
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        },
+                        "x-exception-class": [
+                            "jakarta.validation.ConstraintViolationException"
+                        ]
+                    },
+                    "404": {
+                        "description": "No event with this ID for the authenticated client",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        },
+                        "x-exception-class": [
+                            "co.cobre.notifications.domain.NotificationEventNotFoundException"
+                        ]
+                    },
                     "202": {
-                        "description": "Replay accepted and scheduled",
+                        "description": "Accepted",
                         "content": {
                             "*/*": {
                                 "schema": {
@@ -49,27 +87,7 @@
                     "401": {
                         "description": "Missing or invalid bearer token",
                         "content": {
-                            "*/*": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "No event with this ID for the authenticated client",
-                        "content": {
-                            "*/*": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "409": {
-                        "description": "The event is not in a state that allows a replay",
-                        "content": {
-                            "*/*": {
+                            "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ErrorResponse"
                                 }
@@ -85,7 +103,6 @@
                     "Notification events"
                 ],
                 "summary": "List notification events",
-                "description": "Lists the notification events belonging to the authenticated client, newest first, optionally filtered by delivery status and creation date range.",
                 "operationId": "list",
                 "parameters": [
                     {
@@ -145,8 +162,47 @@
                     }
                 ],
                 "responses": {
+                    "409": {
+                        "description": "The event is not in a state that allows a replay",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        },
+                        "x-exception-class": [
+                            "co.cobre.notifications.domain.IllegalStateTransitionException"
+                        ]
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        },
+                        "x-exception-class": [
+                            "jakarta.validation.ConstraintViolationException"
+                        ]
+                    },
+                    "404": {
+                        "description": "No event with this ID for the authenticated client",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        },
+                        "x-exception-class": [
+                            "co.cobre.notifications.domain.NotificationEventNotFoundException"
+                        ]
+                    },
                     "200": {
-                        "description": "Page of notification events",
+                        "description": "OK",
                         "content": {
                             "*/*": {
                                 "schema": {
@@ -155,20 +211,10 @@
                             }
                         }
                     },
-                    "400": {
-                        "description": "Invalid query parameter (delivery_status, from/to, limit or cursor)",
-                        "content": {
-                            "*/*": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        }
-                    },
                     "401": {
                         "description": "Missing or invalid bearer token",
                         "content": {
-                            "*/*": {
+                            "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ErrorResponse"
                                 }
@@ -184,7 +230,6 @@
                     "Notification events"
                 ],
                 "summary": "Get a notification event",
-                "description": "Gets a single notification event owned by the authenticated client, with its full delivery attempt history.",
                 "operationId": "get",
                 "parameters": [
                     {
@@ -197,8 +242,47 @@
                     }
                 ],
                 "responses": {
+                    "409": {
+                        "description": "The event is not in a state that allows a replay",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        },
+                        "x-exception-class": [
+                            "co.cobre.notifications.domain.IllegalStateTransitionException"
+                        ]
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        },
+                        "x-exception-class": [
+                            "jakarta.validation.ConstraintViolationException"
+                        ]
+                    },
+                    "404": {
+                        "description": "No event with this ID for the authenticated client",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        },
+                        "x-exception-class": [
+                            "co.cobre.notifications.domain.NotificationEventNotFoundException"
+                        ]
+                    },
                     "200": {
-                        "description": "Notification event detail",
+                        "description": "OK",
                         "content": {
                             "*/*": {
                                 "schema": {
@@ -210,17 +294,7 @@
                     "401": {
                         "description": "Missing or invalid bearer token",
                         "content": {
-                            "*/*": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ErrorResponse"
-                                }
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "No event with this ID for the authenticated client",
-                        "content": {
-                            "*/*": {
+                            "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ErrorResponse"
                                 }
