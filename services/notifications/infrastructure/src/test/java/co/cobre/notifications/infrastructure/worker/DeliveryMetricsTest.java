@@ -1,15 +1,18 @@
 package co.cobre.notifications.infrastructure.worker;
 
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.Gauge;
-import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.time.Duration;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class DeliveryMetricsTest {
 
@@ -22,131 +25,101 @@ class DeliveryMetricsTest {
         metrics = new DeliveryMetrics(registry);
     }
 
-    @Test
-    void registeredIncrementsCounter() {
-        metrics.registered("CLIENT123", "account.updated");
-        metrics.registered("CLIENT123", "account.updated");
-        metrics.registered("CLIENT456", "account.created");
+    /**
+     * One row per counter: the calls made on the metrics, the meter that must
+     * end up in the registry (name and tags) and the count expected on it.
+     */
+    static Stream<Arguments> counterRecordings() {
+        return Stream.of(
+            Arguments.of("registered twice for one client and once for another",
+                (Consumer<DeliveryMetrics>) m -> {
+                    m.registered("CLIENT123", "account.updated");
+                    m.registered("CLIENT123", "account.updated");
+                    m.registered("CLIENT456", "account.created");
+                },
+                "notifications.registered", Tags.of("client_id", "CLIENT123", "event_key", "account.updated"), 2.0),
+            Arguments.of("skipped twice for the same client and event key",
+                (Consumer<DeliveryMetrics>) m -> {
+                    m.skipped("CLIENT789", "account.deleted");
+                    m.skipped("CLIENT789", "account.deleted");
+                },
+                "notifications.skipped", Tags.of("client_id", "CLIENT789", "event_key", "account.deleted"), 2.0),
+            Arguments.of("duplicate twice for one client and once for another",
+                (Consumer<DeliveryMetrics>) m -> {
+                    m.duplicate("CLIENT111", "account.updated");
+                    m.duplicate("CLIENT111", "account.updated");
+                    m.duplicate("CLIENT222", "order.placed");
+                },
+                "notifications.duplicates", Tags.of("client_id", "CLIENT111", "event_key", "account.updated"), 2.0),
+            Arguments.of("delivered with two successes and one failure counts successes",
+                (Consumer<DeliveryMetrics>) DeliveryMetricsTest::twoSuccessesAndOneFailure,
+                "notifications.deliveries",
+                Tags.of("client_id", "CLIENT111", "status", "success", "event_key", "order.placed"), 2.0),
+            Arguments.of("delivered with two successes and one failure counts the failure",
+                (Consumer<DeliveryMetrics>) DeliveryMetricsTest::twoSuccessesAndOneFailure,
+                "notifications.deliveries",
+                Tags.of("client_id", "CLIENT111", "status", "failure", "event_key", "order.placed"), 1.0),
+            Arguments.of("lease expired three times",
+                (Consumer<DeliveryMetrics>) m -> {
+                    m.leaseExpired();
+                    m.leaseExpired();
+                    m.leaseExpired();
+                },
+                "notifications.leases.expired", Tags.empty(), 3.0),
+            Arguments.of("batches of 15 and 20 add up their sizes",
+                (Consumer<DeliveryMetrics>) m -> {
+                    m.batchProcessed(15);
+                    m.batchProcessed(20);
+                },
+                "notifications.batches", Tags.empty(), 35.0),
+            Arguments.of("scheduler error twice",
+                (Consumer<DeliveryMetrics>) m -> {
+                    m.schedulerError();
+                    m.schedulerError();
+                },
+                "notifications.scheduler.errors", Tags.empty(), 2.0)
+        );
+    }
 
-        Counter counter = registry.find("notifications.registered")
-            .tag("client_id", "CLIENT123")
-            .tag("event_key", "account.updated")
-            .counter();
+    @ParameterizedTest(name = "{0} -> {2}{3} = {4}")
+    @MethodSource("counterRecordings")
+    void shouldAccumulateCounterWhenMetricIsRecorded(
+        String scenario, Consumer<DeliveryMetrics> recording, String meterName, Tags tags, double expectedCount
+    ) {
+        recording.accept(metrics);
 
-        assertNotNull(counter);
-        assertEquals(2.0, counter.count());
+        var counter = registry.find(meterName).tags(tags).counter();
+
+        assertThat(counter).as(scenario).isNotNull();
+        assertThat(counter.count()).as(scenario).isEqualTo(expectedCount);
     }
 
     @Test
-    void skippedIncrementsCounter() {
-        metrics.skipped("CLIENT789", "account.deleted");
-        metrics.skipped("CLIENT789", "account.deleted");
-
-        Counter counter = registry.find("notifications.skipped")
-            .tag("client_id", "CLIENT789")
-            .tag("event_key", "account.deleted")
-            .counter();
-
-        assertNotNull(counter);
-        assertEquals(2.0, counter.count());
-    }
-
-    @Test
-    void deliveredIncrementsCounter() {
-        metrics.delivered("CLIENT111", "success", "order.placed");
-        metrics.delivered("CLIENT111", "success", "order.placed");
-        metrics.delivered("CLIENT111", "failure", "order.placed");
-
-        Counter successCounter = registry.find("notifications.deliveries")
-            .tag("client_id", "CLIENT111")
-            .tag("status", "success")
-            .tag("event_key", "order.placed")
-            .counter();
-
-        assertNotNull(successCounter);
-        assertEquals(2.0, successCounter.count());
-
-        Counter failureCounter = registry.find("notifications.deliveries")
-            .tag("client_id", "CLIENT111")
-            .tag("status", "failure")
-            .tag("event_key", "order.placed")
-            .counter();
-
-        assertNotNull(failureCounter);
-        assertEquals(1.0, failureCounter.count());
-    }
-
-    @Test
-    void webhookLatencyRecordsTimer() {
+    void shouldCountEveryRecordingWhenWebhookLatencyIsTimed() {
         metrics.webhookLatency("CLIENT222", Duration.ofMillis(250));
         metrics.webhookLatency("CLIENT222", Duration.ofMillis(350));
 
-        Timer timer = registry.find("notifications.webhook.latency")
-            .tag("client_id", "CLIENT222")
-            .timer();
+        var timer = registry.find("notifications.webhook.latency").tag("client_id", "CLIENT222").timer();
 
-        assertNotNull(timer);
-        assertEquals(2, timer.count());
+        assertThat(timer).isNotNull();
+        assertThat(timer.count()).isEqualTo(2);
     }
 
     @Test
-    void leaseExpiredIncrementsCounter() {
-        metrics.leaseExpired();
-        metrics.leaseExpired();
-        metrics.leaseExpired();
-
-        Counter counter = registry.find("notifications.leases.expired").counter();
-
-        assertNotNull(counter);
-        assertEquals(3.0, counter.count());
-    }
-
-    @Test
-    void attemptsDueTracksLatestGaugeValue() {
+    void shouldExposeLatestValueWhenAttemptsDueIsUpdatedRepeatedly() {
         metrics.attemptsDue(10);
         metrics.attemptsDue(25);
         metrics.attemptsDue(8);
 
-        Gauge gauge = registry.find("notifications.attempts.due").gauge();
+        var gauge = registry.find("notifications.attempts.due").gauge();
 
-        assertNotNull(gauge);
-        assertEquals(8.0, gauge.value());
+        assertThat(gauge).isNotNull();
+        assertThat(gauge.value()).isEqualTo(8.0);
     }
 
-    @Test
-    void batchProcessedIncrementsCounter() {
-        metrics.batchProcessed(15);
-        metrics.batchProcessed(20);
-
-        Counter counter = registry.find("notifications.batches").counter();
-
-        assertNotNull(counter);
-        assertEquals(35.0, counter.count());
-    }
-
-    @Test
-    void schedulerErrorIncrementsCounter() {
-        metrics.schedulerError();
-        metrics.schedulerError();
-
-        Counter counter = registry.find("notifications.scheduler.errors").counter();
-
-        assertNotNull(counter);
-        assertEquals(2.0, counter.count());
-    }
-
-    @Test
-    void duplicateIncrementsCounterWithTags() {
-        metrics.duplicate("CLIENT111", "account.updated");
-        metrics.duplicate("CLIENT111", "account.updated");
-        metrics.duplicate("CLIENT222", "order.placed");
-
-        Counter counter = registry.find("notifications.duplicates")
-            .tag("client_id", "CLIENT111")
-            .tag("event_key", "account.updated")
-            .counter();
-
-        assertNotNull(counter);
-        assertEquals(2.0, counter.count());
+    private static void twoSuccessesAndOneFailure(DeliveryMetrics m) {
+        m.delivered("CLIENT111", "success", "order.placed");
+        m.delivered("CLIENT111", "success", "order.placed");
+        m.delivered("CLIENT111", "failure", "order.placed");
     }
 }

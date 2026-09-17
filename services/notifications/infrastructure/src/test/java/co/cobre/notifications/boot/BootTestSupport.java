@@ -1,11 +1,16 @@
 package co.cobre.notifications.boot;
 
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.DynamicPropertyRegistry;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sqs.SqsAsyncClient;
 
 import java.io.IOException;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,6 +27,8 @@ import java.util.concurrent.ExecutionException;
  * Webhook and JWT audience/client-claim properties come from production YAML.
  */
 public abstract class BootTestSupport {
+
+    protected static final String QUEUE_NAME = "account-events-boot";
 
     @ServiceConnection
     protected static final PostgreSQLContainer<?> POSTGRES =
@@ -45,6 +52,23 @@ public abstract class BootTestSupport {
         }
     }
 
+    /**
+     * Registers the SQS, Flyway and JWT properties that every boot profile needs.
+     * Subclasses call it from their own {@code @DynamicPropertySource} method.
+     */
+    protected static void registerBootProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.cloud.aws.sqs.endpoint", BootTestSupport::elasticMqEndpoint);
+        registry.add("spring.cloud.aws.region.static", () -> "us-east-1");
+        registry.add("spring.cloud.aws.credentials.access-key", () -> "local");
+        registry.add("spring.cloud.aws.credentials.secret-key", () -> "local");
+        registry.add("notifications.sqs.queue-name", () -> QUEUE_NAME);
+        registry.add("spring.flyway.placeholders.webhookUrl", () -> "https://example.test/webhook");
+        registry.add("notifications.jwt.public-key", () -> "file:" + publicKeyPath);
+    }
+
+    private static String elasticMqEndpoint() {
+        return String.format("http://localhost:%d", ELASTICMQ.getMappedPort(9324));
+    }
 
     /**
      * Generate RSA public key and write to temporary file in PEM format.
@@ -59,14 +83,12 @@ public abstract class BootTestSupport {
         KeyPair keyPair = generator.generateKeyPair();
         PublicKey publicKey = keyPair.getPublic();
 
-        // Encode public key as PEM
         byte[] encoded = publicKey.getEncoded();
         String base64 = Base64.getEncoder().encodeToString(encoded);
         String pem = "-----BEGIN PUBLIC KEY-----\n" +
                      base64 + "\n" +
                      "-----END PUBLIC KEY-----";
 
-        // Write to temporary file
         Path tempFile = Files.createTempFile("boot-test-public-key", ".pem");
         Files.write(tempFile, pem.getBytes());
         tempFile.toFile().deleteOnExit();
@@ -80,16 +102,15 @@ public abstract class BootTestSupport {
      */
     private static void createSqsQueue() {
         try {
-            String elasticMQEndpoint = String.format("http://localhost:%d", ELASTICMQ.getMappedPort(9324));
             SqsAsyncClient sqs = SqsAsyncClient.builder()
-                .endpointOverride(new java.net.URI(elasticMQEndpoint))
-                .region(software.amazon.awssdk.regions.Region.US_EAST_1)
-                .credentialsProvider(software.amazon.awssdk.auth.credentials.StaticCredentialsProvider.create(
-                    software.amazon.awssdk.auth.credentials.AwsBasicCredentials.create("local", "local")
+                .endpointOverride(new URI(elasticMqEndpoint()))
+                .region(Region.US_EAST_1)
+                .credentialsProvider(StaticCredentialsProvider.create(
+                    AwsBasicCredentials.create("local", "local")
                 ))
                 .build();
 
-            sqs.createQueue(req -> req.queueName("account-events-boot")).get();
+            sqs.createQueue(req -> req.queueName(QUEUE_NAME)).get();
             sqs.close();
         } catch (URISyntaxException | ExecutionException e) {
             throw new RuntimeException("Failed to create SQS queue in ElasticMQ", e);

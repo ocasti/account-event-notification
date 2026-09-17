@@ -18,7 +18,7 @@ class DeliveryAttemptJpaRepositoryIT extends PersistenceTestSupport {
     private NotificationEventJpaRepository notificationEventRepository;
 
     @Test
-    void countDue_returnsOnlyUnexecutedUnclaimedAttemptsDueNow() {
+    void shouldCountOnlyUnexecutedUnclaimedAttemptsWhenCountingDueAttempts() {
         var event = new NotificationEventEntity();
         event.setEventId("test-event-1");
         event.setClientId("test-client");

@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,7 +25,7 @@ class WebhookPayloadMapperTest {
     }
 
     @Test
-    void shouldMapEventToJsonWithAllRequiredFields() {
+    void shouldIncludeRequiredFieldsWhenMappingEventToJson() {
         var event = new NotificationEvent(
             new EventId("event-123"),
             new ClientId("client-456"),
@@ -40,15 +41,17 @@ class WebhookPayloadMapperTest {
 
         var json = mapper.toJson(event);
 
-        assertThat(json).contains("\"id\":\"event-123\"");
-        assertThat(json).contains("\"event_key\":\"user.created\"");
-        assertThat(json).contains("\"client_id\":\"client-456\"");
-        assertThat(json).contains("\"created_at\":\"2025-09-15T10:00:00Z\"");
-        assertThat(json).contains("\"content\":\"{\\\"name\\\":\\\"John\\\"}\"");
+        assertThat(json).contains(
+            "\"id\":\"event-123\"",
+            "\"event_key\":\"user.created\"",
+            "\"client_id\":\"client-456\"",
+            "\"created_at\":\"2025-09-15T10:00:00Z\"",
+            "\"content\":\"{\\\"name\\\":\\\"John\\\"}\""
+        );
     }
 
     @Test
-    void shouldProduceCompactJsonWithoutSpacesOrNewlines() {
+    void shouldProduceCompactJsonWhenMappingEventToJson() {
         var event = new NotificationEvent(
             new EventId("event-1"),
             new ClientId("client-2"),
@@ -64,13 +67,11 @@ class WebhookPayloadMapperTest {
 
         var json = mapper.toJson(event);
 
-        assertThat(json).doesNotContain(" ");
-        assertThat(json).doesNotContain("\n");
-        assertThat(json).doesNotContain("\r");
+        assertThat(json).doesNotContain(" ", "\n", "\r");
     }
 
     @Test
-    void shouldMaintainOrderOfFields() {
+    void shouldMaintainFieldOrderWhenMappingEventToJson() {
         var event = new NotificationEvent(
             new EventId("event-1"),
             new ClientId("client-2"),
@@ -85,16 +86,13 @@ class WebhookPayloadMapperTest {
         );
 
         var json = mapper.toJson(event);
-
         var idIdx = json.indexOf("\"id\"");
         var eventKeyIdx = json.indexOf("\"event_key\"");
         var clientIdIdx = json.indexOf("\"client_id\"");
         var createdAtIdx = json.indexOf("\"created_at\"");
         var contentIdx = json.indexOf("\"content\"");
+        var fieldOrder = List.of(idIdx, eventKeyIdx, clientIdIdx, createdAtIdx, contentIdx);
 
-        assertThat(idIdx).isLessThan(eventKeyIdx);
-        assertThat(eventKeyIdx).isLessThan(clientIdIdx);
-        assertThat(clientIdIdx).isLessThan(createdAtIdx);
-        assertThat(createdAtIdx).isLessThan(contentIdx);
+        assertThat(fieldOrder).isSorted();
     }
 }

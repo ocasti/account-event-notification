@@ -8,6 +8,8 @@ import co.cobre.notifications.domain.NotificationEvent;
 import co.cobre.notifications.infrastructure.persistence.NotificationEventRepositoryAdapter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -15,11 +17,17 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Instant;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class MeteredNotificationEventRepositoryTest {
+
+    private static final Instant OCCURRED_AT = Instant.parse("2025-01-01T10:00:00Z");
+    private static final Instant COMPLETED_AT = Instant.parse("2025-01-01T10:05:00Z");
 
     @Mock
     private NotificationEventRepositoryAdapter delegate;
@@ -34,143 +42,51 @@ class MeteredNotificationEventRepositoryTest {
     private final EventId eventId = new EventId("EVT001");
     private final EventKey eventKey = new EventKey("account.updated");
 
-    @Test
-    void transitionToCompletedRecordsMetric() {
-        var completedEvent = new NotificationEvent(
-            eventId,
-            clientId,
-            eventKey,
-            "content",
-            Instant.parse("2025-01-01T10:00:00Z"),
-            Instant.parse("2025-01-01T10:00:00Z"),
-            DeliveryStatus.COMPLETED,
-            Optional.of("SUB001"),
-            0,
-            Optional.of(Instant.parse("2025-01-01T10:05:00Z"))
-        );
+    @ParameterizedTest(name = "transition to {0} records the delivered metric as {1}")
+    @CsvSource({
+        "COMPLETED, completed",
+        "RETRYING, retrying",
+        "FAILED, failed"
+    })
+    void shouldRecordDeliveredMetricWhenTransitionToOutcomeStatusSucceeds(DeliveryStatus target, String metricStatus) {
+        var updated = eventWithStatus(target);
+        when(delegate.transition(eventId, DeliveryStatus.PENDING, updated)).thenReturn(true);
 
-        when(delegate.transition(eventId, DeliveryStatus.PENDING, completedEvent)).thenReturn(true);
+        boolean result = repository.transition(eventId, DeliveryStatus.PENDING, updated);
 
-        boolean result = repository.transition(eventId, DeliveryStatus.PENDING, completedEvent);
-
-        assertTrue(result);
-        verify(metrics).delivered("CLIENT123", "completed", "account.updated");
-        verify(delegate).transition(eventId, DeliveryStatus.PENDING, completedEvent);
+        assertThat(result).isTrue();
+        verify(delegate).transition(eventId, DeliveryStatus.PENDING, updated);
+        verify(metrics).delivered("CLIENT123", metricStatus, "account.updated");
         verifyNoMoreInteractions(metrics);
     }
 
     @Test
-    void transitionToRetryingRecordsMetric() {
-        var retryingEvent = new NotificationEvent(
-            eventId,
-            clientId,
-            eventKey,
-            "content",
-            Instant.parse("2025-01-01T10:00:00Z"),
-            Instant.parse("2025-01-01T10:00:00Z"),
-            DeliveryStatus.RETRYING,
-            Optional.of("SUB001"),
-            0,
-            Optional.empty()
-        );
-
-        when(delegate.transition(eventId, DeliveryStatus.PENDING, retryingEvent)).thenReturn(true);
-
-        boolean result = repository.transition(eventId, DeliveryStatus.PENDING, retryingEvent);
-
-        assertTrue(result);
-        verify(metrics).delivered("CLIENT123", "retrying", "account.updated");
-        verify(delegate).transition(eventId, DeliveryStatus.PENDING, retryingEvent);
-        verifyNoMoreInteractions(metrics);
-    }
-
-    @Test
-    void transitionToFailedRecordsMetric() {
-        var failedEvent = new NotificationEvent(
-            eventId,
-            clientId,
-            eventKey,
-            "content",
-            Instant.parse("2025-01-01T10:00:00Z"),
-            Instant.parse("2025-01-01T10:00:00Z"),
-            DeliveryStatus.FAILED,
-            Optional.of("SUB001"),
-            0,
-            Optional.empty()
-        );
-
-        when(delegate.transition(eventId, DeliveryStatus.PENDING, failedEvent)).thenReturn(true);
-
-        boolean result = repository.transition(eventId, DeliveryStatus.PENDING, failedEvent);
-
-        assertTrue(result);
-        verify(metrics).delivered("CLIENT123", "failed", "account.updated");
-        verify(delegate).transition(eventId, DeliveryStatus.PENDING, failedEvent);
-        verifyNoMoreInteractions(metrics);
-    }
-
-    @Test
-    void transitionToPendingDoesNotRecordMetric() {
-        var pendingEvent = new NotificationEvent(
-            eventId,
-            clientId,
-            eventKey,
-            "content",
-            Instant.parse("2025-01-01T10:00:00Z"),
-            Instant.parse("2025-01-01T10:00:00Z"),
-            DeliveryStatus.PENDING,
-            Optional.of("SUB001"),
-            1,
-            Optional.empty()
-        );
-
+    void shouldNotRecordMetricWhenTransitionTargetIsPending() {
+        var pendingEvent = eventWithStatus(DeliveryStatus.PENDING);
         when(delegate.transition(eventId, DeliveryStatus.FAILED, pendingEvent)).thenReturn(true);
 
         boolean result = repository.transition(eventId, DeliveryStatus.FAILED, pendingEvent);
 
-        assertTrue(result);
+        assertThat(result).isTrue();
         verify(delegate).transition(eventId, DeliveryStatus.FAILED, pendingEvent);
         verifyNoInteractions(metrics);
     }
 
     @Test
-    void transitionFailsDoesNotRecordMetric() {
-        var completedEvent = new NotificationEvent(
-            eventId,
-            clientId,
-            eventKey,
-            "content",
-            Instant.parse("2025-01-01T10:00:00Z"),
-            Instant.parse("2025-01-01T10:00:00Z"),
-            DeliveryStatus.COMPLETED,
-            Optional.of("SUB001"),
-            0,
-            Optional.of(Instant.parse("2025-01-01T10:05:00Z"))
-        );
-
+    void shouldNotRecordMetricWhenDelegateRejectsTransition() {
+        var completedEvent = eventWithStatus(DeliveryStatus.COMPLETED);
         when(delegate.transition(eventId, DeliveryStatus.PENDING, completedEvent)).thenReturn(false);
 
         boolean result = repository.transition(eventId, DeliveryStatus.PENDING, completedEvent);
 
-        assertFalse(result);
+        assertThat(result).isFalse();
         verify(delegate).transition(eventId, DeliveryStatus.PENDING, completedEvent);
         verifyNoInteractions(metrics);
     }
 
     @Test
-    void saveDelegates() {
-        var event = new NotificationEvent(
-            eventId,
-            clientId,
-            eventKey,
-            "content",
-            Instant.parse("2025-01-01T10:00:00Z"),
-            Instant.parse("2025-01-01T10:00:00Z"),
-            DeliveryStatus.PENDING,
-            Optional.of("SUB001"),
-            0,
-            Optional.empty()
-        );
+    void shouldDelegateWithoutMetricsWhenEventIsSaved() {
+        var event = eventWithStatus(DeliveryStatus.PENDING);
 
         repository.save(event);
 
@@ -179,27 +95,30 @@ class MeteredNotificationEventRepositoryTest {
     }
 
     @Test
-    void findByIdDelegates() {
-        var event = new NotificationEvent(
-            eventId,
-            clientId,
-            eventKey,
-            "content",
-            Instant.parse("2025-01-01T10:00:00Z"),
-            Instant.parse("2025-01-01T10:00:00Z"),
-            DeliveryStatus.PENDING,
-            Optional.of("SUB001"),
-            0,
-            Optional.empty()
-        );
-
+    void shouldDelegateWithoutMetricsWhenEventIsFoundById() {
+        var event = eventWithStatus(DeliveryStatus.PENDING);
         when(delegate.findById(eventId)).thenReturn(Optional.of(event));
 
         var result = repository.findById(eventId);
 
-        assertTrue(result.isPresent());
-        assertEquals(event, result.get());
+        assertThat(result).contains(event);
         verify(delegate).findById(eventId);
         verifyNoInteractions(metrics);
+    }
+
+    private NotificationEvent eventWithStatus(DeliveryStatus status) {
+        var completedAt = Optional.of(COMPLETED_AT).filter(at -> status == DeliveryStatus.COMPLETED);
+        return new NotificationEvent(
+            eventId,
+            clientId,
+            eventKey,
+            "content",
+            OCCURRED_AT,
+            OCCURRED_AT,
+            status,
+            Optional.of("SUB001"),
+            0,
+            completedAt
+        );
     }
 }

@@ -29,12 +29,11 @@ class DeliveryAttemptRepositoryAdapterTest {
     private DeliveryAttemptEntityMapper mapper;
 
     @Test
-    void claimDueReturnsEmptyWhenBatchUpdateClaimsNoRows() {
+    void shouldReturnEmptyWhenBatchUpdateClaimsNoRows() {
         var adapter = new DeliveryAttemptRepositoryAdapter(jpaRepository, mapper);
         var claimedRowId = UUID.randomUUID();
         var row = Map.<String, Object>of("id", claimedRowId, "client_id", "CLIENT_001");
         var claim = new DeliveryClaim(Instant.now(), 10, 10, "worker-1", Duration.ofSeconds(16));
-
         when(jpaRepository.claimDueAttempts(anyLong(), anyInt())).thenReturn(List.of(row));
         when(jpaRepository.updateClaimedBatch(anyList(), anyString())).thenReturn(0);
 

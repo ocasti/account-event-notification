@@ -20,7 +20,7 @@ import static org.mockito.Mockito.verify;
 @SpringBootTest(classes = {AccountEventListener.class, AccountEventMessageMapper.class, MessagingTestConfig.class},
     properties = {
         "spring.profiles.active=worker",
-        "notifications.sqs.queue-name=account-events-test",
+        "notifications.sqs.queue-name=" + AccountEventListenerIT.QUEUE_NAME,
         "spring.cloud.aws.region.static=us-east-1",
         "spring.cloud.aws.credentials.access-key=local",
         "spring.cloud.aws.credentials.secret-key=local"
@@ -32,6 +32,9 @@ import static org.mockito.Mockito.verify;
     io.awspring.cloud.autoconfigure.sqs.SqsAutoConfiguration.class
 })
 class AccountEventListenerIT {
+
+    static final String QUEUE_NAME = "account-events-test";
+    private static final long LISTENER_TIMEOUT_MS = 15_000;
 
     @Container
     static final GenericContainer<?> elasticMQ = new GenericContainer<>("softwaremill/elasticmq-native:1.6.12")
@@ -49,45 +52,24 @@ class AccountEventListenerIT {
     @Autowired
     private RegisterNotificationEvent registerNotificationEvent;
 
-    @Autowired
-    private DeliveryMetrics deliveryMetrics;
-
     @Test
-    void listenAndRegisterEvent() {
-        String queueName = "account-events-test";
-        String messageJson = """
-            {
-                "event_id": "EVT001",
-                "event_type": "account.created",
-                "client_id": "CLIENT123",
-                "content": "account was created",
-                "occurred_at": "2025-01-01T10:00:00Z"
-            }
-            """;
+    void shouldRegisterEventWhenMessageArrivesOnQueue() {
+        var messageJson = MessagingTestConfig.accountEventJson("EVT001", "account.created", "CLIENT123");
 
-        sqsTemplate.send(queueName, messageJson);
+        sqsTemplate.send(QUEUE_NAME, messageJson);
 
-        verify(registerNotificationEvent, timeout(15000))
+        verify(registerNotificationEvent, timeout(LISTENER_TIMEOUT_MS))
             .register(argThat(cmd -> cmd.eventId().value().equals("EVT001")));
     }
 
     @Test
-    void listenDuplicateEventOnlyRegistersOnce() {
-        String queueName = "account-events-test";
-        String messageJson = """
-            {
-                "event_id": "EVT002",
-                "event_type": "account.updated",
-                "client_id": "CLIENT456",
-                "content": "account was updated",
-                "occurred_at": "2025-01-01T11:00:00Z"
-            }
-            """;
+    void shouldForwardEachDeliveryToRegisterWhenSameMessageArrivesTwice() {
+        var messageJson = MessagingTestConfig.accountEventJson("EVT002", "account.updated", "CLIENT456");
 
-        sqsTemplate.send(queueName, messageJson);
-        sqsTemplate.send(queueName, messageJson);
+        sqsTemplate.send(QUEUE_NAME, messageJson);
+        sqsTemplate.send(QUEUE_NAME, messageJson);
 
-        verify(registerNotificationEvent, timeout(15000).times(2))
+        verify(registerNotificationEvent, timeout(LISTENER_TIMEOUT_MS).times(2))
             .register(argThat(cmd -> cmd.eventId().value().equals("EVT002")));
     }
 }

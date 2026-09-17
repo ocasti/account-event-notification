@@ -1,28 +1,34 @@
 package co.cobre.notifications.domain;
 
-import org.junit.jupiter.api.Test;
-
+import java.net.URI;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class NotificationEventTest {
 
-    private final EventId eventId = new EventId("event-1");
-    private final ClientId clientId = new ClientId("client-1");
-    private final EventKey eventKey = new EventKey("user.created");
-    private final String content = "test content";
-    private final Instant createdAt = Instant.parse("2024-01-01T00:00:00Z");
-    private final Instant receivedAt = Instant.parse("2024-01-01T00:00:01Z");
+    private static final EventId EVENT_ID = new EventId("event-1");
+    private static final ClientId CLIENT_ID = new ClientId("client-1");
+    private static final EventKey EVENT_KEY = new EventKey("user.created");
+    private static final String CONTENT = "test content";
+    private static final Instant CREATED_AT = Instant.parse("2024-01-01T00:00:00Z");
+    private static final Instant RECEIVED_AT = Instant.parse("2024-01-01T00:00:01Z");
+    private static final Instant COMPLETED_AT = Instant.parse("2024-01-01T00:01:00Z");
 
     @Test
-    void shouldRegisterEventWithPendingStatusAndZeroCycle() {
-        var subscription = createSubscription();
-        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
-        var event = NotificationEvent.register(data, receivedAt, subscription);
+    void shouldSetPendingStatusWhenEventIsRegistered() {
+        var event = registeredEvent();
 
         assertThat(event.status()).isEqualTo(DeliveryStatus.PENDING);
         assertThat(event.cycle()).isZero();
@@ -31,129 +37,56 @@ class NotificationEventTest {
     }
 
     @Test
-    void shouldCreateSkippedEventWithoutSubscriptionId() {
-        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
-        var event = NotificationEvent.skipped(data, receivedAt);
+    void shouldOmitSubscriptionIdWhenEventIsSkipped() {
+        var event = skippedEvent();
 
         assertThat(event.status()).isEqualTo(DeliveryStatus.SKIPPED);
         assertThat(event.subscriptionId()).isEmpty();
     }
 
-    @Test
-    void shouldCompleteEventFromPendingStatus() {
-        var subscription = createSubscription();
-        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
-        var event = NotificationEvent.register(data, receivedAt, subscription);
-        var completedAt = Instant.parse("2024-01-01T00:01:00Z");
+    @ParameterizedTest(name = "from {0}")
+    @MethodSource("pendingOrRetryingEvents")
+    void shouldCompleteEventWhenStatusIsPendingOrRetrying(String caseName, Supplier<NotificationEvent> eventSupplier) {
+        var event = eventSupplier.get();
 
-        event.complete(completedAt);
+        event.complete(COMPLETED_AT);
 
         assertThat(event.status()).isEqualTo(DeliveryStatus.COMPLETED);
-        assertThat(event.deliveredAt()).isPresent().contains(completedAt);
+        assertThat(event.deliveredAt()).contains(COMPLETED_AT);
     }
 
-    @Test
-    void shouldCompleteEventFromRetryingStatus() {
-        var subscription = createSubscription();
-        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
-        var event = NotificationEvent.register(data, receivedAt, subscription);
-        event.scheduleRetry();
-        var completedAt = Instant.parse("2024-01-01T00:01:00Z");
-
-        event.complete(completedAt);
-
-        assertThat(event.status()).isEqualTo(DeliveryStatus.COMPLETED);
-        assertThat(event.deliveredAt()).isPresent().contains(completedAt);
-    }
-
-    @Test
-    void shouldThrowWhenCompletingAlreadyCompletedEvent() {
-        var subscription = createSubscription();
-        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
-        var event = NotificationEvent.register(data, receivedAt, subscription);
-        var completedAt = Instant.parse("2024-01-01T00:01:00Z");
-        event.complete(completedAt);
-
-        assertThatThrownBy(() -> event.complete(completedAt))
-            .isInstanceOf(IllegalStateTransitionException.class);
-    }
-
-    @Test
-    void shouldScheduleRetryFromPendingStatus() {
-        var subscription = createSubscription();
-        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
-        var event = NotificationEvent.register(data, receivedAt, subscription);
+    @ParameterizedTest(name = "from {0}")
+    @MethodSource("pendingOrRetryingEvents")
+    void shouldScheduleRetryWhenStatusIsPendingOrRetrying(String caseName, Supplier<NotificationEvent> eventSupplier) {
+        var event = eventSupplier.get();
 
         event.scheduleRetry();
 
         assertThat(event.status()).isEqualTo(DeliveryStatus.RETRYING);
     }
 
-    @Test
-    void shouldScheduleRetryFromRetryingStatus() {
-        var subscription = createSubscription();
-        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
-        var event = NotificationEvent.register(data, receivedAt, subscription);
-        event.scheduleRetry();
-
-        event.scheduleRetry();
-
-        assertThat(event.status()).isEqualTo(DeliveryStatus.RETRYING);
-    }
-
-    @Test
-    void shouldFailEventFromPendingStatus() {
-        var subscription = createSubscription();
-        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
-        var event = NotificationEvent.register(data, receivedAt, subscription);
+    @ParameterizedTest(name = "from {0}")
+    @MethodSource("pendingOrRetryingEvents")
+    void shouldFailEventWhenStatusIsPendingOrRetrying(String caseName, Supplier<NotificationEvent> eventSupplier) {
+        var event = eventSupplier.get();
 
         event.fail();
 
         assertThat(event.status()).isEqualTo(DeliveryStatus.FAILED);
     }
 
-    @Test
-    void shouldFailEventFromRetryingStatus() {
-        var subscription = createSubscription();
-        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
-        var event = NotificationEvent.register(data, receivedAt, subscription);
-        event.scheduleRetry();
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("operationsRejectedOnCompletedEvent")
+    void shouldRejectStateChangeWhenEventIsCompleted(String caseName, Consumer<NotificationEvent> operation) {
+        var event = completedEvent();
 
-        event.fail();
-
-        assertThat(event.status()).isEqualTo(DeliveryStatus.FAILED);
-    }
-
-    @Test
-    void shouldThrowWhenSchedulingRetryFromCompletedStatus() {
-        var subscription = createSubscription();
-        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
-        var event = NotificationEvent.register(data, receivedAt, subscription);
-        var completedAt = Instant.parse("2024-01-01T00:01:00Z");
-        event.complete(completedAt);
-
-        assertThatThrownBy(event::scheduleRetry)
+        assertThatThrownBy(() -> operation.accept(event))
             .isInstanceOf(IllegalStateTransitionException.class);
     }
 
     @Test
-    void shouldThrowWhenFailingFromCompletedStatus() {
-        var subscription = createSubscription();
-        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
-        var event = NotificationEvent.register(data, receivedAt, subscription);
-        var completedAt = Instant.parse("2024-01-01T00:01:00Z");
-        event.complete(completedAt);
-
-        assertThatThrownBy(event::fail)
-            .isInstanceOf(IllegalStateTransitionException.class);
-    }
-
-    @Test
-    void shouldReplayEventFromFailedStatus() {
-        var subscription = createSubscription();
-        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
-        var event = NotificationEvent.register(data, receivedAt, subscription);
-        event.fail();
+    void shouldResetToPendingWhenReplayingFailedEvent() {
+        var event = failedEvent();
         var initialCycle = event.cycle();
 
         event.replay();
@@ -163,96 +96,108 @@ class NotificationEventTest {
         assertThat(event.deliveredAt()).isEmpty();
     }
 
-    @Test
-    void shouldThrowWhenReplayingFromCompletedStatus() {
-        var subscription = createSubscription();
-        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
-        var event = NotificationEvent.register(data, receivedAt, subscription);
-        var completedAt = Instant.parse("2024-01-01T00:01:00Z");
-        event.complete(completedAt);
+    @ParameterizedTest(name = "from {0}")
+    @MethodSource("eventsNotEligibleForReplay")
+    void shouldRejectReplayWhenEventIsNotFailed(String caseName, Supplier<NotificationEvent> eventSupplier) {
+        var event = eventSupplier.get();
 
         assertThatThrownBy(event::replay)
             .isInstanceOf(ReplayNotAllowedException.class);
     }
 
     @Test
-    void shouldThrowWhenReplayingFromPendingStatus() {
-        var subscription = createSubscription();
-        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
-        var event = NotificationEvent.register(data, receivedAt, subscription);
-
-        assertThatThrownBy(event::replay)
-            .isInstanceOf(ReplayNotAllowedException.class);
-    }
-
-    @Test
-    void shouldThrowWhenReplayingFromRetryingStatus() {
-        var subscription = createSubscription();
-        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
-        var event = NotificationEvent.register(data, receivedAt, subscription);
-        event.scheduleRetry();
-
-        assertThatThrownBy(event::replay)
-            .isInstanceOf(ReplayNotAllowedException.class);
-    }
-
-    @Test
-    void shouldThrowWhenReplayingFromSkippedStatus() {
-        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
-        var event = NotificationEvent.skipped(data, receivedAt);
-
-        assertThatThrownBy(event::replay)
-            .isInstanceOf(ReplayNotAllowedException.class);
-    }
-
-    @Test
-    void shouldBeEqualByEventId() {
-        var subscription = createSubscription();
-        var data1 = new EventData(eventId, clientId, eventKey, content, createdAt);
-        var event1 = NotificationEvent.register(data1, receivedAt, subscription);
-        var data2 = new EventData(eventId, new ClientId("client-2"), new EventKey("order.created"),
-            "different content", createdAt);
-        var event2 = NotificationEvent.register(data2, receivedAt, subscription);
+    void shouldBeEqualWhenEventIdMatches() {
+        var event1 = registeredEvent();
+        var event2 = NotificationEvent.register(
+            new EventData(EVENT_ID, new ClientId("client-2"), new EventKey("order.created"), "different content", CREATED_AT),
+            RECEIVED_AT,
+            createSubscription());
 
         assertThat(event1).isEqualTo(event2);
     }
 
     @Test
-    void shouldHaveSameHashCodeWhenEqualByEventId() {
-        var subscription = createSubscription();
-        var data1 = new EventData(eventId, clientId, eventKey, content, createdAt);
-        var event1 = NotificationEvent.register(data1, receivedAt, subscription);
-        var data2 = new EventData(eventId, new ClientId("client-2"), new EventKey("order.created"),
-            "different content", createdAt);
-        var event2 = NotificationEvent.register(data2, receivedAt, subscription);
+    void shouldShareHashCodeWhenEventIdMatches() {
+        var event1 = registeredEvent();
+        var event2 = NotificationEvent.register(
+            new EventData(EVENT_ID, new ClientId("client-2"), new EventKey("order.created"), "different content", CREATED_AT),
+            RECEIVED_AT,
+            createSubscription());
 
         assertThat(event1).hasSameHashCodeAs(event2);
     }
 
     @Test
-    void shouldExposeRegisteredFields() {
-        var subscription = createSubscription();
-        var data = new EventData(eventId, clientId, eventKey, content, createdAt);
-        var event = NotificationEvent.register(data, receivedAt, subscription);
+    void shouldExposeAllFieldsWhenEventIsRegistered() {
+        var event = registeredEvent();
 
-        assertThat(event.eventId()).isEqualTo(eventId);
-        assertThat(event.clientId()).isEqualTo(clientId);
-        assertThat(event.eventKey()).isEqualTo(eventKey);
-        assertThat(event.content()).isEqualTo(content);
-        assertThat(event.createdAt()).isEqualTo(createdAt);
-        assertThat(event.receivedAt()).isEqualTo(receivedAt);
+        assertThat(event.eventId()).isEqualTo(EVENT_ID);
+        assertThat(event.clientId()).isEqualTo(CLIENT_ID);
+        assertThat(event.eventKey()).isEqualTo(EVENT_KEY);
+        assertThat(event.content()).isEqualTo(CONTENT);
+        assertThat(event.createdAt()).isEqualTo(CREATED_AT);
+        assertThat(event.receivedAt()).isEqualTo(RECEIVED_AT);
     }
 
-    private Subscription createSubscription() {
+    private static Stream<Arguments> pendingOrRetryingEvents() {
+        return Stream.of(
+            Arguments.of("pending", (Supplier<NotificationEvent>) NotificationEventTest::registeredEvent),
+            Arguments.of("retrying", (Supplier<NotificationEvent>) NotificationEventTest::retryingEvent));
+    }
+
+    private static Stream<Arguments> eventsNotEligibleForReplay() {
+        return Stream.of(
+            Arguments.of("pending", (Supplier<NotificationEvent>) NotificationEventTest::registeredEvent),
+            Arguments.of("retrying", (Supplier<NotificationEvent>) NotificationEventTest::retryingEvent),
+            Arguments.of("completed", (Supplier<NotificationEvent>) NotificationEventTest::completedEvent),
+            Arguments.of("skipped", (Supplier<NotificationEvent>) NotificationEventTest::skippedEvent));
+    }
+
+    private static Stream<Arguments> operationsRejectedOnCompletedEvent() {
+        return Stream.of(
+            Arguments.of("complete", (Consumer<NotificationEvent>) event -> event.complete(COMPLETED_AT)),
+            Arguments.of("scheduleRetry", (Consumer<NotificationEvent>) NotificationEvent::scheduleRetry),
+            Arguments.of("fail", (Consumer<NotificationEvent>) NotificationEvent::fail));
+    }
+
+    private static NotificationEvent registeredEvent() {
+        var data = new EventData(EVENT_ID, CLIENT_ID, EVENT_KEY, CONTENT, CREATED_AT);
+        return NotificationEvent.register(data, RECEIVED_AT, createSubscription());
+    }
+
+    private static NotificationEvent skippedEvent() {
+        var data = new EventData(EVENT_ID, CLIENT_ID, EVENT_KEY, CONTENT, CREATED_AT);
+        return NotificationEvent.skipped(data, RECEIVED_AT);
+    }
+
+    private static NotificationEvent retryingEvent() {
+        var event = registeredEvent();
+        event.scheduleRetry();
+        return event;
+    }
+
+    private static NotificationEvent completedEvent() {
+        var event = registeredEvent();
+        event.complete(COMPLETED_AT);
+        return event;
+    }
+
+    private static NotificationEvent failedEvent() {
+        var event = registeredEvent();
+        event.fail();
+        return event;
+    }
+
+    private static Subscription createSubscription() {
         return new Subscription(
             "sub-1",
-            clientId,
-            Set.of(eventKey),
-            new WebhookUrl(java.net.URI.create("https://example.com/webhook")),
+            CLIENT_ID,
+            Set.of(EVENT_KEY),
+            new WebhookUrl(URI.create("https://example.com/webhook")),
             Optional.empty(),
             Optional.empty(),
             true,
-            createdAt
+            CREATED_AT
         );
     }
 }

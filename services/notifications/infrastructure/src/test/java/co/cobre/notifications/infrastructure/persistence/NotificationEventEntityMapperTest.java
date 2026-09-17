@@ -6,19 +6,20 @@ import co.cobre.notifications.domain.EventId;
 import co.cobre.notifications.domain.EventKey;
 import co.cobre.notifications.domain.NotificationEvent;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.time.Instant;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class NotificationEventEntityMapperTest {
 
     private final NotificationEventEntityMapper mapper = new NotificationEventEntityMapper();
 
     @Test
-    void testRoundTripPreservesAllFields() {
+    void shouldPreserveAllNotificationEventFieldsWhenMappingRoundTrip() {
         var eventId = new EventId("evt-123");
         var clientId = new ClientId("client-001");
         var eventKey = new EventKey("order.created");
@@ -28,7 +29,6 @@ class NotificationEventEntityMapperTest {
         var subscriptionId = Optional.of("sub-456");
         var deliveredAt = Optional.of(Instant.parse("2024-01-10T10:05:00Z"));
         var cycle = 2;
-
         var domain = new NotificationEvent(
             eventId,
             clientId,
@@ -45,27 +45,26 @@ class NotificationEventEntityMapperTest {
         var entity = mapper.toEntity(domain);
         var mapped = mapper.toDomain(entity);
 
-        assertEquals(domain.eventId(), mapped.eventId());
-        assertEquals(domain.clientId(), mapped.clientId());
-        assertEquals(domain.eventKey(), mapped.eventKey());
-        assertEquals(domain.content(), mapped.content());
-        assertEquals(domain.createdAt(), mapped.createdAt());
-        assertEquals(domain.receivedAt(), mapped.receivedAt());
-        assertEquals(domain.status(), mapped.status());
-        assertEquals(domain.subscriptionId(), mapped.subscriptionId());
-        assertEquals(domain.cycle(), mapped.cycle());
-        assertEquals(domain.deliveredAt(), mapped.deliveredAt());
+        assertThat(mapped.eventId()).isEqualTo(domain.eventId());
+        assertThat(mapped.clientId()).isEqualTo(domain.clientId());
+        assertThat(mapped.eventKey()).isEqualTo(domain.eventKey());
+        assertThat(mapped.content()).isEqualTo(domain.content());
+        assertThat(mapped.createdAt()).isEqualTo(domain.createdAt());
+        assertThat(mapped.receivedAt()).isEqualTo(domain.receivedAt());
+        assertThat(mapped.status()).isEqualTo(domain.status());
+        assertThat(mapped.subscriptionId()).isEqualTo(domain.subscriptionId());
+        assertThat(mapped.cycle()).isEqualTo(domain.cycle());
+        assertThat(mapped.deliveredAt()).isEqualTo(domain.deliveredAt());
     }
 
     @Test
-    void testRoundTripPreservesEmptyOptionals() {
+    void shouldMapEmptyNotificationEventOptionalsWhenMappingRoundTrip() {
         var eventId = new EventId("evt-456");
         var clientId = new ClientId("client-002");
         var eventKey = new EventKey("payment.failed");
         var content = "{\"error\": \"timeout\"}";
         var createdAt = Instant.parse("2024-01-11T14:30:00Z");
         var receivedAt = Instant.parse("2024-01-11T14:30:02Z");
-
         var domain = new NotificationEvent(
             eventId,
             clientId,
@@ -82,32 +81,31 @@ class NotificationEventEntityMapperTest {
         var entity = mapper.toEntity(domain);
         var mapped = mapper.toDomain(entity);
 
-        assertEquals(domain.eventId(), mapped.eventId());
-        assertEquals(domain.clientId(), mapped.clientId());
-        assertFalse(mapped.subscriptionId().isPresent());
-        assertFalse(mapped.deliveredAt().isPresent());
+        assertThat(mapped.eventId()).isEqualTo(domain.eventId());
+        assertThat(mapped.clientId()).isEqualTo(domain.clientId());
+        assertThat(mapped.subscriptionId()).isEmpty();
+        assertThat(mapped.deliveredAt()).isEmpty();
     }
 
-    @Test
-    void testEnumMappingForAllStatuses() {
-        for (DeliveryStatus status : DeliveryStatus.values()) {
-            var domain = new NotificationEvent(
-                new EventId("evt-" + status),
-                new ClientId("client-001"),
-                new EventKey("test"),
-                "{}",
-                Instant.now(),
-                Instant.now(),
-                status,
-                Optional.empty(),
-                0,
-                Optional.empty()
-            );
+    @ParameterizedTest(name = "status {0}")
+    @EnumSource(DeliveryStatus.class)
+    void shouldRoundTripEveryStatusWhenMappingEvent(DeliveryStatus status) {
+        var domain = new NotificationEvent(
+            new EventId("evt-" + status),
+            new ClientId("client-001"),
+            new EventKey("test"),
+            "{}",
+            Instant.now(),
+            Instant.now(),
+            status,
+            Optional.empty(),
+            0,
+            Optional.empty()
+        );
 
-            var entity = mapper.toEntity(domain);
-            var mapped = mapper.toDomain(entity);
+        var entity = mapper.toEntity(domain);
+        var mapped = mapper.toDomain(entity);
 
-            assertEquals(status, mapped.status());
-        }
+        assertThat(mapped.status()).isEqualTo(status);
     }
 }

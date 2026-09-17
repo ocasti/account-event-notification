@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RetryConfigTest {
 
     @Test
-    void shouldBuildRetryPolicyFromProperties() {
+    void shouldBuildRetryPolicyWhenPropertiesProvided() {
         var props = new RetryProperties(
             Duration.ofSeconds(30),
             4.0,
@@ -30,7 +30,7 @@ class RetryConfigTest {
     }
 
     @Test
-    void shouldSupportFastRetryPolicyForLocalProfile() {
+    void shouldUseShortDelaysWhenLocalProfilePropertiesProvided() {
         var props = new RetryProperties(
             Duration.ofSeconds(2),
             4.0,
@@ -47,7 +47,7 @@ class RetryConfigTest {
     }
 
     @Test
-    void shouldHaveStandardRetryPolicyInDomain() {
+    void shouldMatchConfiguredDefaultsWhenUsingStandardDomainPolicy() {
         var standard = RetryPolicy.standard();
 
         assertThat(standard.baseDelay()).isEqualTo(Duration.ofSeconds(30));

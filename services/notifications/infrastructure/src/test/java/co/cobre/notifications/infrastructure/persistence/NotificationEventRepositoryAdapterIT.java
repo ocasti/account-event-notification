@@ -12,9 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.time.Instant;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class NotificationEventRepositoryAdapterIT extends PersistenceTestSupport {
 
@@ -25,7 +23,7 @@ class NotificationEventRepositoryAdapterIT extends PersistenceTestSupport {
     private NotificationEventJpaRepository jpaRepository;
 
     @Test
-    void testSaveAndFindById() {
+    void shouldFindSavedEventByIdWhenEventIsSaved() {
         var event = new NotificationEvent(
             new EventId("evt-001"),
             new ClientId("CLIENT001"),
@@ -42,14 +40,14 @@ class NotificationEventRepositoryAdapterIT extends PersistenceTestSupport {
         adapter.save(event);
         var found = adapter.findById(new EventId("evt-001"));
 
-        assertTrue(found.isPresent());
-        assertEquals(event.eventId(), found.get().eventId());
-        assertEquals(event.clientId(), found.get().clientId());
-        assertEquals(event.status(), found.get().status());
+        assertThat(found).isPresent();
+        assertThat(found.get().eventId()).isEqualTo(event.eventId());
+        assertThat(found.get().clientId()).isEqualTo(event.clientId());
+        assertThat(found.get().status()).isEqualTo(event.status());
     }
 
     @Test
-    void testFindByClientAndId() {
+    void shouldFindEventOnlyForMatchingClientWhenFindingByClientAndId() {
         var event = new NotificationEvent(
             new EventId("evt-002"),
             new ClientId("CLIENT001"),
@@ -64,22 +62,15 @@ class NotificationEventRepositoryAdapterIT extends PersistenceTestSupport {
         );
 
         adapter.save(event);
+        var found = adapter.findByClientAndId(new ClientId("CLIENT001"), new EventId("evt-002"));
+        var notFound = adapter.findByClientAndId(new ClientId("DIFFERENT_CLIENT"), new EventId("evt-002"));
 
-        var found = adapter.findByClientAndId(
-            new ClientId("CLIENT001"),
-            new EventId("evt-002")
-        );
-        assertTrue(found.isPresent());
-
-        var notFound = adapter.findByClientAndId(
-            new ClientId("DIFFERENT_CLIENT"),
-            new EventId("evt-002")
-        );
-        assertFalse(notFound.isPresent());
+        assertThat(found).isPresent();
+        assertThat(notFound).isEmpty();
     }
 
     @Test
-    void testExistsById() {
+    void shouldReportExistenceCorrectlyWhenCheckingExistsById() {
         var event = new NotificationEvent(
             new EventId("evt-003"),
             new ClientId("CLIENT001"),
@@ -94,13 +85,15 @@ class NotificationEventRepositoryAdapterIT extends PersistenceTestSupport {
         );
 
         adapter.save(event);
+        var existing = adapter.existsById(new EventId("evt-003"));
+        var missing = adapter.existsById(new EventId("nonexistent"));
 
-        assertTrue(adapter.existsById(new EventId("evt-003")));
-        assertFalse(adapter.existsById(new EventId("nonexistent")));
+        assertThat(existing).isTrue();
+        assertThat(missing).isFalse();
     }
 
     @Test
-    void testTransitionUpdateStatusIfMatches() {
+    void shouldUpdateStatusWhenExpectedStatusMatches() {
         var event = new NotificationEvent(
             new EventId("evt-004"),
             new ClientId("CLIENT001"),
@@ -113,9 +106,6 @@ class NotificationEventRepositoryAdapterIT extends PersistenceTestSupport {
             0,
             Optional.empty()
         );
-
-        adapter.save(event);
-
         var updated = new NotificationEvent(
             new EventId("evt-004"),
             new ClientId("CLIENT001"),
@@ -129,23 +119,19 @@ class NotificationEventRepositoryAdapterIT extends PersistenceTestSupport {
             Optional.of(Instant.parse("2024-01-10T12:00:00Z"))
         );
 
-        boolean result = adapter.transition(
-            new EventId("evt-004"),
-            DeliveryStatus.PENDING,
-            updated
-        );
+        adapter.save(event);
+        var result = adapter.transition(new EventId("evt-004"), DeliveryStatus.PENDING, updated);
 
-        assertTrue(result);
-
+        assertThat(result).isTrue();
         var found = adapter.findById(new EventId("evt-004"));
-        assertTrue(found.isPresent());
-        assertEquals(DeliveryStatus.COMPLETED, found.get().status());
-        assertEquals(1, found.get().cycle());
-        assertTrue(found.get().deliveredAt().isPresent());
+        assertThat(found).isPresent();
+        assertThat(found.get().status()).isEqualTo(DeliveryStatus.COMPLETED);
+        assertThat(found.get().cycle()).isEqualTo(1);
+        assertThat(found.get().deliveredAt()).isPresent();
     }
 
     @Test
-    void testTransitionReturnsFalseIfStatusMismatch() {
+    void shouldNotUpdateStatusWhenExpectedStatusMismatches() {
         var event = new NotificationEvent(
             new EventId("evt-005"),
             new ClientId("CLIENT001"),
@@ -158,9 +144,6 @@ class NotificationEventRepositoryAdapterIT extends PersistenceTestSupport {
             0,
             Optional.empty()
         );
-
-        adapter.save(event);
-
         var updated = new NotificationEvent(
             new EventId("evt-005"),
             new ClientId("CLIENT001"),
@@ -174,225 +157,92 @@ class NotificationEventRepositoryAdapterIT extends PersistenceTestSupport {
             Optional.empty()
         );
 
-        boolean result = adapter.transition(
-            new EventId("evt-005"),
-            DeliveryStatus.COMPLETED,
-            updated
-        );
+        adapter.save(event);
+        var result = adapter.transition(new EventId("evt-005"), DeliveryStatus.COMPLETED, updated);
 
-        assertFalse(result);
-
+        assertThat(result).isFalse();
         var found = adapter.findById(new EventId("evt-005"));
-        assertTrue(found.isPresent());
-        assertEquals(DeliveryStatus.PENDING, found.get().status());
+        assertThat(found).isPresent();
+        assertThat(found.get().status()).isEqualTo(DeliveryStatus.PENDING);
     }
 
     @Test
-    void testSearchWithPaginationAndCursor() {
+    void shouldPaginateAcrossCursorsWhenSearchingWithPageSizeLimit() {
         var clientId = new ClientId("CLIENT_PAGINATED");
         var baseTime = Instant.now();
+        savePendingEvents(adapter, 25, "evt-page-", clientId, new EventKey("event.paginated"), DeliveryStatus.PENDING, baseTime);
+        savePendingEvents(adapter, 5, "evt-other-", new ClientId("OTHER_CLIENT"), new EventKey("event.other"), DeliveryStatus.PENDING, baseTime);
 
-        for (int i = 0; i < 25; i++) {
-            var event = new NotificationEvent(
-                new EventId("evt-page-" + i),
-                clientId,
-                new EventKey("event.paginated"),
-                "{}",
-                baseTime.plusSeconds(i),
-                baseTime.plusSeconds(i),
-                DeliveryStatus.PENDING,
-                Optional.empty(),
-                0,
-                Optional.empty()
-            );
-            adapter.save(event);
-        }
+        var page1 = adapter.search(new ListNotificationEventsQuery(
+            clientId, Optional.empty(), Optional.empty(), Optional.empty(), 10, Optional.empty()
+        ));
+        var page2 = adapter.search(new ListNotificationEventsQuery(
+            clientId, Optional.empty(), Optional.empty(), Optional.empty(), 10, page1.nextCursor()
+        ));
+        var page3 = adapter.search(new ListNotificationEventsQuery(
+            clientId, Optional.empty(), Optional.empty(), Optional.empty(), 10, page2.nextCursor()
+        ));
 
-        for (int i = 0; i < 5; i++) {
-            var event = new NotificationEvent(
-                new EventId("evt-other-" + i),
-                new ClientId("OTHER_CLIENT"),
-                new EventKey("event.other"),
-                "{}",
-                baseTime.plusSeconds(i),
-                baseTime.plusSeconds(i),
-                DeliveryStatus.PENDING,
-                Optional.empty(),
-                0,
-                Optional.empty()
-            );
-            adapter.save(event);
-        }
-
-        var query = new ListNotificationEventsQuery(
-            clientId,
-            Optional.empty(),
-            Optional.empty(),
-            Optional.empty(),
-            10,
-            Optional.empty()
-        );
-
-        var page1 = adapter.search(query);
-
-        assertEquals(10, page1.items().size());
-        assertTrue(page1.nextCursor().isPresent());
-
-        var query2 = new ListNotificationEventsQuery(
-            clientId,
-            Optional.empty(),
-            Optional.empty(),
-            Optional.empty(),
-            10,
-            page1.nextCursor()
-        );
-
-        var page2 = adapter.search(query2);
-
-        assertEquals(10, page2.items().size());
-        assertTrue(page2.nextCursor().isPresent());
-
-        var query3 = new ListNotificationEventsQuery(
-            clientId,
-            Optional.empty(),
-            Optional.empty(),
-            Optional.empty(),
-            10,
-            page2.nextCursor()
-        );
-
-        var page3 = adapter.search(query3);
-
-        assertEquals(5, page3.items().size());
-        assertFalse(page3.nextCursor().isPresent());
+        assertThat(page1.items()).hasSize(10);
+        assertThat(page1.nextCursor()).isPresent();
+        assertThat(page2.items()).hasSize(10);
+        assertThat(page2.nextCursor()).isPresent();
+        assertThat(page3.items()).hasSize(5);
+        assertThat(page3.nextCursor()).isEmpty();
     }
 
     @Test
-    void testSearchFilterByStatus() {
+    void shouldReturnOnlyMatchingStatusEventsWhenFilteringByStatus() {
         var clientId = new ClientId("CLIENT_STATUS");
         var now = Instant.now();
+        savePendingEvents(adapter, 5, "evt-pending-", clientId, new EventKey("test"), DeliveryStatus.PENDING, now);
+        savePendingEvents(adapter, 3, "evt-failed-", clientId, new EventKey("test"), DeliveryStatus.FAILED, now);
 
-        for (int i = 0; i < 5; i++) {
-            adapter.save(new NotificationEvent(
-                new EventId("evt-pending-" + i),
-                clientId,
-                new EventKey("test"),
-                "{}",
-                now,
-                now,
-                DeliveryStatus.PENDING,
-                Optional.empty(),
-                0,
-                Optional.empty()
-            ));
-        }
+        var page = adapter.search(new ListNotificationEventsQuery(
+            clientId, Optional.empty(), Optional.empty(), Optional.of(DeliveryStatus.FAILED), 10, Optional.empty()
+        ));
 
-        for (int i = 0; i < 3; i++) {
-            adapter.save(new NotificationEvent(
-                new EventId("evt-failed-" + i),
-                clientId,
-                new EventKey("test"),
-                "{}",
-                now,
-                now,
-                DeliveryStatus.FAILED,
-                Optional.empty(),
-                0,
-                Optional.empty()
-            ));
-        }
-
-        var query = new ListNotificationEventsQuery(
-            clientId,
-            Optional.empty(),
-            Optional.empty(),
-            Optional.of(DeliveryStatus.FAILED),
-            10,
-            Optional.empty()
-        );
-
-        var page = adapter.search(query);
-
-        assertEquals(3, page.items().size());
-        assertTrue(page.items().stream().allMatch(e -> e.status() == DeliveryStatus.FAILED));
+        assertThat(page.items())
+            .hasSize(3)
+            .extracting(NotificationEvent::status)
+            .containsOnly(DeliveryStatus.FAILED);
     }
 
     @Test
-    void testSearchFilterByDateRange() {
+    void shouldFilterEventsWithinDateRangeWhenSearching() {
         var clientId = new ClientId("CLIENT_DATE_RANGE");
         var start = Instant.parse("2024-01-10T00:00:00Z");
         var middle = start.plusSeconds(86400);
         var end = Instant.parse("2024-01-20T00:00:00Z");
-
         adapter.save(eventAt("evt-before", clientId, start.minusSeconds(100)));
         adapter.save(eventAt("evt-start", clientId, start));
         adapter.save(eventAt("evt-middle", clientId, middle));
         adapter.save(eventAt("evt-end", clientId, end));
         adapter.save(eventAt("evt-after", clientId, end.plusSeconds(100)));
 
-        var query = new ListNotificationEventsQuery(
-            clientId,
-            Optional.of(start),
-            Optional.of(end),
-            Optional.empty(),
-            10,
-            Optional.empty()
-        );
+        var page = adapter.search(new ListNotificationEventsQuery(
+            clientId, Optional.of(start), Optional.of(end), Optional.empty(), 10, Optional.empty()
+        ));
 
-        var page = adapter.search(query);
-
-        assertEquals(3, page.items().size());
+        assertThat(page.items()).hasSize(3);
     }
 
     @Test
-    void testSearchNeverIncludesOtherClients() {
+    void shouldExcludeOtherClientsWhenSearching() {
         var clientId = new ClientId("CLIENT_A");
         var otherClient = new ClientId("CLIENT_B");
         var now = Instant.now();
+        savePendingEvents(adapter, 15, "evt-a-", clientId, new EventKey("test"), DeliveryStatus.PENDING, now);
+        savePendingEvents(adapter, 5, "evt-b-", otherClient, new EventKey("test"), DeliveryStatus.PENDING, now);
 
-        for (int i = 0; i < 15; i++) {
-            adapter.save(new NotificationEvent(
-                new EventId("evt-a-" + i),
-                clientId,
-                new EventKey("test"),
-                "{}",
-                now,
-                now,
-                DeliveryStatus.PENDING,
-                Optional.empty(),
-                0,
-                Optional.empty()
-            ));
-        }
+        var page = adapter.search(new ListNotificationEventsQuery(
+            clientId, Optional.empty(), Optional.empty(), Optional.empty(), 20, Optional.empty()
+        ));
 
-        for (int i = 0; i < 5; i++) {
-            adapter.save(new NotificationEvent(
-                new EventId("evt-b-" + i),
-                otherClient,
-                new EventKey("test"),
-                "{}",
-                now,
-                now,
-                DeliveryStatus.PENDING,
-                Optional.empty(),
-                0,
-                Optional.empty()
-            ));
-        }
-
-        var query = new ListNotificationEventsQuery(
-            clientId,
-            Optional.empty(),
-            Optional.empty(),
-            Optional.empty(),
-            20,
-            Optional.empty()
-        );
-
-        var page = adapter.search(query);
-
-        assertEquals(15, page.items().size());
-        assertTrue(page.items().stream().allMatch(e -> e.clientId().equals(clientId)));
+        assertThat(page.items())
+            .hasSize(15)
+            .extracting(NotificationEvent::clientId)
+            .containsOnly(clientId);
     }
 
     private NotificationEvent eventAt(String id, ClientId clientId, Instant createdAt) {
