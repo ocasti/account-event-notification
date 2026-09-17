@@ -3,8 +3,8 @@ package co.cobre.notifications.infrastructure.persistence;
 import co.cobre.notifications.domain.ClientId;
 import co.cobre.notifications.domain.DeliveryStatus;
 import co.cobre.notifications.domain.EventId;
+import co.cobre.notifications.domain.fixtures.NotificationEvents;
 import co.cobre.notifications.domain.EventKey;
-import co.cobre.notifications.domain.NotificationEvent;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -12,7 +12,6 @@ import org.springframework.context.annotation.Import;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 import java.time.Instant;
-import java.util.Optional;
 import java.util.stream.IntStream;
 
 @DataJpaTest(properties = {"spring.flyway.enabled=true", "spring.flyway.placeholders.webhookUrl=https://example.test/webhook", "spring.jpa.hibernate.ddl-auto=validate"})
@@ -42,17 +41,14 @@ public abstract class PersistenceTestSupport {
         DeliveryStatus status,
         Instant baseTime
     ) {
-        IntStream.range(0, count).forEach(i -> adapter.save(new NotificationEvent(
-            new EventId(idPrefix + i),
-            clientId,
-            eventKey,
-            "{}",
-            baseTime.plusSeconds(i),
-            baseTime.plusSeconds(i),
-            status,
-            Optional.empty(),
-            0,
-            Optional.empty()
-        )));
+        IntStream.range(0, count).forEach(i -> adapter.save(NotificationEvents.aPendingEvent()
+            .withEventId(new EventId(idPrefix + i))
+            .withClientId(clientId)
+            .withEventKey(eventKey)
+            .withContent("{}")
+            .withCreatedAt(baseTime.plusSeconds(i))
+            .withStatus(status)
+            .withoutSubscription()
+            .build()));
     }
 }

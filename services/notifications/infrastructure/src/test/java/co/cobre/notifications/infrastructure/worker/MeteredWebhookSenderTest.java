@@ -3,16 +3,17 @@ package co.cobre.notifications.infrastructure.worker;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import co.cobre.notifications.domain.AttemptOrigin;
 import co.cobre.notifications.domain.ClientId;
 import co.cobre.notifications.domain.DeliveryAttempt;
 import co.cobre.notifications.domain.DeliveryOutcome;
-import co.cobre.notifications.domain.DeliveryStatus;
-import co.cobre.notifications.domain.EventId;
 import co.cobre.notifications.domain.EventKey;
 import co.cobre.notifications.domain.NotificationEvent;
 import co.cobre.notifications.domain.Subscription;
 import co.cobre.notifications.domain.WebhookUrl;
+import co.cobre.notifications.domain.fixtures.DeliveryAttempts;
+import co.cobre.notifications.domain.fixtures.Ids;
+import co.cobre.notifications.domain.fixtures.NotificationEvents;
+import co.cobre.notifications.domain.fixtures.Subscriptions;
 import co.cobre.notifications.infrastructure.webhook.HttpWebhookSender;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,7 +28,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -44,8 +44,6 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class MeteredWebhookSenderTest {
 
-    private static final Instant OCCURRED_AT = Instant.parse("2025-01-01T10:00:00Z");
-
     @Mock
     private HttpWebhookSender delegate;
 
@@ -59,36 +57,22 @@ class MeteredWebhookSenderTest {
 
     private final ClientId clientId = new ClientId("CLIENT123");
 
-    private final NotificationEvent testEvent = new NotificationEvent(
-        new EventId("EVT001"),
-        clientId,
-        new EventKey("account.updated"),
-        "content",
-        OCCURRED_AT,
-        OCCURRED_AT,
-        DeliveryStatus.PENDING,
-        Optional.of("SUB001"),
-        0,
-        Optional.empty()
-    );
+    private final NotificationEvent testEvent = NotificationEvents.aPendingEvent()
+        .withEventId(Ids.EVT_001)
+        .withClientId(clientId)
+        .withEventKey(new EventKey("account.updated"))
+        .build();
 
-    private final Subscription testSubscription = new Subscription(
-        "SUB001",
-        clientId,
-        Set.of(new EventKey("account.updated")),
-        WebhookUrl.of("https://example.test/webhook"),
-        Optional.empty(),
-        Optional.of("sig-key"),
-        true,
-        OCCURRED_AT
-    );
+    private final Subscription testSubscription = Subscriptions.aSubscription()
+        .withClientId(clientId)
+        .withEventKeys(Set.of(new EventKey("account.updated")))
+        .withUrl(WebhookUrl.of("https://example.test/webhook"))
+        .withSignatureKey("sig-key")
+        .build();
 
-    private final DeliveryAttempt testAttempt = DeliveryAttempt.first(
-        new EventId("EVT001"),
-        0,
-        OCCURRED_AT,
-        AttemptOrigin.SYSTEM
-    );
+    private final DeliveryAttempt testAttempt = DeliveryAttempts.anAttempt()
+        .withEventId(Ids.EVT_001)
+        .build();
 
     @BeforeEach
     void setUp() {

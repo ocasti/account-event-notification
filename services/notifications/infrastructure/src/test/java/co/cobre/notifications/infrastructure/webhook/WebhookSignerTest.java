@@ -51,10 +51,10 @@ class WebhookSignerTest {
     ) throws Exception {
         var signer = new WebhookSigner(FIXED_CLOCK);
 
-        var signature1 = signer.sign(key1, body1);
-        var signature2 = signer.sign(key2, body2);
+        var firstSignature = signer.sign(key1, body1);
+        var secondSignature = signer.sign(key2, body2);
 
-        assertThat(signature1.value()).isNotEqualTo(signature2.value());
+        assertThat(firstSignature.value()).isNotEqualTo(secondSignature.value());
     }
 
     private static Stream<Arguments> distinctInputRows() {

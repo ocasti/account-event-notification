@@ -2,8 +2,13 @@ package co.cobre.notifications.infrastructure.persistence;
 
 import co.cobre.notifications.application.port.DeliveryClaim;
 import co.cobre.notifications.domain.AttemptOrigin;
+import co.cobre.notifications.domain.ClientId;
 import co.cobre.notifications.domain.DeliveryAttempt;
 import co.cobre.notifications.domain.EventId;
+import co.cobre.notifications.domain.EventKey;
+import co.cobre.notifications.domain.fixtures.Clocks;
+import co.cobre.notifications.domain.fixtures.NotificationEvents;
+import co.cobre.notifications.infrastructure.fixtures.Entities;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.RepeatedTest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +38,13 @@ class DeliveryAttemptClaimConcurrencyIT extends PersistenceTestSupport {
     private static final int NUM_WORKERS = 8;
     private static final int ROUNDS_PER_WORKER = 5;
 
+    /**
+     * {@code notification_events.subscription_id} has a foreign key on {@code subscriptions};
+     * this is one of the three rows Flyway seeds (V2__initial_subscriptions.sql), used here only
+     * to satisfy that constraint — this test does not assert on subscription identity.
+     */
+    private static final String PERSISTED_SUBSCRIPTION_ID = "sub_client001";
+
     @Autowired
     private DeliveryAttemptRepositoryAdapter adapter;
 
@@ -50,11 +62,9 @@ class DeliveryAttemptClaimConcurrencyIT extends PersistenceTestSupport {
 
     @RepeatedTest(3)
     void shouldClaimEachAttemptExactlyOnceWhenWorkersCompeteAcrossMultipleRounds() throws InterruptedException {
-        var baseTime = Instant.now();
-        var pastDue = baseTime.minusSeconds(30);
-        insertPendingAttempts(TOTAL_ATTEMPTS, NUM_CLIENTS, baseTime, pastDue);
+        insertPendingAttempts(TOTAL_ATTEMPTS, NUM_CLIENTS, secondsAgo(30));
 
-        var result = claimConcurrently(NUM_WORKERS, ROUNDS_PER_WORKER, baseTime);
+        var result = claimConcurrently(NUM_WORKERS, ROUNDS_PER_WORKER);
 
         assertThat(result.executorFinishedInTime()).isTrue();
         assertThat(result.workerFailures()).isEmpty();
@@ -62,21 +72,27 @@ class DeliveryAttemptClaimConcurrencyIT extends PersistenceTestSupport {
         assertThat(result.claimedByAttemptId()).hasSize(TOTAL_ATTEMPTS);
     }
 
-    private void insertPendingAttempts(int totalAttempts, int numClients, Instant baseTime, Instant pastDue) {
+    /**
+     * {@code claimDueAttempts} filters on Postgres's own {@code now()}, so "past due" must be
+     * expressed relative to the real wall clock rather than the fixed {@link Clocks#NOW}.
+     */
+    private Instant secondsAgo(long seconds) {
+        return Instant.now().minusSeconds(seconds);
+    }
+
+    private void insertPendingAttempts(int totalAttempts, int numClients, Instant pastDue) {
         IntStream.range(0, totalAttempts).forEach(i -> {
-            var clientId = "client-" + (i % numClients);
+            var clientId = new ClientId("client-" + (i % numClients));
             var eventId = new EventId("evt-concurrent-" + i);
 
-            var event = new NotificationEventEntity();
-            event.setEventId(eventId.value());
-            event.setClientId(clientId);
-            event.setEventKey("test.event");
-            event.setContent("{}");
-            event.setCreatedAt(baseTime);
-            event.setReceivedAt(baseTime);
-            event.setStatus(DeliveryStatusEntity.PENDING);
-            event.setCycle(0);
-            eventJpaRepository.save(event);
+            var event = NotificationEvents.aPendingEvent()
+                .withEventId(eventId)
+                .withClientId(clientId)
+                .withEventKey(new EventKey("test.event"))
+                .withCreatedAt(Clocks.NOW)
+                .withSubscriptionId(PERSISTED_SUBSCRIPTION_ID)
+                .build();
+            eventJpaRepository.save(Entities.notificationEvent(event));
 
             var attempt = DeliveryAttempt.first(eventId, 0, pastDue, AttemptOrigin.SYSTEM);
             adapter.save(attempt);
@@ -92,7 +108,7 @@ class DeliveryAttemptClaimConcurrencyIT extends PersistenceTestSupport {
     }
 
     @SuppressWarnings("PMD.AvoidCatchingGenericException")
-    private ConcurrentClaimResult claimConcurrently(int numWorkers, int roundsPerWorker, Instant baseTime)
+    private ConcurrentClaimResult claimConcurrently(int numWorkers, int roundsPerWorker)
         throws InterruptedException {
         var barrier = new CyclicBarrier(numWorkers);
         var executor = Executors.newFixedThreadPool(numWorkers);
@@ -103,7 +119,7 @@ class DeliveryAttemptClaimConcurrencyIT extends PersistenceTestSupport {
         IntStream.range(0, numWorkers).forEach(w -> {
             var workerId = "worker-" + w;
             executor.submit(() -> runClaimRounds(
-                workerId, roundsPerWorker, baseTime, barrier, claimedByAttemptId, duplicateClaims, workerFailures
+                workerId, roundsPerWorker, barrier, claimedByAttemptId, duplicateClaims, workerFailures
             ));
         });
 
@@ -117,7 +133,6 @@ class DeliveryAttemptClaimConcurrencyIT extends PersistenceTestSupport {
     private void runClaimRounds(
         String workerId,
         int roundsPerWorker,
-        Instant baseTime,
         CyclicBarrier barrier,
         Map<UUID, String> claimedByAttemptId,
         List<String> duplicateClaims,
@@ -126,7 +141,7 @@ class DeliveryAttemptClaimConcurrencyIT extends PersistenceTestSupport {
         try {
             barrier.await();
             IntStream.range(0, roundsPerWorker).forEach(round -> {
-                var claim = new DeliveryClaim(baseTime, 50, 50, workerId, Duration.ofSeconds(3600));
+                var claim = new DeliveryClaim(Clocks.NOW, 50, 50, workerId, Duration.ofSeconds(3600));
                 var claimed = adapter.claimDue(claim);
                 claimed.forEach(attempt -> recordClaim(attempt.id(), workerId, claimedByAttemptId, duplicateClaims));
             });

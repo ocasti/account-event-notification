@@ -1,6 +1,10 @@
 package co.cobre.notifications.infrastructure.worker;
 
+import co.cobre.notifications.application.usecase.RegisterEventCommand;
 import co.cobre.notifications.application.usecase.RegisterNotificationEvent;
+import co.cobre.notifications.domain.ClientId;
+import co.cobre.notifications.domain.EventId;
+import co.cobre.notifications.domain.EventKey;
 import io.awspring.cloud.sqs.operations.SqsTemplate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,7 +16,8 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import static org.mockito.ArgumentMatchers.argThat;
+import java.time.Instant;
+
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
@@ -35,6 +40,8 @@ class AccountEventListenerIT {
 
     static final String QUEUE_NAME = "account-events-test";
     private static final long LISTENER_TIMEOUT_MS = 15_000;
+    private static final Instant MESSAGE_OCCURRED_AT = Instant.parse("2025-01-01T10:00:00Z");
+    private static final String MESSAGE_CONTENT = "account event";
 
     @Container
     static final GenericContainer<?> elasticMQ = new GenericContainer<>("softwaremill/elasticmq-native:1.6.12")
@@ -55,21 +62,27 @@ class AccountEventListenerIT {
     @Test
     void shouldRegisterEventWhenMessageArrivesOnQueue() {
         var messageJson = MessagingTestConfig.accountEventJson("EVT001", "account.created", "CLIENT123");
+        var expectedCommand = new RegisterEventCommand(
+            new EventId("EVT001"), new ClientId("CLIENT123"), new EventKey("account.created"),
+            MESSAGE_CONTENT, MESSAGE_OCCURRED_AT
+        );
 
         sqsTemplate.send(QUEUE_NAME, messageJson);
 
-        verify(registerNotificationEvent, timeout(LISTENER_TIMEOUT_MS))
-            .register(argThat(cmd -> cmd.eventId().value().equals("EVT001")));
+        verify(registerNotificationEvent, timeout(LISTENER_TIMEOUT_MS)).register(expectedCommand);
     }
 
     @Test
     void shouldForwardEachDeliveryToRegisterWhenSameMessageArrivesTwice() {
         var messageJson = MessagingTestConfig.accountEventJson("EVT002", "account.updated", "CLIENT456");
+        var expectedCommand = new RegisterEventCommand(
+            new EventId("EVT002"), new ClientId("CLIENT456"), new EventKey("account.updated"),
+            MESSAGE_CONTENT, MESSAGE_OCCURRED_AT
+        );
 
         sqsTemplate.send(QUEUE_NAME, messageJson);
         sqsTemplate.send(QUEUE_NAME, messageJson);
 
-        verify(registerNotificationEvent, timeout(LISTENER_TIMEOUT_MS).times(2))
-            .register(argThat(cmd -> cmd.eventId().value().equals("EVT002")));
+        verify(registerNotificationEvent, timeout(LISTENER_TIMEOUT_MS).times(2)).register(expectedCommand);
     }
 }

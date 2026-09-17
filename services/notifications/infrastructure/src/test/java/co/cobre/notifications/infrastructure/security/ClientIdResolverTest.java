@@ -1,10 +1,10 @@
 package co.cobre.notifications.infrastructure.security;
 
 import co.cobre.notifications.domain.ClientId;
+import co.cobre.notifications.domain.fixtures.Clocks;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
 
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -19,7 +19,7 @@ class ClientIdResolverTest {
         ClientIdResolver resolver = new ClientIdResolver(props);
         Map<String, Object> claims = new HashMap<>();
         claims.put("sub", "CLIENT002");
-        Jwt jwt = new Jwt("token", Instant.now(), Instant.now().plusSeconds(3600), Map.of("alg", "RS256"), claims);
+        Jwt jwt = new Jwt("token", Clocks.NOW, Clocks.NOW.plusSeconds(3600), Map.of("alg", "RS256"), claims);
 
         ClientId result = resolver.resolve(jwt);
 
@@ -32,7 +32,7 @@ class ClientIdResolverTest {
         ClientIdResolver resolver = new ClientIdResolver(props);
         Map<String, Object> claims = new HashMap<>();
         claims.put("other", "value");
-        Jwt jwt = new Jwt("token", Instant.now(), Instant.now().plusSeconds(3600), Map.of("alg", "RS256"), claims);
+        Jwt jwt = new Jwt("token", Clocks.NOW, Clocks.NOW.plusSeconds(3600), Map.of("alg", "RS256"), claims);
 
         assertThatThrownBy(() -> resolver.resolve(jwt))
             .isInstanceOf(IllegalArgumentException.class);

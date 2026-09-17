@@ -5,6 +5,7 @@ import co.cobre.notifications.domain.DeliveryStatus;
 import co.cobre.notifications.domain.EventId;
 import co.cobre.notifications.domain.EventKey;
 import co.cobre.notifications.domain.NotificationEvent;
+import co.cobre.notifications.domain.fixtures.NotificationEvents;
 import co.cobre.notifications.infrastructure.persistence.NotificationEventRepositoryAdapter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,7 +15,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.Instant;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,9 +25,6 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class MeteredNotificationEventRepositoryTest {
-
-    private static final Instant OCCURRED_AT = Instant.parse("2025-01-01T10:00:00Z");
-    private static final Instant COMPLETED_AT = Instant.parse("2025-01-01T10:05:00Z");
 
     @Mock
     private NotificationEventRepositoryAdapter delegate;
@@ -107,18 +104,11 @@ class MeteredNotificationEventRepositoryTest {
     }
 
     private NotificationEvent eventWithStatus(DeliveryStatus status) {
-        var completedAt = Optional.of(COMPLETED_AT).filter(at -> status == DeliveryStatus.COMPLETED);
-        return new NotificationEvent(
-            eventId,
-            clientId,
-            eventKey,
-            "content",
-            OCCURRED_AT,
-            OCCURRED_AT,
-            status,
-            Optional.of("SUB001"),
-            0,
-            completedAt
-        );
+        return NotificationEvents.aPendingEvent()
+            .withEventId(eventId)
+            .withClientId(clientId)
+            .withEventKey(eventKey)
+            .withStatus(status)
+            .build();
     }
 }

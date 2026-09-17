@@ -1,6 +1,7 @@
 package co.cobre.notifications.infrastructure.security;
 
 import co.cobre.notifications.domain.ClientId;
+import co.cobre.notifications.domain.fixtures.Clocks;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -8,7 +9,6 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.context.request.NativeWebRequest;
 
-import java.time.Instant;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -88,8 +88,8 @@ class AuthenticatedClientArgumentResolverTest {
     private Jwt createJwt(String clientId) {
         return new Jwt(
             "token",
-            Instant.now(),
-            Instant.now().plusSeconds(3600),
+            Clocks.NOW,
+            Clocks.NOW.plusSeconds(3600),
             Map.of("alg", "HS256"),
             Map.of("sub", clientId)
         );

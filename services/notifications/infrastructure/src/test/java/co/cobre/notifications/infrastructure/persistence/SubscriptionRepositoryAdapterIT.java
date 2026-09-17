@@ -2,10 +2,15 @@ package co.cobre.notifications.infrastructure.persistence;
 
 import co.cobre.notifications.domain.ClientId;
 import co.cobre.notifications.domain.EventKey;
+import co.cobre.notifications.domain.WebhookUrl;
+import co.cobre.notifications.domain.fixtures.Clocks;
+import co.cobre.notifications.domain.fixtures.Subscriptions;
+import co.cobre.notifications.infrastructure.fixtures.Entities;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import java.time.Instant;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -77,15 +82,16 @@ class SubscriptionRepositoryAdapterIT extends PersistenceTestSupport {
     }
 
     private SubscriptionEntity createAndSave(String id, String clientId, String[] eventKeys, boolean active) {
-        var entity = new SubscriptionEntity();
-        entity.setId(id);
-        entity.setClientId(clientId);
-        entity.setEventKeys(eventKeys);
-        entity.setUrl("https://example.test/webhook");
-        entity.setDescription("Test subscription");
-        entity.setEventSignatureKey("sig-key");
-        entity.setActive(active);
-        entity.setCreatedAt(Instant.now());
-        return jpaRepository.save(entity);
+        var domain = Subscriptions.aSubscription()
+            .withId(id)
+            .withClientId(new ClientId(clientId))
+            .withEventKeys(Arrays.stream(eventKeys).map(EventKey::new).collect(Collectors.toSet()))
+            .withUrl(WebhookUrl.of("https://example.test/webhook"))
+            .withDescription("Test subscription")
+            .withSignatureKey("sig-key")
+            .withActive(active)
+            .withCreatedAt(Clocks.NOW)
+            .build();
+        return jpaRepository.save(Entities.subscription(domain));
     }
 }

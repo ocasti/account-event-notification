@@ -1,11 +1,10 @@
 package co.cobre.simulator;
 
+import co.cobre.simulator.fixtures.Clocks;
+import co.cobre.simulator.fixtures.ReferenceEvents;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneId;
 import java.util.random.RandomGenerator;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -14,30 +13,22 @@ class EventGeneratorTest {
 
     private final EventCatalog catalog = Mockito.mock(EventCatalog.class);
     private final RandomGenerator random = RandomGenerator.of("Random");
-    private final Clock clock = Clock.fixed(Instant.parse("2025-01-15T10:00:00Z"), ZoneId.of("UTC"));
-    private final EventGenerator generator = new EventGenerator(catalog, random, clock);
-
-    private ReferenceEvent aTemplateReferenceEvent() {
-        return new ReferenceEvent(
-            "EVT001", "credit_card_payment", "CLIENT001",
-            "Test payment", Instant.parse("2024-03-15T09:30:22Z")
-        );
-    }
+    private final EventGenerator generator = new EventGenerator(catalog, random, Clocks.fixed());
 
     @Test
     void shouldPreserveClientTypeAndContentWhenEventGeneratorDerivesFromTemplate() {
-        Mockito.when(catalog.pick(random)).thenReturn(aTemplateReferenceEvent());
+        Mockito.when(catalog.pick(random)).thenReturn(ReferenceEvents.evt001());
 
         ReferenceEvent derived = generator.derive();
 
         assertThat(derived.clientId()).isEqualTo("CLIENT001");
         assertThat(derived.eventType()).isEqualTo("credit_card_payment");
-        assertThat(derived.content()).isEqualTo("Test payment");
+        assertThat(derived.content()).isEqualTo("Credit card payment received for $150.00");
     }
 
     @Test
     void shouldGenerateEventIdWithEvtPrefixWhenEventGeneratorDerives() {
-        Mockito.when(catalog.pick(random)).thenReturn(aTemplateReferenceEvent());
+        Mockito.when(catalog.pick(random)).thenReturn(ReferenceEvents.evt001());
 
         ReferenceEvent derived = generator.derive();
 
@@ -47,21 +38,21 @@ class EventGeneratorTest {
 
     @Test
     void shouldSetOccurredAtFromClockWhenEventGeneratorDerives() {
-        Mockito.when(catalog.pick(random)).thenReturn(aTemplateReferenceEvent());
+        Mockito.when(catalog.pick(random)).thenReturn(ReferenceEvents.evt001());
 
         ReferenceEvent derived = generator.derive();
 
-        assertThat(derived.occurredAt()).isEqualTo(Instant.parse("2025-01-15T10:00:00Z"));
+        assertThat(derived.occurredAt()).isEqualTo(Clocks.NOW);
     }
 
     @Test
     void shouldGenerateDifferentEventIdsWhenEventGeneratorDerivesTwiceConsecutively() {
-        Mockito.when(catalog.pick(random)).thenReturn(aTemplateReferenceEvent());
+        Mockito.when(catalog.pick(random)).thenReturn(ReferenceEvents.evt001());
 
-        ReferenceEvent derived1 = generator.derive();
-        ReferenceEvent derived2 = generator.derive();
+        ReferenceEvent initialDerivation = generator.derive();
+        ReferenceEvent subsequentDerivation = generator.derive();
 
-        assertThat(derived1.eventId()).isNotEqualTo(derived2.eventId());
+        assertThat(initialDerivation.eventId()).isNotEqualTo(subsequentDerivation.eventId());
     }
 
     @Test
@@ -71,7 +62,7 @@ class EventGeneratorTest {
         assertThat(event.clientId()).isEqualTo("CLIENT456");
         assertThat(event.eventType()).isEqualTo("account.updated");
         assertThat(event.content()).isEqualTo("Account updated");
-        assertThat(event.occurredAt()).isEqualTo(Instant.parse("2025-01-15T10:00:00Z"));
+        assertThat(event.occurredAt()).isEqualTo(Clocks.NOW);
     }
 
     @Test

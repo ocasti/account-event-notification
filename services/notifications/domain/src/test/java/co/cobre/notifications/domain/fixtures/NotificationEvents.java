@@ -66,7 +66,7 @@ public final class NotificationEvents {
         private Instant createdAt = Clocks.NOW;
         private DeliveryStatus status = DeliveryStatus.PENDING;
         private int cycle;
-        private String subscriptionId = SUBSCRIPTION_ID;
+        private Optional<String> subscriptionId = Optional.of(SUBSCRIPTION_ID);
 
         private Builder() {
         }
@@ -96,13 +96,23 @@ public final class NotificationEvents {
             return this;
         }
 
+        public Builder withContent(String content) {
+            this.content = content;
+            return this;
+        }
+
+        public Builder withoutSubscription() {
+            this.subscriptionId = Optional.empty();
+            return this;
+        }
+
         public Builder withCycle(int cycle) {
             this.cycle = cycle;
             return this;
         }
 
         public Builder withSubscriptionId(String subscriptionId) {
-            this.subscriptionId = subscriptionId;
+            this.subscriptionId = Optional.of(subscriptionId);
             return this;
         }
 
@@ -115,7 +125,7 @@ public final class NotificationEvents {
                 createdAt,
                 Clocks.NOW,
                 status,
-                Optional.of(subscriptionId),
+                subscriptionId,
                 cycle,
                 deliveredAt()
             );

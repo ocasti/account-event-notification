@@ -3,14 +3,13 @@ package co.cobre.notifications.infrastructure.webhook;
 import co.cobre.notifications.domain.ClientId;
 import co.cobre.notifications.domain.EventId;
 import co.cobre.notifications.domain.EventKey;
-import co.cobre.notifications.domain.NotificationEvent;
-import org.junit.jupiter.api.Test;
+import co.cobre.notifications.domain.fixtures.NotificationEvents;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -26,18 +25,14 @@ class WebhookPayloadMapperTest {
 
     @Test
     void shouldIncludeRequiredFieldsWhenMappingEventToJson() {
-        var event = new NotificationEvent(
-            new EventId("event-123"),
-            new ClientId("client-456"),
-            new EventKey("user.created"),
-            "{\"name\":\"John\"}",
-            Instant.parse("2025-09-15T10:00:00Z"),
-            Instant.parse("2025-09-15T10:00:01Z"),
-            co.cobre.notifications.domain.DeliveryStatus.PENDING,
-            Optional.of("sub-789"),
-            0,
-            Optional.empty()
-        );
+        var event = NotificationEvents.aPendingEvent()
+            .withEventId(new EventId("event-123"))
+            .withClientId(new ClientId("client-456"))
+            .withEventKey(new EventKey("user.created"))
+            .withContent("{\"name\":\"John\"}")
+            .withCreatedAt(Instant.parse("2025-09-15T10:00:00Z"))
+            .withSubscriptionId("sub-789")
+            .build();
 
         var json = mapper.toJson(event);
 
@@ -50,42 +45,21 @@ class WebhookPayloadMapperTest {
         );
     }
 
+    /**
+     * "Compact" means no pretty-printing (no newlines, no space after {@code :} or {@code ,}),
+     * not that no field value may contain a space — {@code NotificationEvents.pending()}'s
+     * content is "Credit card payment received for $150.00".
+     */
     @Test
     void shouldProduceCompactJsonWhenMappingEventToJson() {
-        var event = new NotificationEvent(
-            new EventId("event-1"),
-            new ClientId("client-2"),
-            new EventKey("test"),
-            "content",
-            Instant.parse("2025-09-15T10:00:00Z"),
-            Instant.parse("2025-09-15T10:00:01Z"),
-            co.cobre.notifications.domain.DeliveryStatus.PENDING,
-            Optional.empty(),
-            0,
-            Optional.empty()
-        );
+        var json = mapper.toJson(NotificationEvents.pending());
 
-        var json = mapper.toJson(event);
-
-        assertThat(json).doesNotContain(" ", "\n", "\r");
+        assertThat(json).doesNotContain("\n", "\r", ": ", ", ");
     }
 
     @Test
     void shouldMaintainFieldOrderWhenMappingEventToJson() {
-        var event = new NotificationEvent(
-            new EventId("event-1"),
-            new ClientId("client-2"),
-            new EventKey("test"),
-            "content",
-            Instant.parse("2025-09-15T10:00:00Z"),
-            Instant.parse("2025-09-15T10:00:01Z"),
-            co.cobre.notifications.domain.DeliveryStatus.PENDING,
-            Optional.empty(),
-            0,
-            Optional.empty()
-        );
-
-        var json = mapper.toJson(event);
+        var json = mapper.toJson(NotificationEvents.pending());
         var idIdx = json.indexOf("\"id\"");
         var eventKeyIdx = json.indexOf("\"event_key\"");
         var clientIdIdx = json.indexOf("\"client_id\"");
