@@ -7,6 +7,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -26,29 +27,29 @@ class EmissionSchedulerTest {
     @Mock
     private SqsEventPublisher publisher;
 
+    private SimulatorProperties propertiesWithEmissionActive() {
+        return new SimulatorProperties(null, Duration.ofSeconds(2), true, "test-queue");
+    }
+
+    private List<ReferenceEvent> tenReferenceEvents() {
+        return List.of(
+            new ReferenceEvent("EVT001", "type1", "client1", "content1", Instant.now()),
+            new ReferenceEvent("EVT002", "type2", "client2", "content2", Instant.now()),
+            new ReferenceEvent("EVT003", "type3", "client3", "content3", Instant.now()),
+            new ReferenceEvent("EVT004", "type4", "client1", "content4", Instant.now()),
+            new ReferenceEvent("EVT005", "type5", "client2", "content5", Instant.now()),
+            new ReferenceEvent("EVT006", "type6", "client3", "content6", Instant.now()),
+            new ReferenceEvent("EVT007", "type7", "client1", "content7", Instant.now()),
+            new ReferenceEvent("EVT008", "type8", "client2", "content8", Instant.now()),
+            new ReferenceEvent("EVT009", "type9", "client3", "content9", Instant.now()),
+            new ReferenceEvent("EVT010", "type10", "client1", "content10", Instant.now())
+        );
+    }
+
     @Test
-    void emitReferencePublishesAllTenWhenActiveOnStart() {
-        SimulatorProperties properties = new SimulatorProperties(
-            null,
-            Duration.ofSeconds(2),
-            true,
-            "test-queue"
-        );
-        when(catalog.all()).thenReturn(
-            java.util.List.of(
-                new ReferenceEvent("EVT001", "type1", "client1", "content1", Instant.now()),
-                new ReferenceEvent("EVT002", "type2", "client2", "content2", Instant.now()),
-                new ReferenceEvent("EVT003", "type3", "client3", "content3", Instant.now()),
-                new ReferenceEvent("EVT004", "type4", "client1", "content4", Instant.now()),
-                new ReferenceEvent("EVT005", "type5", "client2", "content5", Instant.now()),
-                new ReferenceEvent("EVT006", "type6", "client3", "content6", Instant.now()),
-                new ReferenceEvent("EVT007", "type7", "client1", "content7", Instant.now()),
-                new ReferenceEvent("EVT008", "type8", "client2", "content8", Instant.now()),
-                new ReferenceEvent("EVT009", "type9", "client3", "content9", Instant.now()),
-                new ReferenceEvent("EVT010", "type10", "client1", "content10", Instant.now())
-            )
-        );
-        EmissionScheduler scheduler = new EmissionScheduler(catalog, generator, publisher, properties);
+    void shouldPublishAllTenReferenceEventsWhenEmissionSchedulerEmitsReferenceOnActiveStart() {
+        when(catalog.all()).thenReturn(tenReferenceEvents());
+        EmissionScheduler scheduler = new EmissionScheduler(catalog, generator, publisher, propertiesWithEmissionActive());
 
         scheduler.emitReference();
 
@@ -56,13 +57,8 @@ class EmissionSchedulerTest {
     }
 
     @Test
-    void emitReferencePublishesNothingWhenInactive() {
-        SimulatorProperties properties = new SimulatorProperties(
-            null,
-            Duration.ofSeconds(2),
-            false,
-            "test-queue"
-        );
+    void shouldPublishNothingWhenEmissionSchedulerEmitsReferenceWhileInactive() {
+        SimulatorProperties properties = new SimulatorProperties(null, Duration.ofSeconds(2), false, "test-queue");
         EmissionScheduler scheduler = new EmissionScheduler(catalog, generator, publisher, properties);
 
         scheduler.emitReference();
@@ -71,16 +67,10 @@ class EmissionSchedulerTest {
     }
 
     @Test
-    void emitDerivedPublishesOneEvent() {
-        SimulatorProperties properties = new SimulatorProperties(
-            null,
-            Duration.ofSeconds(2),
-            true,
-            "test-queue"
-        );
+    void shouldPublishOneDerivedEventWhenEmissionSchedulerEmitsDerived() {
         ReferenceEvent derived = new ReferenceEvent("EVT-NEWID", "type", "client", "content", Instant.now());
         when(generator.derive()).thenReturn(derived);
-        EmissionScheduler scheduler = new EmissionScheduler(catalog, generator, publisher, properties);
+        EmissionScheduler scheduler = new EmissionScheduler(catalog, generator, publisher, propertiesWithEmissionActive());
 
         scheduler.emitDerived();
 

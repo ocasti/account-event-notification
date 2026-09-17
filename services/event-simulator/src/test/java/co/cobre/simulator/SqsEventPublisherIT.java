@@ -45,9 +45,10 @@ class SqsEventPublisherIT {
     @Autowired
     private SqsEventPublisher publisher;
 
+    private final JsonMapper mapper = JsonMapper.builder().build();
+
     @Test
-    void publishLeavesMessageInQueueWithCorrectContract() throws Exception {
-        JsonMapper mapper = JsonMapper.builder().build();
+    void shouldLeaveReferenceEventMessageInQueueWithCorrectContractWhenSqsEventPublisherPublishes() throws Exception {
         ReferenceEvent event = new ReferenceEvent(
             "EVT001",
             "credit_card_payment",
@@ -62,13 +63,12 @@ class SqsEventPublisherIT {
         assertThat(messageOpt).isPresent();
         Message<?> message = messageOpt.get();
         assertThat(message.getPayload()).isNotNull();
-
-        String payload = message.getPayload().toString();
-        Map<String, Object> parsed = mapper.readValue(payload, Map.class);
-        assertThat(parsed.get("event_id")).isEqualTo("EVT001");
-        assertThat(parsed.get("event_type")).isEqualTo("credit_card_payment");
-        assertThat(parsed.get("client_id")).isEqualTo("CLIENT001");
-        assertThat(parsed.get("content")).isEqualTo("Payment received");
-        assertThat(parsed.get("occurred_at")).isEqualTo("2024-03-15T09:30:22Z");
+        Map<String, Object> parsed = mapper.readValue(message.getPayload().toString(), Map.class);
+        assertThat(parsed)
+            .containsEntry("event_id", "EVT001")
+            .containsEntry("event_type", "credit_card_payment")
+            .containsEntry("client_id", "CLIENT001")
+            .containsEntry("content", "Payment received")
+            .containsEntry("occurred_at", "2024-03-15T09:30:22Z");
     }
 }

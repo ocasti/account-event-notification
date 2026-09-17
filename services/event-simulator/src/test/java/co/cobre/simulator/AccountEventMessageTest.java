@@ -12,15 +12,19 @@ class AccountEventMessageTest {
 
     private final ObjectMapper mapper = new ObjectMapper();
 
-    @Test
-    void fromMappesFiveFieldsCorrectly() {
-        ReferenceEvent event = new ReferenceEvent(
+    private ReferenceEvent aReferenceEvent() {
+        return new ReferenceEvent(
             "EVT001",
             "credit_card_payment",
             "CLIENT001",
             "Payment received",
             Instant.parse("2024-03-15T09:30:22Z")
         );
+    }
+
+    @Test
+    void shouldMapAllFiveFieldsWhenBuildingAccountEventMessageFromReferenceEvent() {
+        ReferenceEvent event = aReferenceEvent();
 
         AccountEventMessage message = AccountEventMessage.from(event);
 
@@ -32,15 +36,8 @@ class AccountEventMessageTest {
     }
 
     @Test
-    void jsonSerializationUsesSnakeCaseForAllFields() throws Exception {
-        ReferenceEvent event = new ReferenceEvent(
-            "EVT001",
-            "credit_card_payment",
-            "CLIENT001",
-            "Payment received",
-            Instant.parse("2024-03-15T09:30:22Z")
-        );
-        AccountEventMessage message = AccountEventMessage.from(event);
+    void shouldSerializeAccountEventMessageFieldsInSnakeCaseWhenWritingJson() throws Exception {
+        AccountEventMessage message = AccountEventMessage.from(aReferenceEvent());
 
         String json = mapper.writeValueAsString(message);
         Map<String, Object> parsed = mapper.readValue(json, Map.class);
@@ -50,15 +47,8 @@ class AccountEventMessageTest {
     }
 
     @Test
-    void jsonOccurredAtIsIso8601UtcFormat() throws Exception {
-        ReferenceEvent event = new ReferenceEvent(
-            "EVT001",
-            "credit_card_payment",
-            "CLIENT001",
-            "Payment received",
-            Instant.parse("2024-03-15T09:30:22Z")
-        );
-        AccountEventMessage message = AccountEventMessage.from(event);
+    void shouldSerializeAccountEventMessageOccurredAtAsIso8601UtcWhenWritingJson() throws Exception {
+        AccountEventMessage message = AccountEventMessage.from(aReferenceEvent());
 
         String json = mapper.writeValueAsString(message);
         Map<String, Object> parsed = mapper.readValue(json, Map.class);
