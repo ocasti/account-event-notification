@@ -6,6 +6,7 @@ import co.cobre.notifications.domain.DeliveryAttempt;
 import co.cobre.notifications.domain.NotificationEvent;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -64,7 +65,7 @@ public class NotificationEventResponseMapper {
             attempt.executedAt(),
             attempt.responseStatus(),
             attempt.failureReason(),
-            attempt.latency().map(d -> d.toMillis()),
+            attempt.latency().map(Duration::toMillis),
             attempt.origin().toString().toLowerCase()
         );
     }

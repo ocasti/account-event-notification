@@ -12,8 +12,7 @@ public enum DeliveryStatus {
 
     public boolean canTransitionTo(DeliveryStatus target) {
         return switch (this) {
-            case PENDING -> target == COMPLETED || target == RETRYING || target == FAILED;
-            case RETRYING -> target == COMPLETED || target == RETRYING || target == FAILED;
+            case PENDING, RETRYING -> target == COMPLETED || target == RETRYING || target == FAILED;
             case FAILED -> target == PENDING;
             case COMPLETED, SKIPPED -> false;
         };
