@@ -63,17 +63,18 @@ groups:
           summary: "Backlog of due delivery attempts sustained for 5 minutes ({{ $value }} due)"
           runbook: "Scale up notifications-worker replicas or check Postgres health/load."
 
-      # 2. "A client's failure rate above 20% with at least 50 deliveries over 10 minutes".
-      #    BLOCKED today: see header (notifications_deliveries_total is never populated).
+      # 2. "A client's failure rate above 20% with at least 50 final outcomes over 10 minutes".
+      #    notifications_deliveries_total counts state transitions (completed, retrying, failed);
+      #    the ratio uses final outcomes only, so retries do not inflate the failure rate.
       - alert: NotificationsClientFailureRateHigh
         expr: |
           (
             sum by (client_id) (increase(notifications_deliveries_total{status="failed"}[10m]))
             /
-            sum by (client_id) (increase(notifications_deliveries_total[10m]))
+            sum by (client_id) (increase(notifications_deliveries_total{status=~"completed|failed"}[10m]))
           ) > 0.20
           and
-          sum by (client_id) (increase(notifications_deliveries_total[10m])) >= 50
+          sum by (client_id) (increase(notifications_deliveries_total{status=~"completed|failed"}[10m])) >= 50
         for: 1m
         labels:
           severity: critical

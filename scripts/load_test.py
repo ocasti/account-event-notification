@@ -815,10 +815,28 @@ def load_tokens():
     return tokens
 
 
+RANDOM_FAIL_RATIO_MIN = 0.001
+RANDOM_FAIL_RATIO_MAX = 0.02
+
+
+def resolve_fail_ratio(raw):
+    """'random' draws a ratio in [0.1 %, 2 %], the range a real fleet of receivers shows on a bad day;
+    a numeric value is validated and used as is."""
+    if raw == "random":
+        return round(random.uniform(RANDOM_FAIL_RATIO_MIN, RANDOM_FAIL_RATIO_MAX), 4)
+    ratio = float(raw)
+    if not 0.0 <= ratio <= 1.0:
+        print("ERROR: --fail-ratio must be 'random' or a number between 0 and 1", file=sys.stderr)
+        sys.exit(1)
+    return ratio
+
+
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--events", type=int, default=2000, help="number of events to publish (default 2000)")
-    p.add_argument("--fail-ratio", type=float, default=0.10, help="fraction that must fail every attempt (default 0.10)")
+    p.add_argument("--fail-ratio", type=str, default="random",
+                   help="fraction of events made to fail every attempt; a number in [0, 1], or 'random' for a value "
+                        "drawn uniformly in [0.001, 0.02] per run (default random)")
     p.add_argument("--concurrency", type=int, default=8, help="publishing threads, batches of 10 (default 8)")
     p.add_argument("--timeout", type=int, default=300, help="seconds to wait for the backlog to drain (default 300)")
     p.add_argument("--max-replays", type=int, default=200,
@@ -862,14 +880,13 @@ def main():
     if args.events <= 0:
         print("ERROR: --events must be > 0", file=sys.stderr)
         sys.exit(1)
-    if not (0.0 <= args.fail_ratio <= 1.0):
-        print("ERROR: --fail-ratio must be between 0 and 1", file=sys.stderr)
-        sys.exit(1)
+    args.fail_ratio = resolve_fail_ratio(args.fail_ratio)
 
     run = args.run
     tokens = load_tokens()
 
     print(f"=== load_test run={run} events={args.events} fail_ratio={args.fail_ratio} "
+          f"(induced failures: {round(args.events * args.fail_ratio)}) "
           f"concurrency={args.concurrency} timeout={args.timeout}s ===")
 
     events = build_events(args.events, args.fail_ratio, run)

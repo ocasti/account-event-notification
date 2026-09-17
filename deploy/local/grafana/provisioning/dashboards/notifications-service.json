@@ -219,7 +219,7 @@
       "id": 3,
       "type": "stat",
       "title": "Success rate (range)",
-      "description": "Proportion of completed delivery attempts over the total attempts with a result (completed+failed+retrying) in the last hour. Computed over the time range selected in Grafana ($__range) and the client filter; recalculated when the range or client changes.",
+      "description": "Completed over final outcomes (completed + failed) in the selected range. notifications_deliveries_total counts state transitions, so retrying transitions are excluded: an event that fails after five attempts counts once as failed, not five times.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -237,7 +237,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(notifications_deliveries_total{client_id=~\"$client_id\",status=\"completed\"}[$__range])) / sum(increase(notifications_deliveries_total{client_id=~\"$client_id\"}[$__range]))",
+          "expr": "sum(increase(notifications_deliveries_total{client_id=~\"$client_id\",status=\"completed\"}[$__range])) / (sum(increase(notifications_deliveries_total{client_id=~\"$client_id\",status=\"completed\"}[$__range])) + sum(increase(notifications_deliveries_total{client_id=~\"$client_id\",status=\"failed\"}[$__range])))",
           "range": true
         }
       ],

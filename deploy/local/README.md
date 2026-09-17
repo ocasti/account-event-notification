@@ -127,7 +127,7 @@ The summary counters use `$__range`, i.e. the time range selected in Grafana, an
 |---|---|---|
 | Completed deliveries (range) | `sum(increase(notifications_deliveries_total{status="completed"}[$__range]))` | Attempts that finished successfully in the last hour. |
 | Failed deliveries (range) | `sum(increase(notifications_deliveries_total{status="failed"}[$__range]))` | Attempts that exhausted retries in the last hour. |
-| Success rate (range) | `sum(increase(...{status="completed"}[$__range])) / sum(increase(notifications_deliveries_total[$__range]))` | Ratio of completed attempts over the total with a final outcome. |
+| Success rate (range) | `sum(increase(...{status="completed"}[$__range])) / (sum(increase(...{status="completed"}[$__range])) + sum(increase(...{status="failed"}[$__range])))` | Completed over final outcomes. The counter records state transitions, so `retrying` is excluded: an event that fails after five attempts counts once as failed, not five times. |
 | Webhook latency p95 (range) | `histogram_quantile(0.95, sum by (le) (increase(notifications_webhook_latency_seconds_bucket[$__range])))` | p95 of the webhook POST, all clients. |
 | Overdue backlog (worker) | `max(notifications_attempts_due)` | Overdue attempts not claimed, in-memory gauge on the worker (max across replicas). |
 | Events by status (Postgres) | `cobre_events_by_status` | Current count of `notification_events` by `status`, from the database (not from the worker). |
@@ -305,7 +305,7 @@ resources), eleven in total:
 | Alarm | Condition | Action (runbook) |
 |---|---|---|
 | `NotificationsAttemptsDueBacklog` | `max(notifications_attempts_due) > 1500` for 5 min (~30 s of work for one worker at 50 attempts/tick) | Scale workers or check Postgres |
-| `NotificationsClientFailureRateHigh` | Failure rate by client > 20% with >= 50 deliveries in 10 min | Notify the client, its endpoint is degraded |
+| `NotificationsClientFailureRateHigh` | Failed over final outcomes (`completed` + `failed`) per client > 20 % with at least 50 outcomes in 10 min | Warn the client, its endpoint is degraded |
 | `NotificationsAttemptsDueMetricMissing` | `absent(notifications_attempts_due)` for 2 min | No worker is alive; restart |
 | `NotificationsLeaseExpirationsHigh` | Expired leases > 10/min for 5 min | POSTs take longer than the lease; check timeouts |
 | `NotificationsErrorLogRateHigh` | `rate(logback_events_total{level="error"}[5m]) > 0.5` for 5 min, by `job` | Check the logs of the affected job |
@@ -355,7 +355,7 @@ monitoring reflects what happened. It runs inside a `python:3.12-alpine` contain
    request journal, and registers a temporary priority-1 stub that returns 503
    for the events marked as failures for this run.
 2. Publishes `--events` events (`LOAD-<run>-<n>` for the ones that should complete, `LOAD-<run>-F-<n>` the
-   ones that should fail; `--fail-ratio` sets the proportion), spreading client (`CLIENT001..3`) and
+   ones that should fail; `--fail-ratio` sets the proportion: a number, or `random`, the default, which draws a value between 0.1 % and 2 % per run, the order of magnitude a real fleet of receivers shows on a bad day; the chosen value and the number of induced failures are printed in the run header), spreading client (`CLIENT001..3`) and
    type (`credit_deposit`, `debit_purchase`, `credit_transfer`) round-robin, in batches of 10
    (`SendMessageBatch`) with `--concurrency` threads publishing in parallel.
 3. Waits for the backlog to drain **without** querying each id per round: with 50,000 events, a
@@ -425,7 +425,7 @@ limit).
 
 ```bash
 make load                                          # 2000 events, 10% failure, 20 req/s of API
-make load EVENTS=200 FAIL_RATIO=0.20 TIMEOUT=120    # explicit parameters
+make load EVENTS=200 FAIL_RATIO=0.20 TIMEOUT=120    # explicit parameters (FAIL_RATIO=random by default)
 make load CONCURRENCY=16                            # more publishing threads
 make load API_RPS=0                                 # no REST load phase
 make load API_RPS=50 API_CLIENTS=8                  # more load on the REST API
