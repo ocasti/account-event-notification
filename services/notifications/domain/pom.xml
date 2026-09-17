@@ -14,6 +14,32 @@
   <name>domain</name>
   <description>Pure Java domain model: NotificationEvent, Subscription, DeliveryAttempt, RetryPolicy. No framework dependencies.</description>
 
-  <!-- Intentionally empty: the domain depends on nothing but the JDK.
-       The shared test toolkit (JUnit 5, AssertJ, Mockito) is inherited from the parent. -->
+  <!-- Aside from the test toolkit inherited from the parent (JUnit 5, AssertJ, Mockito),
+       ArchUnit checks test-code conventions and the domain depends on nothing but the JDK. -->
+  <dependencies>
+    <dependency>
+      <groupId>com.tngtech.archunit</groupId>
+      <artifactId>archunit-junit5</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- Publishes domain/src/test as a test-jar so application and infrastructure can reuse
+           the shared fixtures (co.cobre.notifications.domain.fixtures) in their own tests. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>test-jar</id>
+            <goals>
+              <goal>test-jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>
