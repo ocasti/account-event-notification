@@ -1,25 +1,24 @@
 package co.cobre.notifications.domain;
 
-import org.junit.jupiter.api.Test;
-
 import java.time.Duration;
-import java.time.Instant;
-import java.util.Optional;
+
+import co.cobre.notifications.domain.fixtures.Clocks;
+import co.cobre.notifications.domain.fixtures.DeliveryOutcomes;
+import co.cobre.notifications.domain.fixtures.Ids;
+
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class DeliveryAttemptTest {
 
-    private final EventId eventId = new EventId("event-1");
-    private final Instant now = Instant.parse("2024-01-01T00:00:00Z");
-
     @Test
     void shouldSetAttemptNumberOneWhenCreatingFirstAttempt() {
-        var attempt = DeliveryAttempt.first(eventId, 0, now, AttemptOrigin.SYSTEM);
+        var attempt = DeliveryAttempt.first(Ids.EVT_001, 0, Clocks.NOW, AttemptOrigin.SYSTEM);
 
         assertThat(attempt.attemptNumber()).isOne();
         assertThat(attempt.cycle()).isZero();
-        assertThat(attempt.nextAttemptAt()).isEqualTo(now);
+        assertThat(attempt.nextAttemptAt()).isEqualTo(Clocks.NOW);
         assertThat(attempt.claimedAt()).isEmpty();
         assertThat(attempt.claimedBy()).isEmpty();
         assertThat(attempt.executedAt()).isEmpty();
@@ -31,16 +30,16 @@ class DeliveryAttemptTest {
 
     @Test
     void shouldSetEventIdAndCycleWhenCreatingFirstAttempt() {
-        var attempt = DeliveryAttempt.first(eventId, 2, now, AttemptOrigin.SYSTEM);
+        var attempt = DeliveryAttempt.first(Ids.EVT_001, 2, Clocks.NOW, AttemptOrigin.SYSTEM);
 
-        assertThat(attempt.eventId()).isEqualTo(eventId);
+        assertThat(attempt.eventId()).isEqualTo(Ids.EVT_001);
         assertThat(attempt.cycle()).isEqualTo(2);
     }
 
     @Test
     void shouldIncrementAttemptNumberWhenCreatingNextAttempt() {
-        var first = DeliveryAttempt.first(eventId, 0, now, AttemptOrigin.SYSTEM);
-        var nextInstant = now.plusSeconds(30);
+        var first = DeliveryAttempt.first(Ids.EVT_001, 0, Clocks.NOW, AttemptOrigin.SYSTEM);
+        var nextInstant = Clocks.NOW.plusSeconds(30);
 
         var next = first.next(nextInstant);
 
@@ -53,8 +52,8 @@ class DeliveryAttemptTest {
 
     @Test
     void shouldAssignDistinctIdWhenCreatingNextAttempt() {
-        var first = DeliveryAttempt.first(eventId, 0, now, AttemptOrigin.SYSTEM);
-        var nextInstant = now.plusSeconds(30);
+        var first = DeliveryAttempt.first(Ids.EVT_001, 0, Clocks.NOW, AttemptOrigin.SYSTEM);
+        var nextInstant = Clocks.NOW.plusSeconds(30);
 
         var next = first.next(nextInstant);
 
@@ -63,50 +62,32 @@ class DeliveryAttemptTest {
 
     @Test
     void shouldReportNotExecutedWhenExecutedAtIsEmpty() {
-        var attempt = DeliveryAttempt.first(eventId, 0, now, AttemptOrigin.SYSTEM);
+        var attempt = DeliveryAttempt.first(Ids.EVT_001, 0, Clocks.NOW, AttemptOrigin.SYSTEM);
 
         assertThat(attempt.isExecuted()).isFalse();
     }
 
     @Test
     void shouldReportExecutedWhenExecutedAtIsPresent() {
-        var attempt = DeliveryAttempt.first(eventId, 0, now, AttemptOrigin.SYSTEM);
-        var executedAtInstant = now.plusSeconds(5);
-        var executed = new DeliveryAttempt(
-            attempt.id(),
-            attempt.eventId(),
-            attempt.cycle(),
-            attempt.attemptNumber(),
-            attempt.nextAttemptAt(),
-            attempt.claimedAt(),
-            attempt.claimedBy(),
-            Optional.of(executedAtInstant),
-            attempt.responseStatus(),
-            attempt.failureReason(),
-            attempt.latency(),
-            attempt.origin()
-        );
+        var attempt = DeliveryAttempt.first(Ids.EVT_001, 0, Clocks.NOW, AttemptOrigin.SYSTEM);
+
+        var executed = attempt.executed(Clocks.NOW.plusSeconds(5), Ids.WORKER_1, DeliveryResult.of(DeliveryOutcomes.success()));
 
         assertThat(executed.isExecuted()).isTrue();
     }
 
     @Test
     void shouldRecordResultWhenAttemptIsExecuted() {
-        var attempt = DeliveryAttempt.first(eventId, 0, now, AttemptOrigin.SYSTEM);
-        var result = new DeliveryResult(
-            Optional.of(200),
-            Optional.empty(),
-            Optional.of(Duration.ofMillis(100))
-        );
-        var executedAtInstant = now.plusSeconds(5);
+        var attempt = DeliveryAttempt.first(Ids.EVT_001, 0, Clocks.NOW, AttemptOrigin.SYSTEM);
+        var executedAtInstant = Clocks.NOW.plusSeconds(5);
 
-        var executed = attempt.executed(executedAtInstant, "worker-1", result);
+        var executed = attempt.executed(executedAtInstant, Ids.WORKER_1, DeliveryResult.of(DeliveryOutcomes.success()));
 
         assertThat(executed.id()).isEqualTo(attempt.id());
         assertThat(executed.executedAt()).contains(executedAtInstant);
-        assertThat(executed.claimedBy()).contains("worker-1");
+        assertThat(executed.claimedBy()).contains(Ids.WORKER_1);
         assertThat(executed.responseStatus()).contains(200);
         assertThat(executed.failureReason()).isEmpty();
-        assertThat(executed.latency()).contains(Duration.ofMillis(100));
+        assertThat(executed.latency()).contains(Duration.ofMillis(120));
     }
 }
