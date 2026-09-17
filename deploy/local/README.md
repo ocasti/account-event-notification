@@ -127,7 +127,7 @@ The summary counters use `$__range`, i.e. the time range selected in Grafana, an
 |---|---|---|
 | Completed deliveries (range) | `sum(increase(notifications_deliveries_total{status="completed"}[$__range]))` | Attempts that finished successfully in the last hour. |
 | Failed deliveries (range) | `sum(increase(notifications_deliveries_total{status="failed"}[$__range]))` | Attempts that exhausted retries in the last hour. |
-| Success rate (range) | `sum(increase(...{status="completed"}[$__range])) / sum(increase(notifications_deliveries_total[$__range]))` | Ratio of completed attempts over the total with a final outcome. |
+| Success rate (range) | `sum(increase(...{status="completed"}[$__range])) / (sum(increase(...{status="completed"}[$__range])) + sum(increase(...{status="failed"}[$__range])))` | Completed over final outcomes. The counter records state transitions, so `retrying` is excluded: an event that fails after five attempts counts once as failed, not five times. |
 | Webhook latency p95 (range) | `histogram_quantile(0.95, sum by (le) (increase(notifications_webhook_latency_seconds_bucket[$__range])))` | p95 of the webhook POST, all clients. |
 | Overdue backlog (worker) | `max(notifications_attempts_due)` | Overdue attempts not claimed, in-memory gauge on the worker (max across replicas). |
 | Events by status (Postgres) | `cobre_events_by_status` | Current count of `notification_events` by `status`, from the database (not from the worker). |
@@ -305,7 +305,7 @@ resources), eleven in total:
 | Alarm | Condition | Action (runbook) |
 |---|---|---|
 | `NotificationsAttemptsDueBacklog` | `max(notifications_attempts_due) > 1500` for 5 min (~30 s of work for one worker at 50 attempts/tick) | Scale workers or check Postgres |
-| `NotificationsClientFailureRateHigh` | Failure rate by client > 20% with >= 50 deliveries in 10 min | Notify the client, its endpoint is degraded |
+| `NotificationsClientFailureRateHigh` | Failed over final outcomes (`completed` + `failed`) per client > 20 % with at least 50 outcomes in 10 min | Warn the client, its endpoint is degraded |
 | `NotificationsAttemptsDueMetricMissing` | `absent(notifications_attempts_due)` for 2 min | No worker is alive; restart |
 | `NotificationsLeaseExpirationsHigh` | Expired leases > 10/min for 5 min | POSTs take longer than the lease; check timeouts |
 | `NotificationsErrorLogRateHigh` | `rate(logback_events_total{level="error"}[5m]) > 0.5` for 5 min, by `job` | Check the logs of the affected job |
