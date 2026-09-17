@@ -1,15 +1,113 @@
 # account-event-notification
 
-Webhook delivery of account events with configurable retries, and a self-service API for clients to query and replay their own notifications. Hexagonal architecture, Java 21, Spring Boot, running locally on Docker Compose with a simulated event source and a production design targeting AWS.
+Webhook delivery of account events with configurable retries, and a self-service API for clients
+to query and replay their own notifications. Built for Cobre clients who need reliable,
+observable delivery of account events to their systems. Runs entirely on Docker Compose locally,
+with AWS (SQS, RDS Postgres, CloudWatch) as the target production design.
 
-Design document: `docs/01-system-design.html` (RFC, open in a browser). Security analysis: `docs/02-security.md`. AI usage log: `docs/03-ai-usage.md`. Local stack details: `deploy/local/README.md`.
+[![CI](https://github.com/ocasti/account-event-notification/actions/workflows/ci.yml/badge.svg)](https://github.com/ocasti/account-event-notification/actions/workflows/ci.yml)
+![Java](https://img.shields.io/badge/Java-21-orange)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1-brightgreen)
 
-## Requirements
+## Table of contents
 
-- Docker and the Docker Compose plugin. Nothing else is required to run the stack: both services build inside Docker, so no local Java or Maven installation is needed.
-- Java 21 only if you plan to develop against the code outside a container (run a module with `./mvnw`, use an IDE, run `make test`).
+- [How it works](#how-it-works)
+- [Repository layout](#repository-layout)
+- [Getting started](#getting-started)
+- [Try it](#try-it)
+- [API and contracts](#api-and-contracts)
+- [Observability](#observability)
+- [Load testing](#load-testing)
+- [Quality gates and tests](#quality-gates-and-tests)
+- [Design and decisions](#design-and-decisions)
+- [Services](#services)
 
-## Quick start
+## How it works
+
+```mermaid
+flowchart LR
+  emitter["Platform / event-simulator\n(local stand-in)"] -->|publishes event| queue[("SQS queue\naccount-events")]
+  queue -->|long polling| worker["notifications-worker"]
+  worker -->|"POST HTTPS + HMAC-SHA256"| webhook["Client webhook receiver"]
+  client["Cobre client"] -->|"GET list/detail, POST replay (JWT)"| api["notifications-api"]
+  api --- db[("PostgreSQL\nshared")]
+  worker --- db
+  api -.->|metrics| obs["Prometheus + Grafana"]
+  worker -.->|metrics| obs
+
+  style worker stroke:#B5602A,stroke-width:2px
+  style api stroke:#B5602A,stroke-width:2px
+```
+
+In production the platform's own event bus publishes to the queue directly; locally,
+`event-simulator` plays that role, replaying a reference dataset and then generating derived
+events on an interval. `notifications-worker` and `notifications-api` are the same codebase
+running as two Spring profiles of one image, sharing one PostgreSQL database.
+
+A delivery with one retry and a final success:
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant Q as Queue
+  participant W as notifications-worker
+  participant DB as PostgreSQL
+  participant C as Client webhook
+
+  Q->>W: consumes event (long polling)
+  W->>DB: register event PENDING + attempt #1
+  W->>C: POST HTTPS (attempt 1)
+  C-->>W: 503 Service Unavailable
+  W->>DB: attempt #1 = 503, schedule attempt #2 (backoff + jitter), status RETRYING
+  Note over W,DB: worker claims due attempts with SKIP LOCKED on its next tick
+  W->>C: POST HTTPS (attempt 2)
+  C-->>W: 200 OK
+  W->>DB: attempt #2 = 200, status COMPLETED
+```
+
+Every event is registered idempotently by `event_id`: a redelivered queue message with an id
+already on file is discarded as a duplicate, never re-registered. Delivery attempts live in their
+own table, claimed by the worker with `SELECT ... FOR UPDATE OF d SKIP LOCKED`, so multiple worker
+replicas compete for the same due attempts without double-delivering one. Failed attempts retry
+with exponential backoff and jitter: base delay 30 s, factor 4, capped at 15 minutes, ±20% jitter,
+5 attempts (about 26 minutes to `FAILED`); the local profile compresses this to a 2 s base and a
+10 s cap so the same five attempts finish in under a minute. Every outbound POST that has a signing
+key configured on the subscription carries an HMAC-SHA256 signature over the timestamp and body. A
+notification stuck in `FAILED` can be replayed through the self-service API, which opens a new
+delivery cycle without touching the event's original data.
+
+## Repository layout
+
+```
+services/
+  notifications/            Maven reactor of three modules, produces cobre/notifications
+    domain/                 Hexagon core: entities, state machine, retry policy (pure Java)
+    application/             Hexagon core: output ports and the five use cases (pure Java)
+    infrastructure/          Hexagon adapters: REST, JPA, SQS listener, webhook sender, security
+  event-simulator/          Stands in for the event-emitting platform (local only)
+deploy/
+  local/                    Compose stack: ElasticMQ, WireMock, Prometheus, Grafana, JWT keys
+docker/                     Dockerfiles for both images (build context: repository root)
+docs/                       RFC, security analysis, AI usage log, reference dataset, docs/api/
+scripts/                    preflight.sh, token.sh, load_test.py
+.github/                    CI workflow
+```
+
+- [`services/notifications`](services/notifications) — [`domain`](services/notifications/domain),
+  [`application`](services/notifications/application),
+  [`infrastructure`](services/notifications/infrastructure)
+- [`services/event-simulator`](services/event-simulator)
+- [`deploy/local`](deploy/local)
+- [`docker`](docker)
+- [`docs`](docs), [`docs/api`](docs/api)
+- [`scripts`](scripts)
+- [`.github`](.github)
+
+## Getting started
+
+**Requirements.** Docker and the Docker Compose plugin — both services build inside Docker, so no
+local Java or Maven installation is required. Java 21 only if developing against the code outside
+a container (running a module with `./mvnw`, using an IDE, `make test`).
 
 ```bash
 make preflight   # checks Docker, free ports and memory; creates .env from .env.example
@@ -17,24 +115,24 @@ make keys        # generates the RS256 key pair used to sign demo JWTs into depl
 make up          # builds and starts postgres, elasticmq, wiremock, api, worker, simulator
 ```
 
-## What `make up` starts
+| Container | What it is for | Published port |
+|---|---|---|
+| `postgres` | Single source of truth: `notification_events`, `delivery_attempts`, `subscriptions` | `${POSTGRES_PORT:-5432}` |
+| `elasticmq` | Queue with the SQS API; publishes the statistics UI used by the healthcheck | `${ELASTICMQ_UI_PORT:-9325}` |
+| `wiremock` | Webhook receiver for the demo: 200 by default, 503 for `EVT003`/`EVT005`/`EVT009` | `${WIREMOCK_PORT:-8089}` |
+| `notifications-api` | Self-service REST API (list, detail, replay), JWT-protected; runs the Flyway migrations | `${API_PORT:-8080}` |
+| `notifications-worker` | Consumes the queue, claims due delivery attempts, delivers webhooks with retries | none (scale with `--scale notifications-worker=N`) |
+| `event-simulator` | Stands in for the platform: replays the reference dataset and keeps emitting derived events | `${SIMULATOR_PORT:-8090}` |
 
-| Container | Image | Published port | What it is for |
-|---|---|---|---|
-| `postgres` | `postgres:16-alpine` | `${POSTGRES_PORT:-5432}` → 5432 | Single source of truth: `notification_events`, `delivery_attempts`, `subscriptions` |
-| `elasticmq` | `softwaremill/elasticmq-native:1.6.12` | `${ELASTICMQ_UI_PORT:-9325}` → 9325 | Queue with the SQS API (consumed internally on 9324); 9325 serves the statistics UI used by the healthcheck |
-| `wiremock` | `wiremock/wiremock:3.13.1` | `${WIREMOCK_PORT:-8089}` → 8080 | Webhook receiver for the demo: 200 by default, 503 for `EVT003`/`EVT005`/`EVT009`, and a slow mapping to exercise the read timeout |
-| `notifications-api` | `cobre/notifications:local`, profile `api` | `${API_PORT:-8080}` → 8080 | Self-service REST API (list, detail, replay), JWT-protected; runs the Flyway migrations |
-| `notifications-worker` | `cobre/notifications:local`, profile `worker` | none (scales with `--scale notifications-worker=N`) | Consumes the queue, claims due delivery attempts and delivers webhooks with retries |
-| `event-simulator` | `cobre/event-simulator:local` | `${SIMULATOR_PORT:-8090}` → 8080 | Stands in for the platform that emits events: replays the reference data set and keeps generating derived events |
-| `postgres-exporter` (only with `make up-all`) | `prometheuscommunity/postgres-exporter:v0.20.1` | none (scraped inside the network) | Exposes Postgres metrics for Prometheus |
-| `node-exporter` (only with `make up-all`) | `quay.io/prometheus/node-exporter:v1.8.2` | none (scraped inside the network) | Exposes host/VM-level metrics (CPU, memory, disk, network) for Prometheus; see `deploy/local/README.md` for why not per-container metrics under OrbStack |
-| `prometheus` (only with `make up-all`) | `prom/prometheus:latest` | `${PROMETHEUS_PORT:-9090}` → 9090 | Scrapes `/actuator/prometheus` from the api and every worker replica, plus `postgres-exporter` and `node-exporter` |
-| `grafana` (only with `make up-all`) | `grafana/grafana:latest` | `${GRAFANA_PORT:-3001}` → 3000 | Provisioned dashboard: delivery rate by status, webhook p95 by client, attempts due |
+`make up-all` adds `postgres-exporter`, `node-exporter`, `prometheus` (`${PROMETHEUS_PORT:-9090}`)
+and `grafana` (`${GRAFANA_PORT:-3001}`) for observability — see
+[Observability](#observability). Stop everything with `make down`.
 
-`make up` starts the first 6 rows (infra + app); `make up-all` starts all 10.
+Both services use Testcontainers for their integration tests, which needs a Docker socket that
+OrbStack does not expose at the default path — see
+[Quality gates and tests](#quality-gates-and-tests) for the one-time setup.
 
-## Demo flow
+## Try it
 
 Issue a JWT for a client (20-minute lifetime, RS256, `sub` claim carries the client id):
 
@@ -42,14 +140,12 @@ Issue a JWT for a client (20-minute lifetime, RS256, `sub` claim carries the cli
 make token CLIENT=CLIENT002
 ```
 
-List that client's notifications, filtering by `delivery_status`, a date range and paging by cursor:
+List that client's notifications, filtering by `delivery_status`, a date range and paging by
+cursor:
 
 ```bash
 TOKEN=$(make token CLIENT=CLIENT002)
 curl -sS "http://localhost:8080/notification_events?delivery_status=failed&from=2024-03-15T00:00:00Z&to=2024-03-16T00:00:00Z&limit=20" \
-  -H "Authorization: Bearer $TOKEN"
-# paginate with the cursor returned as next_cursor:
-curl -sS "http://localhost:8080/notification_events?limit=20&cursor=<next_cursor>" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -59,87 +155,79 @@ Get the detail of one event, including its delivery attempts:
 curl -sS "http://localhost:8080/notification_events/EVT005" -H "Authorization: Bearer $TOKEN"
 ```
 
-Replay a failed notification (opens a new delivery cycle, picked up by the worker on its next tick):
+Replay a failed notification (opens a new delivery cycle, picked up by the worker on its next
+tick):
 
 ```bash
 make replay ID=EVT005 CLIENT=CLIENT002   # 202 Accepted if delivery_status was failed
 make replay ID=EVT005 CLIENT=CLIENT002   # 409 Conflict on the second call: no longer failed
-make replay ID=EVT999 CLIENT=CLIENT002   # 404 Not Found: unknown id, or belongs to another client
 ```
 
-Emit one event manually through the simulator instead of waiting for the continuous emission:
+The reference dataset the simulator replays on startup has 10 events: 7 end `completed`, 3
+(`EVT003`, `EVT005`, `EVT009`) end `failed` because WireMock is mapped to answer those with 503,
+exercising the retry and `FAILED` path deterministically.
 
-```bash
-make emit CLIENT=CLIENT001 TYPE=credit_deposit
-```
+## API and contracts
 
-Count how many POSTs the worker sent to the WireMock receiver, to check delivery volume (for example after scaling workers):
+- [`docs/api/openapi.json`](docs/api/openapi.json) — the self-service REST API (list, detail,
+  replay); browse it live at Swagger UI (`make up`, profile `local`, `http://localhost:8080/swagger-ui/index.html`).
+- [`docs/api/asyncapi.yaml`](docs/api/asyncapi.yaml) — the `account-events` queue: the message the
+  worker consumes, and its dead-letter queue.
+- [`docs/api/webhook-contract.md`](docs/api/webhook-contract.md) — the outbound webhook the worker
+  sends to each client's receiver: headers, HMAC signature, retries, replay.
+- [`docs/api/README.md`](docs/api/README.md) — how to view each contract without running the
+  stack.
 
-```bash
-curl -sS -X POST "http://localhost:8089/__admin/requests/count" \
-  -H 'Content-Type: application/json' \
-  -d '{"method":"POST","urlPath":"/webhook"}'
-```
+## Observability
 
-Add Prometheus and Grafana to the stack:
+Prometheus and Grafana ship in the `observability` profile, with two provisioned dashboards
+(`Notifications`, four panels: delivery rate by status, webhook p95 by client, attempts due,
+failures by client; `Notifications · Service review`, nine rows covering Postgres load,
+deliveries, ingestion, errors, the HTTP API, the JVM and host resources), 12 Prometheus alerting
+rules, and `postgres-exporter` / `node-exporter` for database and host-level metrics. See
+[`deploy/local/README.md#what-to-look-at-in-grafana`](deploy/local/README.md#what-to-look-at-in-grafana)
+and [`deploy/local/README.md#alarms-deploylocalprometheusalertsyml`](deploy/local/README.md#alarms-deploylocalprometheusalertsyml).
 
-```bash
-make up-all
-# Grafana on http://localhost:${GRAFANA_PORT:-3001} (anonymous access, provisioned dashboard)
-```
-
-Run a load test against the stack (publishes events straight onto the queue, drains the backlog,
-and checks nothing was lost or double-delivered):
+## Load testing
 
 ```bash
 make load   # EVENTS=2000 FAIL_RATIO=0.10 CONCURRENCY=8 TIMEOUT=300 API_RPS=20 API_CLIENTS=4 by default
 ```
 
-## API documentation
+Publishes events straight onto the queue, drains the backlog, and checks nothing was lost or
+double-delivered, while a second phase load-tests the REST API. Reference results:
+[`deploy/local/README.md#load-test`](deploy/local/README.md#load-test).
 
-Three contracts, kept next to the code in [`docs/api/`](docs/api/):
-
-- [`docs/api/openapi.json`](docs/api/openapi.json) — the self-service REST API (list, detail,
-  replay), generated from the running code with `make openapi`.
-- [`docs/api/asyncapi.yaml`](docs/api/asyncapi.yaml) — the `account-events` queue: the message
-  the worker consumes and its dead-letter queue.
-- [`docs/api/webhook-contract.md`](docs/api/webhook-contract.md) — the outbound webhook the
-  worker sends to each client's receiver: headers, HMAC signature, retries, replay.
-
-[`docs/api/README.md`](docs/api/README.md) explains how to view each one. To browse the REST API
-against the running stack with Swagger UI (profile `local` only):
-
-```bash
-make up
-make token CLIENT=CLIENT002   # copy the token, then paste it into the "Authorize" dialog
-# open http://localhost:8080/swagger-ui/index.html
-```
-
-## Pointing at a real receiver
-
-Edit `WEBHOOK_URL` in `.env`, then:
-
-```bash
-make down && make up
-```
-
-A restart is required, not just a config reload: the seeded subscriptions' URL is baked into the Flyway migration `V2__initial_subscriptions.sql` as a placeholder resolved at migration time. `make down` removes the Postgres container (no persistent volume), so `make up` re-runs the migration with the new `WEBHOOK_URL` and the subscriptions are recreated pointing at the new receiver.
-
-## Running the tests
+## Quality gates and tests
 
 ```bash
 make test   # ./mvnw verify in services/notifications and services/event-simulator
 ```
 
-`verify` also runs two gates, locally and in CI: PMD (`pmd-ruleset.xml` in each service) fails the build on unused imports or private members, empty or generic catch blocks, lost stack traces, an `if` nested inside another `if`, methods above a small cyclomatic (8), cognitive (8) or NPath (50) complexity, and confusing ternaries, in production and test code alike; JaCoCo fails it when line coverage of any module drops below 100 % (the Spring Boot `main` is the only exclusion).
+| Module | Tests |
+|---|---|
+| `services/notifications/domain` | 118 |
+| `services/notifications/application` | 25 |
+| `services/notifications/infrastructure` | 220 |
+| `services/event-simulator` | 24 |
 
-Tests follow one shape: `should<Result>When<Condition>` names, given / when / then blocks separated by blank lines, one behaviour per test, no control flow inside a test (data is built by helpers, variants become `@ParameterizedTest` case tables with `@MethodSource`), and AssertJ collection assertions instead of loops.
+`verify` also runs, locally and in CI:
 
-Both modules use Testcontainers for the integration tests (`*IT`), so they need a Docker socket. On
-macOS with OrbStack, Testcontainers does not find the socket by itself (it looks for
-`/var/run/docker.sock`, which OrbStack does not create): the integration tests then error out and the
-IDE reports the rest of the class as ignored. Configure it once, user-wide, and both Maven and the IDE
-pick it up:
+- **PMD** (`pmd-ruleset.xml` in each service): fails the build on unused imports or private
+  members, empty or generic catch blocks, lost stack traces, an `if` nested inside another `if`,
+  methods above a small cyclomatic (8), cognitive (8) or NPath (50) complexity, and confusing
+  ternaries, in production and test code alike.
+- **JaCoCo**: fails the build when line coverage of any module drops below 100% (the Spring Boot
+  `main` method is the only exclusion).
+- **ArchUnit**: enforces the hexagonal layering (domain depends on nothing, application depends
+  only on domain, `@Entity` classes stay in `infrastructure.persistence`, `infrastructure.rest`
+  and `infrastructure.worker` stay isolated from each other) and test-naming conventions
+  (`should<Result>When<Condition>`).
+- **CI** (`.github/workflows/ci.yml`): `mvnw verify` for both services, Compose configuration
+  validation, and a build of both Docker images.
+
+Both modules use Testcontainers for `*IT` tests, which need a Docker socket. On macOS with
+OrbStack, Testcontainers does not find the socket by itself; configure it once:
 
 ```bash
 cat > ~/.testcontainers.properties <<'EOF'
@@ -148,36 +236,20 @@ ryuk.disabled=true
 EOF
 ```
 
-`ryuk.disabled=true` is required under OrbStack (the Ryuk reaper needs the Docker socket from inside a
-container, which OrbStack does not allow), so Testcontainers cannot remove its containers after a run;
-`make tc-clean` removes them. The environment-variable form
-(`DOCKER_HOST=unix://$HOME/.orbstack/run/docker.sock TESTCONTAINERS_RYUK_DISABLED=true make test`)
-still works for a one-off run. Neither is needed by `make up`, which uses Compose directly.
+`ryuk.disabled=true` is required under OrbStack (the Ryuk reaper needs the Docker socket from
+inside a container, which OrbStack does not allow); `make tc-clean` removes the containers Ryuk
+would otherwise have cleaned up.
 
-The delivery engine schedules and claims attempts with the database clock, so the Docker VM clock must match the host. After a laptop sleep, OrbStack or Docker Desktop can drift by hours; the symptom is a worker that claims nothing and time-based integration tests that hang or fail. `make preflight` checks the skew; if it reports one, restart the VM (`orbctl stop && orbctl start` on OrbStack).
+## Design and decisions
 
-## Repository structure
+- [`docs/01-system-design.html`](docs/01-system-design.html) — the RFC (architecture, sequences,
+  data model, decisions); open in a browser.
+- [`docs/02-security.md`](docs/02-security.md) — OWASP API Security Top 10 analysis against the
+  code.
+- [`docs/03-ai-usage.md`](docs/03-ai-usage.md) — AI usage log.
+- [`docs/case-description.pdf`](docs/case-description.pdf) — the original case description.
 
-```
-services/
-  notifications/            Maven reactor of three modules, produces cobre/notifications
-    domain/                 co.cobre.notifications.domain: entities, state machine, retry policy, value objects (pure Java, no Spring)
-    application/             co.cobre.notifications.application.port: output ports; .usecase: the five use cases (pure Java)
-    infrastructure/          co.cobre.notifications.infrastructure.{config,persistence,rest,security,webhook,worker}: Spring Boot adapters
-  event-simulator/          co.cobre.simulator: standalone Maven project, stands in for the event-emitting platform (local only)
-deploy/
-  local/                    compose.yaml plus ElasticMQ, WireMock, Prometheus, Grafana config and the generated JWT keys
-docker/                     notifications.Dockerfile and simulator.Dockerfile (build context: repository root)
-docs/                       RFC (01-system-design.html), security analysis (02-security.md), AI usage log (03-ai-usage.md), reference data set, api/ (OpenAPI, AsyncAPI, webhook contract)
-scripts/                    preflight.sh and token.sh
-```
+## Services
 
-Each service builds on its own: `cd services/notifications && ./mvnw verify` (or `services/event-simulator`). The `Makefile` runs both and drives Compose with `-f deploy/local/compose.yaml --env-file .env`.
-
-## Further reading
-
-- [`docs/01-system-design.html`](docs/01-system-design.html): the RFC (architecture, sequences, data model, decisions).
-- [`docs/02-security.md`](docs/02-security.md): OWASP API Security Top 10 analysis against the code.
-- [`docs/03-ai-usage.md`](docs/03-ai-usage.md): AI usage log.
-- [`deploy/local/README.md`](deploy/local/README.md): local stack reference (profiles, ports, WireMock scenarios, Grafana panels).
-- [`docs/api/`](docs/api/): OpenAPI (REST), AsyncAPI (`account-events` queue) and the outbound webhook contract.
+- [`services/notifications/README.md`](services/notifications/README.md)
+- [`services/event-simulator/README.md`](services/event-simulator/README.md)
