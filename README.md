@@ -131,7 +131,9 @@ A restart is required, not just a config reload: the seeded subscriptions' URL i
 make test   # ./mvnw verify in services/notifications and services/event-simulator
 ```
 
-`verify` also runs PMD (`pmd-ruleset.xml` in each service): unused imports, unused private members, empty or generic catch blocks and lost stack traces fail the build, locally and in CI.
+`verify` also runs two gates, locally and in CI: PMD (`pmd-ruleset.xml` in each service) fails the build on unused imports or private members, empty or generic catch blocks, lost stack traces, an `if` nested inside another `if`, methods above a small cyclomatic (8), cognitive (8) or NPath (50) complexity, and confusing ternaries, in production and test code alike; JaCoCo fails it when line coverage of any module drops below 100 % (the Spring Boot `main` is the only exclusion).
+
+Tests follow one shape: `should<Result>When<Condition>` names, given / when / then blocks separated by blank lines, one behaviour per test, no control flow inside a test (data is built by helpers, variants become `@ParameterizedTest` case tables with `@MethodSource`), and AssertJ collection assertions instead of loops.
 
 Both modules use Testcontainers for the integration tests (`*IT`), so they need a Docker socket. On
 macOS with OrbStack, Testcontainers does not find the socket by itself (it looks for
