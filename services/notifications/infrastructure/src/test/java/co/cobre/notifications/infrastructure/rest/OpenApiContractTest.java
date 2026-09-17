@@ -18,7 +18,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -137,27 +136,11 @@ class OpenApiContractTest extends BootTestSupport {
         return names;
     }
 
-    /**
-     * Walks the whole spec tree and collects every "name" value found under a "parameters"
-     * array, regardless of which operation it belongs to.
-     */
     private List<String> collectAllParameterNames(JsonNode spec) {
-        List<String> names = new java.util.ArrayList<>();
-        collectAllParameterNames(spec, names);
-        return names;
-    }
-
-    private void collectAllParameterNames(JsonNode node, List<String> names) {
-        if (node.isObject()) {
-            for (Map.Entry<String, JsonNode> entry : node.propertyStream().toList()) {
-                if ("parameters".equals(entry.getKey()) && entry.getValue().isArray()) {
-                    entry.getValue().forEach(p -> names.add(p.path("name").asString()));
-                } else {
-                    collectAllParameterNames(entry.getValue(), names);
-                }
-            }
-        } else if (node.isArray()) {
-            node.forEach(child -> collectAllParameterNames(child, names));
-        }
+        return spec.findValues("parameters").stream()
+            .filter(JsonNode::isArray)
+            .flatMap(JsonNode::valueStream)
+            .map(parameter -> parameter.path("name").asString())
+            .toList();
     }
 }
